@@ -1,5 +1,5 @@
 # CiThruS2 Simulation Environment
-Code will be released soon!
+Due to GitHub size limitations the code is available as an archive from our website: http://ultravideo.fi/sim_env/cithrus2_sim_env_20012022.7z. Updates will be handled on a major-feature-release -basis with no set pre-set schedule. 
 
 ## Paper
 If you are using CiThruS2 in your research, please refer to the following paper: 
