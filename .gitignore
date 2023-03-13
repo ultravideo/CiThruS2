@@ -90,6 +90,8 @@ DerivedDataCache/*
 # HervantaUE4.uproject
 
 RemoteControl/AirSim
+Plugins/AirSim
+!Plugins/AirSim/.gitkeep
 
 *.hevc
 
