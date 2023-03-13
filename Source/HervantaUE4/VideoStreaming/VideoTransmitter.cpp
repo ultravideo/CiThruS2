@@ -409,11 +409,13 @@ void AVideoTransmitter::EncodeAndTransmitFrame()
 		return;
 	}
 
+	uint8_t* data_ptr = encoded_frame;
+
 	kvz_data_chunk* previous_chunk = 0;
 	for (kvz_data_chunk* chunk = data_out; chunk != nullptr; chunk = chunk->next)
 	{
-		memcpy(encoded_frame, chunk->data, chunk->len);
-		encoded_frame += chunk->len;
+		memcpy(data_ptr, chunk->data, chunk->len);
+		data_ptr += chunk->len;
 		previous_chunk = chunk;
 	}
 	kvazaar_api->chunk_free(data_out);
