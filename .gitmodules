@@ -1,6 +1,0 @@
-[submodule "Submodules/uvgRTP"]
-	path = Submodules/uvgRTP
-	url = https://github.com/ultravideo/uvgRTP
-[submodule "Submodules/kvazaar"]
-	path = Submodules/kvazaar
-	url = https://github.com/ultravideo/kvazaar
