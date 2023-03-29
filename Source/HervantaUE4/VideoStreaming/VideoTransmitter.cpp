@@ -1,6 +1,14 @@
 #include "VideoTransmitter.h"
+
+// These come from some third-party include, but they break std::max and
+// std::min so they have to be undefined
+#undef max
+#undef min
+
 #include "../Debug.h"
+
 #include <string>
+#include <algorithm>
 
 AVideoTransmitter::AVideoTransmitter()
 {
@@ -50,6 +58,7 @@ void AVideoTransmitter::DeleteStreams()
 		vram_copy_cv.wait(lock);
 	}
 
+#ifndef CITHRUS_NO_KVAZAAR_OR_UVGRTP
 	if (stream)
 	{
 		stream_session->destroy_stream(stream);
@@ -61,6 +70,7 @@ void AVideoTransmitter::DeleteStreams()
 		stream_context.destroy_session(stream_session);
 		stream_session = nullptr;
 	}
+#endif
 
 	for (ID3D11Texture2D* render_target : d11_360_render_targets)
 	{
@@ -96,12 +106,12 @@ void AVideoTransmitter::DeleteStreams()
 void AVideoTransmitter::StartStreams()
 {
 	// Capturing below 16x16 causes corrupted graphics
-	transmit_frame_width = max(remote_stream_width, 16);
-	transmit_frame_height = max(remote_stream_height, 16);
+	transmit_frame_width = std::max(remote_stream_width, 16);
+	transmit_frame_height = std::max(remote_stream_height, 16);
 
 	transmit_360_video = enable_360_capture;
 	transmit_async = transmit_asynchronously;
-	thread_count = max(processing_thread_count, 1);
+	thread_count = std::max(processing_thread_count, 1);
 
 	if (transmit_360_video)
 	{
@@ -187,6 +197,7 @@ void AVideoTransmitter::StartStreams()
 
 	Debug::Log("rgba buffer initialized to the size of " + FString::FromInt(num_frames * transmit_frame_width * transmit_frame_height * 4));
 
+#ifndef CITHRUS_NO_KVAZAAR_OR_UVGRTP
 	stream_session = stream_context.create_session(TCHAR_TO_UTF8(*remote_stream_ip));
 	stream = stream_session->create_stream(remote_src_port, remote_dst_port, RTP_FORMAT_H265, RCE_NO_SYSTEM_CALL_CLUSTERING);
 
@@ -223,6 +234,7 @@ void AVideoTransmitter::StartStreams()
 
 	kvazaar_encoder = kvazaar_api->encoder_open(kvazaar_config);
 	kvazaar_transmit_picture = kvazaar_api->picture_alloc(transmit_frame_width, transmit_frame_height);
+#endif
 }
 
 void AVideoTransmitter::StartTransmit()
@@ -332,7 +344,7 @@ void AVideoTransmitter::ExtractFrameFromGPU()
 			ParallelFor(processing_thread_count, [&](int32 i)
 				{
 					const int thread_batch_start = thread_batch_size * i * desc.Height * 4;
-					const int thread_batch_end = min(thread_batch_size * (i + 1), desc.Width) * desc.Height * 4;
+					const int thread_batch_end = std::min(thread_batch_size * (i + 1), desc.Width) * desc.Height * 4;
 
 					memcpy(rgba_frame + thread_batch_start, static_cast<uint8_t*>(resource.pData) + thread_batch_start, thread_batch_end - thread_batch_start);
 				});
@@ -388,6 +400,7 @@ void AVideoTransmitter::EncodeAndTransmitFrame()
 
 	uint8_t* ptr = yuv_frame;
 
+#ifndef CITHRUS_NO_KVAZAAR_OR_UVGRTP
 	memcpy(kvazaar_transmit_picture->y, ptr, transmit_frame_width * transmit_frame_height);
 	ptr += transmit_frame_width * transmit_frame_height;
 	memcpy(kvazaar_transmit_picture->u, ptr, transmit_frame_width * transmit_frame_height >> 2);
@@ -435,6 +448,9 @@ void AVideoTransmitter::EncodeAndTransmitFrame()
 	{
 		Debug::Log("failed to push frame");
 	}
+#else
+	Debug::Log("kvazaar and uvgRTP not found: streaming is unavailable");
+#endif
 }
 
 void AVideoTransmitter::TransmitAsync()
@@ -463,7 +479,7 @@ void AVideoTransmitter::WarpFrameEquirectangular()
 	ParallelFor(processing_thread_count, [&](int32 i)
 		{
 			const int thread_batch_start = thread_batch_size * i;
-			const int thread_batch_end = min(thread_batch_size * (i + 1), panorama_width);
+			const int thread_batch_end = std::min(thread_batch_size * (i + 1), panorama_width);
 
 			for (int32 x = thread_batch_start; x < thread_batch_end; x++)
 			{
@@ -721,6 +737,7 @@ void AVideoTransmitter::OpenDebugFile()
 
 void AVideoTransmitter::TransmitDebugMessage()
 {
+#ifndef CITHRUS_NO_KVAZAAR_OR_UVGRTP
 	const char msg[] = "hello world";
 	const int msg_len = strlen(msg) + 1;
 
@@ -733,4 +750,5 @@ void AVideoTransmitter::TransmitDebugMessage()
 	stream->push_frame((uint8_t*)msg, msg_len, RTP_NO_FLAGS);
 
 	Debug::Log("debug message transmitted");
+#endif
 }
