@@ -4,9 +4,11 @@ CiThruS2 (See-Through Sight 2) is a virtual city environment and framework built
 
 ## First-Time Setup Instructions
 
-Windows is required to run the simulation due to DirectX being used by some of our systems. To set up the environment, run build.cmd using x64 Native Tools Command Prompt for VS 2019. PowerShell and cmake are also required by the script. Please note that the script will download ~8GB of data.
+To use the environment, you must first run the setup script in `build.cmd`, which will automatically set up dependencies and download the CiThruS2 content, which is not included in this repository due to GitHub storage limitations. Currently, the environment is only available for Windows.
 
-After running the script, open the `HervantaUE4.uproject` project file and click "Yes" when it asks whether you want to build. If the build succeeds, the editor will automatically open the environment. The editor will take several minutes to open and it will build shaders for 2min ~ 30min depending on the hardware used, but subsequent startups will be faster.
+Before running the script, make sure PowerShell and cmake are installed on your computer. Then, run `build.cmd` using x64 Native Tools Command Prompt for VS 2019. VS 2022 should work too, but hasn't been tested. Please note that the script will download ~8GB of data: make sure your computer has enough storage space.
+
+After successfully running the script, install Unreal Engine 4.26 and open the `HervantaUE4.uproject` project file with it. Click "Yes" when it asks whether you want to build the code. After building, the Unreal Engine editor will automatically open the environment. The editor will take several minutes to open and it will build shaders for 2min ~ 30min depending on the hardware used, but subsequent startups will be faster. If the editor fails to open or the build process fails, please check that the setup script ran successfully and did not generate errors.
 
 If you wish to delete CiThruS2, simply delete the directory in which you downloaded this repository: the setup script does not install anything elsewhere on your computer.
 
