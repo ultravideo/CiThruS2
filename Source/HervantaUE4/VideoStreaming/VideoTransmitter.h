@@ -12,8 +12,10 @@
 #include "rgb2yuv.h"
 #include "Timer.h"
 
-#include "../Submodules/uvgRTP/include/uvgrtp/lib.hh"
-#include "../Submodules/kvazaar/src/kvazaar.h"
+#ifndef CITHRUS_NO_KVAZAAR_OR_UVGRTP
+#include "../ThirdParty/uvgRTP/Include/lib.hh"
+#include "../ThirdParty/Kvazaar/Include/kvazaar.h"
+#endif
 
 #include "Windows/AllowWindowsPlatformTypes.h"
 #include <d3d11.h>
@@ -112,6 +114,7 @@ public:
 private:
 	enum FilterDirection : uint8_t { Down, Right, Up, Left };
 
+#ifndef CITHRUS_NO_KVAZAAR_OR_UVGRTP
 	uvgrtp::context stream_context;
 	uvgrtp::session* stream_session;
 	uvgrtp::media_stream* stream;
@@ -120,6 +123,7 @@ private:
 	kvz_config* kvazaar_config;
 	kvz_encoder* kvazaar_encoder;
 	kvz_picture* kvazaar_transmit_picture;
+#endif
 
 	std::vector<ID3D11Texture2D*> d11_360_render_targets;
 	ID3D11Texture2D* d11_perspective_render_target;
