@@ -1,6 +1,7 @@
 @echo off
 setlocal
 set AIRSIM_VER=1.7.0
+set DLSS_VER=20220623-dlss-plugin-ue426
 set KVAZAAR_VER=2.2.0
 set YASM_VER=1.3.0
 set UVGRTP_VER=2.3.0
@@ -11,20 +12,17 @@ set ROOT_DIR=%~dp0
 if "%VisualStudioVersion%" == "" (
     echo(
     echo Please run this script from x64 Native Tools Command Prompt for VS 2019 or newer.
-    goto :finishsetup
+    goto :setupfailed
 )
 
 :: Get PowerShell
 set powershell=powershell
 where powershell > nul 2>&1
-if ERRORLEVEL 1 goto :powershellfailed
-goto :start
+if ERRORLEVEL 1 (
+	echo PowerShell is required by this script: please install it.
+	goto :setupfailed
+)
 
-:powershellfailed
-echo PowerShell is required by this script: please install it.
-goto :finishsetup
-
-:start
 chdir /d %ROOT_DIR%
 IF NOT EXIST temp mkdir temp
 
@@ -38,26 +36,70 @@ echo Extracting AirSim...
 del temp\AirSim.zip /q
 
 echo Running AirSim setup...
-call temp\AirSim-%AIRSIM_VER%-windows\build.cmd || goto :airsimbuildfailed
+call temp\AirSim-%AIRSIM_VER%-windows\build.cmd --Release || goto :airsimbuildfailed
 
 echo Copying AirSim plugin files...
 IF NOT EXIST Plugins mkdir Plugins
 robocopy temp\AirSim-%AIRSIM_VER%-windows\Unreal\Plugins Plugins /e
+
+:: Tiny patch to prevent AirSim from changing the Unreal Engine world origin, which would break CiThruS traffic systems
+%powershell% -command "((Get-Content -path Plugins\AirSim\Source\SimMode\SimModeBase.cpp -Raw) -replace [regex]::Escape('    this->GetWorld()->SetNewWorldOrigin(FIntVector(player_loc) + this->GetWorld()->OriginLocation);'),'    //this->GetWorld()->SetNewWorldOrigin(FIntVector(player_loc) + this->GetWorld()->OriginLocation);') | Set-Content -Path Plugins\AirSim\Source\SimMode\SimModeBase.cpp"
 
 echo Cleaning up AirSim files...
 rmdir temp\AirSim-%AIRSIM_VER%-windows /s /q
 
 echo Finished setting up AirSim.
 
-goto :kvazaarsetup
+goto :dlsssetup
 
 :airsimdownloadfailed
 echo Failed to download AirSim!
-goto :finishsetup
+goto :setupfailed
 
 :airsimbuildfailed
 echo Failed to build AirSim!
-goto :finishsetup
+goto :setupfailed
+
+:dlsssetup
+echo Downloading Nvidia DLSS...
+%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://developer.nvidia.com/%DLSS_VER%zip', 'temp\DLSS.zip')" || goto :dlssdownloadfailed
+echo Extracting Nvidia DLSS...
+mkdir temp\DLSS
+%powershell% -command "Expand-Archive -Path temp\DLSS.zip -DestinationPath temp\DLSS"
+del temp\DLSS.zip /q
+
+mkdir Plugins\DLSS
+robocopy temp\DLSS\DLSS Plugins\DLSS /e
+
+rmdir temp\DLSS /s /q
+
+echo Nvidia DLSS successfully set up.
+
+goto :fsrsetup
+
+:dlssdownloadfailed
+echo Failed to download Nvidia DLSS!
+goto :setupfailed
+
+:fsrsetup
+echo Downloading AMD FSR 2...
+%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://gpuopen.com/download-Unreal-Engine-FSR2-plugin/', 'temp\FSR.zip')" || goto :fsrdownloadfailed
+echo Extracting AMD FSR 2...
+%powershell% -command "Expand-Archive -Path temp\FSR.zip -DestinationPath temp"
+del temp\FSR.zip /q
+
+mkdir Plugins\FSR2
+robocopy "temp\FSR2-UE-2-2\FSR2 2.2\FSR2-426\FSR2" Plugins\FSR2 /e
+
+rmdir temp\FSR2-UE-2-2 /s /q
+
+echo AMD FSR 2 successfully set up.
+
+goto :kvazaarsetup
+
+:fsrdownloadfailed
+echo Failed to download FSR 2!
+goto :setupfailed
 
 :kvazaarsetup
 echo Downloading Kvazaar...
@@ -98,15 +140,15 @@ goto :uvgrtpsetup
 
 :kvazaardownloadfailed
 echo Failed to download Kvazaar!
-goto :finishsetup
+goto :setupfailed
 
 :yasmdownloadfailed
 echo Failed to download Yasm!
-goto :finishsetup
+goto :setupfailed
 
 :kvazaarbuildfailed
 echo Failed to build Kvazaar!
-goto :finishsetup
+goto :setupfailed
 
 :uvgrtpsetup
 echo Downloading uvgRTP...
@@ -136,11 +178,11 @@ goto :contentsetup
 
 :uvgrtpdownloadfailed
 echo Failed to download uvgRTP!
-goto :finishsetup
+goto :setupfailed
 
 :uvgrtpbuildfailed
 echo Failed to build uvgRTP!
-goto :finishsetup
+goto :setupfailed
 
 :contentsetup
 echo Downloading CiThruS2 content...
@@ -153,13 +195,15 @@ echo Finished setting up CiThruS2 content.
 
 echo CiThruS2 setup was successful! Next, open HervantaUE4.uproject in Unreal Engine 4 to access the simulation environment.
 
-goto :finishsetup
+IF EXIST temp rmdir temp /s /q
+chdir /d %ROOT_DIR% 
+exit /b 0
 
 :contentdownloadfailed
 echo Failed to download uvgRTP!
-goto :finishsetup
+goto :setupfailed
 
-:finishsetup
+:setupfailed
 IF EXIST temp rmdir temp /s /q
 chdir /d %ROOT_DIR% 
 exit /b 1
