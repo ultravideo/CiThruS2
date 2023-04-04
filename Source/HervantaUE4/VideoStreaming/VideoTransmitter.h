@@ -12,10 +12,18 @@
 #include "rgb2yuv.h"
 #include "Timer.h"
 
-#ifndef CITHRUS_NO_KVAZAAR_OR_UVGRTP
+#if __cplusplus >= 201703L || _MSC_VER > 1911
+#if !__has_include("../ThirdParty/uvgRTP/Include/lib.hh") || \
+	!__has_include("../ThirdParty/Kvazaar/Include/kvazaar.h")
+#define CITHRUS_NO_KVAZAAR_OR_UVGRTP
+#else
 #include "../ThirdParty/uvgRTP/Include/lib.hh"
 #include "../ThirdParty/Kvazaar/Include/kvazaar.h"
-#endif
+#endif // !__has_include (...)
+#else
+#include "../ThirdParty/uvgRTP/Include/lib.hh"
+#include "../ThirdParty/Kvazaar/Include/kvazaar.h"
+#endif // __cplusplus (...)
 
 #include "Windows/AllowWindowsPlatformTypes.h"
 #include <d3d11.h>
