@@ -4,9 +4,9 @@ CiThruS2 (See-Through Sight 2) is a virtual city environment and framework built
 
 ## First-Time Setup Instructions
 
-To use the environment, you must first run the setup script in `build.cmd`, which will automatically set up dependencies and download the CiThruS2 content, which is not included in this repository due to GitHub storage limitations. Currently, the environment is only available for Windows.
+To use the environment, you must first run the setup script in `setup.cmd`, which will automatically set up dependencies and download the CiThruS2 content, which is not included in this repository due to GitHub storage limitations. Currently, the environment is only available for Windows.
 
-Before running the script, make sure PowerShell and cmake are installed on your computer. Then, run `build.cmd` using x64 Native Tools Command Prompt for VS 2019. VS 2022 should work too, but hasn't been tested. Please note that the script will download ~8GB of data: make sure your computer has enough storage space.
+Before running the script, make sure PowerShell and cmake are installed on your computer. Then, run `setup.cmd` using x64 Native Tools Command Prompt for VS 2019. VS 2022 should work too, but hasn't been tested. Please note that the script will download ~8GB of data: make sure your computer has enough storage space.
 
 After successfully running the script, install Unreal Engine 4.26 and open the `HervantaUE4.uproject` project file with it. Click "Yes" when it asks whether you want to build the code. After building, the Unreal Engine editor will automatically open the environment. The editor will take several minutes to open and it will build shaders for 2min ~ 30min depending on the hardware used, but subsequent startups will be faster. If the editor fails to open or the build process fails, please check that the setup script ran successfully and did not generate errors.
 
