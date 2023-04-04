@@ -200,7 +200,7 @@ chdir /d %ROOT_DIR%
 exit /b 0
 
 :contentdownloadfailed
-echo Failed to download uvgRTP!
+echo Failed to download CiThruS2 content!
 goto :setupfailed
 
 :setupfailed
