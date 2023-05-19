@@ -49,7 +49,7 @@ void ATrafficStopArea::BeginPlay()
 void ATrafficStopArea::UpdateCollisionStatusWithEntity(ITrafficEntity* entity)
 {
 	// Check if entity is overlapping this stop area
-	if (collisionRectangle_.IsIntersecting(FVector2D(entity->GetCollisionRectangle().GetPosition())))
+	if (collisionRectangle_.IsIntersecting(entity->GetCollisionRectangle()))
 	{
 		bool actorWasAlreadyInSet = false;
 

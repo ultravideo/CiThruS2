@@ -56,7 +56,7 @@ bool MathUtility::PointInsideBoundingBox(const FVector2D& point, const FVector2D
 bool MathUtility::AllPointsInFrontOfAnySinglePolygonSide(const FVector2D* points, const int& pointCount, const FVector2D* polygonCorners, const int& polygonCornerCount)
 {
 	// Calculate the center of the polygon to compare which way the polygon sides are facing
-	FVector2D polygonCenter;
+	FVector2D polygonCenter = FVector2D::ZeroVector;
 
 	for (int i = 0; i < polygonCornerCount; i++)
 	{
