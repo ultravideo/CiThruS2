@@ -9,12 +9,6 @@ set CITHRUS_CONTENT_VER=06_03_2023
 
 set ROOT_DIR=%~dp0
 
-if "%VisualStudioVersion%" == "" (
-    echo(
-    echo Please run this script from x64 Native Tools Command Prompt for VS 2019 or newer.
-    goto :setupfailed
-)
-
 :: Get PowerShell
 set powershell=powershell
 where powershell > nul 2>&1
@@ -23,6 +17,26 @@ if ERRORLEVEL 1 (
 	goto :setupfailed
 )
 
+:: Get VS Command Prompt
+if "%VisualStudioVersion%" == "" (
+	echo Starting x64 Native Tools Command Prompt for VS 2019...
+	:: Try the default installation locations
+	call "%ProgramFiles%\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
+	if ERRORLEVEL 1 call "%ProgramFiles%\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
+	if ERRORLEVEL 1 call "%ProgramFiles%\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
+	if ERRORLEVEL 1 call "%ProgramFiles(x86)%\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
+	if ERRORLEVEL 1 call "%ProgramFiles(x86)%\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
+	if ERRORLEVEL 1 call "%ProgramFiles(x86)%\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
+	if ERRORLEVEL 1 goto :vslocatefailed
+)
+
+goto :setupstart
+
+:vslocatefailed
+echo Could not find x64 Native Tools Command Prompt for VS 2019 automatically: Please open it manually and run this script in it.
+goto :setupfailed
+
+:setupstart
 chdir /d %ROOT_DIR%
 IF NOT EXIST temp mkdir temp
 
@@ -197,6 +211,7 @@ echo CiThruS2 setup was successful! Next, open HervantaUE4.uproject in Unreal En
 
 IF EXIST temp rmdir temp /s /q
 chdir /d %ROOT_DIR% 
+pause
 exit /b 0
 
 :contentdownloadfailed
@@ -205,5 +220,6 @@ goto :setupfailed
 
 :setupfailed
 IF EXIST temp rmdir temp /s /q
-chdir /d %ROOT_DIR% 
+chdir /d %ROOT_DIR%
+pause
 exit /b 1
