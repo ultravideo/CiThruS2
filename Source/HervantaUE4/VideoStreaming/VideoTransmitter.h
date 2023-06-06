@@ -25,11 +25,6 @@
 #include "../ThirdParty/Kvazaar/Include/kvazaar.h"
 #endif // __cplusplus (...)
 
-#include "Windows/AllowWindowsPlatformTypes.h"
-#include <d3d11.h>
-#include <dxgi1_2.h>
-#include "Windows/HideWindowsPlatformTypes.h"
-
 #include <iostream>
 #include <memory>
 #include <fstream>
@@ -39,8 +34,6 @@
 #include <atomic>
 
 #include "VideoTransmitter.generated.h"
-
-#define VIDEO_FRAME_MAXLEN 2048*4096*40
 
 
 UCLASS()
@@ -133,10 +126,10 @@ private:
 	kvz_picture* kvazaar_transmit_picture;
 #endif
 
-	std::vector<ID3D11Texture2D*> d11_360_render_targets;
-	ID3D11Texture2D* d11_perspective_render_target;
+	std::vector<FRHITexture2D*> render_targets;
 
-	ID3D11Texture2D* staging_texture;
+	FTexture2DRHIRef concat_buffer;
+	FTexture2DRHIRef staging_buffer;
 
 	Cube2Equirectangular cube_2_equirect;
 
@@ -188,8 +181,6 @@ private:
 	void TransmitAsync();
 
 	void ExtractFrameFromGPU();
-
-	void CopyRenderTargetToStaging(ID3D11Texture2D* d11_tex, ID3D11DeviceContext* d3d_context, const int& copy_offset = 0);
 
 	void WarpFrameEquirectangular();
 

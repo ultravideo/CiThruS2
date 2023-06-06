@@ -10,6 +10,8 @@
 #include <string>
 #include <algorithm>
 
+#define VIDEO_FRAME_MAXLEN 2048*4096*40
+
 AVideoTransmitter::AVideoTransmitter()
 {
 	PrimaryActorTick.bCanEverTick = true;
@@ -72,18 +74,16 @@ void AVideoTransmitter::DeleteStreams()
 	}
 #endif
 
-	for (ID3D11Texture2D* render_target : d11_360_render_targets)
+	render_targets.clear();
+
+	if (concat_buffer)
 	{
-		render_target->Release();
+		concat_buffer = nullptr;
 	}
 
-	d11_360_render_targets.clear();
-	d11_perspective_render_target = nullptr;
-
-	if (staging_texture)
+	if (staging_buffer)
 	{
-		staging_texture->Release();
-		staging_texture = nullptr;
+		staging_buffer = nullptr;
 	}
 
 	delete[] rgba_frame;
@@ -105,9 +105,13 @@ void AVideoTransmitter::DeleteStreams()
 
 void AVideoTransmitter::StartStreams()
 {
-	// Capturing below 16x16 causes corrupted graphics
+	// Capturing below 16x16 causes corrupted video (maybe HEVC limitation?)
 	transmit_frame_width = std::max(remote_stream_width, 16);
 	transmit_frame_height = std::max(remote_stream_height, 16);
+
+	// Width and height must be divisible by four (HEVC limitation)
+	transmit_frame_width += (4 - (transmit_frame_width % 4)) % 4;
+	transmit_frame_height += (4 - (transmit_frame_height % 4)) % 4;
 
 	transmit_360_video = enable_360_capture;
 	transmit_async = transmit_asynchronously;
@@ -127,15 +131,11 @@ void AVideoTransmitter::StartStreams()
 		ENQUEUE_RENDER_COMMAND(GetRenderTargets)(
 			[this](FRHICommandListImmediate& RHICmdList)
 			{
-				d11_360_render_targets.resize(scene_capture->Get360CaptureTargetCount(), nullptr);
+				render_targets.resize(scene_capture->Get360CaptureTargetCount(), nullptr);
 
 				for (int i = 0; i < scene_capture->Get360CaptureTargetCount(); i++)
 				{
-					UTextureRenderTarget* rtarget = scene_capture->Get360FrameTarget(i);
-					FTextureRenderTargetResource* res = rtarget->GetRenderTargetResource();
-					FRHITexture2D* ftex = res->GetRenderTargetTexture();
-
-					d11_360_render_targets[i] = reinterpret_cast<ID3D11Texture2D*>(ftex->GetNativeResource());
+					render_targets[i] = scene_capture->Get360FrameTarget(i)->GetRenderTargetResource()->GetRenderTargetTexture();
 				}
 			});
 	}
@@ -149,12 +149,9 @@ void AVideoTransmitter::StartStreams()
 		ENQUEUE_RENDER_COMMAND(GetRenderTargets)(
 			[this](FRHICommandListImmediate& RHICmdList)
 			{
-				UTextureRenderTarget* rtarget = scene_capture->GetPerspectiveFrameTarget();
+				render_targets.resize(1, nullptr);
 
-				FTextureRenderTargetResource* res = rtarget->GetRenderTargetResource();
-				FRHITexture2D* ftex = res->GetRenderTargetTexture();
-
-				d11_perspective_render_target = reinterpret_cast<ID3D11Texture2D*>(ftex->GetNativeResource());
+				render_targets[0] = scene_capture->GetPerspectiveFrameTarget()->GetRenderTargetResource()->GetRenderTargetTexture();
 			});
 	}
 
@@ -163,31 +160,18 @@ void AVideoTransmitter::StartStreams()
 	ENQUEUE_RENDER_COMMAND(CreateStagingTexture)(
 		[this, num_frames](FRHICommandListImmediate& RHICmdList)
 		{
-			ID3D11Texture2D* reference_texture = transmit_360_video ? d11_360_render_targets[0] : d11_perspective_render_target;
-			ID3D11Texture2D* data_copy_tex = nullptr;
-			D3D11_TEXTURE2D_DESC desc_data_copy_tex;
-
-			reference_texture->GetDesc(&desc_data_copy_tex);
-			desc_data_copy_tex.Usage = D3D11_USAGE_STAGING;
-			desc_data_copy_tex.BindFlags = 0;
-			desc_data_copy_tex.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-			desc_data_copy_tex.MiscFlags = 0;
-			desc_data_copy_tex.Width = num_frames * capture_frame_width;
-			desc_data_copy_tex.Height = capture_frame_height;
-
-			ID3D11Device* d3d_device;
-			reference_texture->GetDevice(&d3d_device);
-
-			HRESULT textureResult = d3d_device->CreateTexture2D(&desc_data_copy_tex, nullptr, &data_copy_tex);
-
-			if (!SUCCEEDED(textureResult))
+			// Vulkan doesn't support copying texture data to a specific offset in a CPU-accessible texture so a separate
+			// buffer is needed for concatenating the frames. In DX11/12 it is supported, so this can be skipped
+			if (FString(GDynamicRHI->GetName()) == TEXT("Vulkan"))
 			{
-				Debug::Log("failed to create staging texture: d3d error code " + FString::FromInt(textureResult));
+				FRHIResourceCreateInfo concat_create_info(TEXT("HEVC Stream Concatenation Texture"));
+
+				concat_buffer = RHICreateTexture2D(num_frames * capture_frame_width, capture_frame_height, PF_B8G8R8A8, 1, 1, TexCreate_None, concat_create_info);
 			}
-			else
-			{
-				staging_texture = data_copy_tex;
-			}
+
+			FRHIResourceCreateInfo staging_create_info(TEXT("HEVC Stream Staging Texture"));
+
+			staging_buffer = RHICreateTexture2D(num_frames * capture_frame_width, capture_frame_height, PF_B8G8R8A8, 1, 1, TexCreate_CPUReadback, staging_create_info);
 		});
 
 	rgba_frame = new uint8_t[num_frames * capture_frame_width * capture_frame_height * 4];
@@ -298,79 +282,64 @@ void AVideoTransmitter::ExtractFrameFromGPU()
 		{
 			vram_copy_mutex.lock();
 
-			if (!staging_texture)
+			// Copy render targets to the staging texture, with an extra concatenation buffer or not
+			if (concat_buffer)
 			{
-				Debug::Log("failed to acquire staging texture");
-				return;
-			}
-
-			ID3D11DeviceContext* d3d_context;
-			ID3D11Device* d3d_device;
-			staging_texture->GetDevice(&d3d_device);
-			d3d_device->GetImmediateContext(&d3d_context);
-
-			int capture_target_count = transmit_360_video ? scene_capture->Get360CaptureTargetCount() : 1;
-
-			// Copy render targets to the staging texture
-			if (transmit_360_video)
-			{
-				for (int i = 0; i < capture_target_count; i++)
+				for (int i = 0; i < render_targets.size(); i++)
 				{
-					CopyRenderTargetToStaging(d11_360_render_targets[i], d3d_context, i * capture_frame_width);
+					FRHICopyTextureInfo copy_texture_info = {};
+
+					copy_texture_info.DestPosition = FIntVector(i * capture_frame_width, 0, 0);
+					copy_texture_info.Size = FIntVector(capture_frame_width, capture_frame_height, 1);
+
+					RHICmdList.CopyTexture(render_targets[i], concat_buffer, copy_texture_info);
 				}
+
+				FRHICopyTextureInfo copy_texture_info = {};
+
+				RHICmdList.CopyTexture(concat_buffer, staging_buffer, copy_texture_info);
 			}
 			else
 			{
-				CopyRenderTargetToStaging(d11_perspective_render_target, d3d_context);
+				for (int i = 0; i < render_targets.size(); i++)
+				{
+					FRHICopyTextureInfo copy_texture_info = {};
+
+					copy_texture_info.DestPosition = FIntVector(i * capture_frame_width, 0, 0);
+					copy_texture_info.Size = FIntVector(capture_frame_width, capture_frame_height, 1);
+
+					RHICmdList.CopyTexture(render_targets[i], staging_buffer, copy_texture_info);
+				}
 			}
 
 			// Extract the contents of the staging texture
-			D3D11_TEXTURE2D_DESC desc;
-			staging_texture->GetDesc(&desc);
-			D3D11_MAPPED_SUBRESOURCE resource;
-
-			HRESULT map_status = d3d_context->Map(staging_texture, 0, D3D11_MAP_READ, 0, &resource);
-
-			if (!SUCCEEDED(map_status))
-			{
-				Debug::Log("failed to map staging texture data: error code" + FString::FromInt(map_status));
-				return;
-			}
+			void* resource;
+			int32_t staging_buffer_width;
+			int32_t staging_buffer_height;
+			RHICmdList.MapStagingSurface(staging_buffer, resource, staging_buffer_width, staging_buffer_height);
 
 			frame_mutex.lock();
 
-			const uint32_t thread_batch_size = ceil(desc.Width / (float)thread_count);
+			const int32_t thread_batch_size = ceil(staging_buffer_width / (float)thread_count);
 
 			ParallelFor(processing_thread_count, [&](int32 i)
 				{
-					const int thread_batch_start = thread_batch_size * i * desc.Height * 4;
-					const int thread_batch_end = std::min(thread_batch_size * (i + 1), desc.Width) * desc.Height * 4;
+					const int thread_batch_start = thread_batch_size * i * staging_buffer_height * 4;
+					const int thread_batch_end = std::min(thread_batch_size * (i + 1), staging_buffer_width) * staging_buffer_height * 4;
 
-					memcpy(rgba_frame + thread_batch_start, static_cast<uint8_t*>(resource.pData) + thread_batch_start, thread_batch_end - thread_batch_start);
+					memcpy(rgba_frame + thread_batch_start, reinterpret_cast<uint8_t*>(resource) + thread_batch_start, thread_batch_end - thread_batch_start);
 				});
 
 			frame_mutex.unlock();
 			frame_cv.notify_all();
 
-			d3d_context->Unmap(staging_texture, 0);
+			RHICmdList.UnmapStagingSurface(staging_buffer);
 
 			vram_extraction_in_progress = false;
 
 			vram_copy_mutex.unlock();
 			vram_copy_cv.notify_all();
 		});
-}
-
-void AVideoTransmitter::CopyRenderTargetToStaging(ID3D11Texture2D* d11_tex, ID3D11DeviceContext* d3d_context, const int& copy_offset)
-{
-	if (!d11_tex)
-	{
-		Debug::Log("failed to acquire native texture");
-		return;
-	}
-
-	//d3d_context->CopyResource(copy_staging_texture, d11_tex);
-	d3d_context->CopySubresourceRegion(staging_texture, 0, copy_offset, 0, 0, d11_tex, 0, nullptr);
 }
 
 void AVideoTransmitter::EncodeAndTransmitFrame()
@@ -403,9 +372,9 @@ void AVideoTransmitter::EncodeAndTransmitFrame()
 #ifndef CITHRUS_NO_KVAZAAR_OR_UVGRTP
 	memcpy(kvazaar_transmit_picture->y, ptr, transmit_frame_width * transmit_frame_height);
 	ptr += transmit_frame_width * transmit_frame_height;
-	memcpy(kvazaar_transmit_picture->u, ptr, transmit_frame_width * transmit_frame_height >> 2);
-	ptr += transmit_frame_width * transmit_frame_height >> 2;
-	memcpy(kvazaar_transmit_picture->v, ptr, transmit_frame_width * transmit_frame_height >> 2);
+	memcpy(kvazaar_transmit_picture->u, ptr, transmit_frame_width * transmit_frame_height / 4);
+	ptr += transmit_frame_width * transmit_frame_height / 4;
+	memcpy(kvazaar_transmit_picture->v, ptr, transmit_frame_width * transmit_frame_height / 4);
 
 	kvz_picture* recon_pic = nullptr;
 	kvz_frame_info frame_info;
