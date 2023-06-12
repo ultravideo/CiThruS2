@@ -31,6 +31,7 @@ ASceneCapture360::ASceneCapture360()
 
 	perspectiveSceneCaptureComponent_ = CreateDefaultSubobject<USceneCaptureComponent2D>(TEXT("PerspectiveSceneCaptureComponent"));
 	perspectiveSceneCaptureComponent_->SetupAttachment(RootComponent);
+	perspectiveSceneCaptureComponent_->SetRelativeRotation(CAMERA_ROTATIONS[5]);
 
 	// Set this actor to call Tick() every frame
 	PrimaryActorTick.bCanEverTick = true;
