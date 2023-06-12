@@ -133,8 +133,8 @@ private:
 
 	Cube2Equirectangular cube_2_equirect;
 
-	std::mutex frame_mutex;
-	std::condition_variable frame_cv;
+	std::mutex rgba_frame_mutex;
+	std::condition_variable rgba_frame_cv;
 
 	std::mutex vram_copy_mutex;
 	std::condition_variable vram_copy_cv;

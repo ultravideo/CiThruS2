@@ -47,12 +47,12 @@ void AVideoTransmitter::DeleteStreams()
 	if (encoding_thread.joinable())
 	{
 		terminate_encoding_thread = true;
-		frame_cv.notify_all();
+		rgba_frame_cv.notify_all();
 
 		encoding_thread.join();
 	}
 
-	// Wait for VRAM extraction to finish
+	// Wait for frame operations to finish
 	std::unique_lock<std::mutex> lock(vram_copy_mutex);
 
 	if (vram_extraction_in_progress)
@@ -109,9 +109,10 @@ void AVideoTransmitter::StartStreams()
 	transmit_frame_width = std::max(remote_stream_width, 16);
 	transmit_frame_height = std::max(remote_stream_height, 16);
 
-	// Width and height must be divisible by four (HEVC limitation)
-	transmit_frame_width += (4 - (transmit_frame_width % 4)) % 4;
-	transmit_frame_height += (4 - (transmit_frame_height % 4)) % 4;
+	// Width and height must be divisible by eight (HEVC limitation)
+	// This rounds up to the nearest integers divisible by eight
+	transmit_frame_width += (8 - (transmit_frame_width % 8)) % 8;
+	transmit_frame_height += (8 - (transmit_frame_height % 8)) % 8;
 
 	transmit_360_video = enable_360_capture;
 	transmit_async = transmit_asynchronously;
@@ -161,7 +162,7 @@ void AVideoTransmitter::StartStreams()
 		[this, num_frames](FRHICommandListImmediate& RHICmdList)
 		{
 			// Vulkan doesn't support copying texture data to a specific offset in a CPU-accessible texture so a separate
-			// buffer is needed for concatenating the frames. In DX11/12 it is supported, so this can be skipped
+			// buffer is needed for concatenating the 360 cubemap sides. In DX11/12 it is supported, so this can be skipped
 			if (FString(GDynamicRHI->GetName()) == TEXT("Vulkan"))
 			{
 				FRHIResourceCreateInfo concat_create_info(TEXT("HEVC Stream Concatenation Texture"));
@@ -248,7 +249,9 @@ void AVideoTransmitter::StopTransmit()
 	DeleteStreams();
 
 	if (!scene_capture)
+	{
 		return;
+	}
 
 	scene_capture->DisableCameras();
 	transmit_enabled = false;
@@ -318,20 +321,50 @@ void AVideoTransmitter::ExtractFrameFromGPU()
 			int32_t staging_buffer_height;
 			RHICmdList.MapStagingSurface(staging_buffer, resource, staging_buffer_width, staging_buffer_height);
 
-			frame_mutex.lock();
+			rgba_frame_mutex.lock();
 
-			const int32_t thread_batch_size = ceil(staging_buffer_width / (float)thread_count);
+			const int32_t thread_batch_size = ceil(staging_buffer_height / (float)thread_count);
+			const int32_t num_frames = render_targets.size();
 
-			ParallelFor(processing_thread_count, [&](int32 i)
-				{
-					const int thread_batch_start = thread_batch_size * i * staging_buffer_height * 4;
-					const int thread_batch_end = std::min(thread_batch_size * (i + 1), staging_buffer_width) * staging_buffer_height * 4;
+			if (staging_buffer_width == num_frames * capture_frame_width && staging_buffer_height == capture_frame_height)
+			{
+				// Mapped texture data has no padding: multiple rows can be copied in a single memcpy
+				const int32_t staging_pitch = staging_buffer_width * 4;
 
-					memcpy(rgba_frame + thread_batch_start, reinterpret_cast<uint8_t*>(resource) + thread_batch_start, thread_batch_end - thread_batch_start);
-				});
+				ParallelFor(processing_thread_count, [&](int32_t i)
+					{
+						const int32_t thread_batch_start = thread_batch_size * i * staging_pitch;
+						const int32_t thread_batch_end = std::min(thread_batch_size * (i + 1), staging_buffer_height) * staging_pitch;
 
-			frame_mutex.unlock();
-			frame_cv.notify_all();
+						memcpy(
+							rgba_frame + thread_batch_start,
+							reinterpret_cast<uint8_t*>(resource) + thread_batch_start,
+							thread_batch_end - thread_batch_start);
+					});
+			}
+			else
+			{
+				// Mapped texture data has padding: must be copied row by row to discard the padding
+				const int32_t rgba_pitch = num_frames * capture_frame_width * 4;
+				const int32_t staging_pitch = staging_buffer_width * 4;
+
+				ParallelFor(processing_thread_count, [&](int32_t i)
+					{
+						const int32_t thread_rows_start = thread_batch_size * i;
+						const int32_t thread_rows_end = std::min(thread_batch_size * (i + 1), staging_buffer_height);
+
+						for (int j = thread_rows_start; j < thread_rows_end; j++)
+						{
+							memcpy(
+								rgba_frame + j * rgba_pitch,
+								reinterpret_cast<uint8_t*>(resource) + j * staging_pitch,
+								rgba_pitch);
+						}
+					});
+			}
+
+			rgba_frame_mutex.unlock();
+			rgba_frame_cv.notify_all();
 
 			RHICmdList.UnmapStagingSurface(staging_buffer);
 
@@ -344,12 +377,12 @@ void AVideoTransmitter::ExtractFrameFromGPU()
 
 void AVideoTransmitter::EncodeAndTransmitFrame()
 {
-	std::unique_lock<std::mutex> lock(frame_mutex);
+	std::unique_lock<std::mutex> lock(rgba_frame_mutex);
 
-	frame_cv.wait(lock);
+	rgba_frame_cv.wait(lock);
 
 	// Termination might have been requested when the frame mutex was released
-	if (transmit_async && terminate_encoding_thread)
+	if (terminate_encoding_thread)
 	{
 		return;
 	}
@@ -358,6 +391,7 @@ void AVideoTransmitter::EncodeAndTransmitFrame()
 	if (transmit_360_video)
 	{
 		WarpFrameEquirectangular();
+
 		Rgb2YuvSse41(warped_frame, &yuv_frame, transmit_frame_width, transmit_frame_height);
 	}
 	else
@@ -417,6 +451,8 @@ void AVideoTransmitter::EncodeAndTransmitFrame()
 	{
 		Debug::Log("failed to push frame");
 	}
+
+
 #else
 	Debug::Log("kvazaar and uvgRTP not found: streaming is unavailable");
 #endif
