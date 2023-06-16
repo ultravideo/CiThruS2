@@ -2,6 +2,7 @@
 setlocal
 set AIRSIM_VER=1.7.0
 set DLSS_VER=20220623-dlss-plugin-ue426
+set FSR_VER=426
 set KVAZAAR_VER=2.2.0
 set YASM_VER=1.3.0
 set UVGRTP_VER=2.3.0
@@ -38,11 +39,17 @@ goto :setupfailed
 
 :setupstart
 chdir /d %ROOT_DIR%
-IF NOT EXIST temp mkdir temp
+IF EXIST temp rmdir temp /s /q
+mkdir temp
 
 echo Setting up CiThruS2...
 
 :: AirSim setup
+IF EXIST Plugins\AirSim (
+	echo AirSim already found at Plugins\AirSim, skipping... ^(Please delete the folder manually if you'd like to reinstall it.^)
+	goto :dlsssetup
+)
+
 echo Downloading AirSim...
 %powershell% -command "(New-Object Net.WebClient).DownloadFile('https://github.com/microsoft/AirSim/archive/v%AIRSIM_VER%-windows.zip', 'temp\AirSim.zip')" || goto :airsimdownloadfailed
 echo Extracting AirSim...
@@ -75,14 +82,20 @@ echo Failed to build AirSim!
 goto :setupfailed
 
 :dlsssetup
+IF EXIST Plugins\DLSS (
+	echo Nvidia DLSS already found at Plugins\DLSS, skipping... ^(Please delete the folder manually if you'd like to reinstall it.^)
+	goto :fsrsetup
+)
+
 echo Downloading Nvidia DLSS...
-%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://developer.nvidia.com/%DLSS_VER%zip', 'temp\DLSS.zip')" || goto :dlssdownloadfailed
+%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://developer.nvidia.com/downloads/%DLSS_VER%zip', 'temp\DLSS.zip')" || goto :dlssdownloadfailed
 echo Extracting Nvidia DLSS...
 mkdir temp\DLSS
 %powershell% -command "Expand-Archive -Path temp\DLSS.zip -DestinationPath temp\DLSS"
 del temp\DLSS.zip /q
 
-mkdir Plugins\DLSS
+mkdir Plugins/DLSS
+
 robocopy temp\DLSS\DLSS Plugins\DLSS /e
 
 rmdir temp\DLSS /s /q
@@ -96,6 +109,11 @@ echo Failed to download Nvidia DLSS!
 goto :setupfailed
 
 :fsrsetup
+IF EXIST Plugins\FSR2 (
+	echo AMD FSR2 already found at Plugins\FSR2, skipping... ^(Please delete the folder manually if you'd like to reinstall it.^)
+	goto :kvazaarsetup
+)
+
 echo Downloading AMD FSR 2...
 %powershell% -command "(New-Object Net.WebClient).DownloadFile('https://gpuopen.com/download-Unreal-Engine-FSR2-plugin/', 'temp\FSR.zip')" || goto :fsrdownloadfailed
 echo Extracting AMD FSR 2...
@@ -103,9 +121,14 @@ echo Extracting AMD FSR 2...
 del temp\FSR.zip /q
 
 mkdir Plugins\FSR2
-robocopy "temp\FSR2-UE-2-2\FSR2 2.2\FSR2-426\FSR2" Plugins\FSR2 /e
 
-rmdir temp\FSR2-UE-2-2 /s /q
+:: The FSR folder names change with each update, so we need to fetch them dynamically here
+for /d %%i in (temp\FSR2*) do set "FIRST_FSR_FOLDER_NAME=%%i"
+for /d %%i in (%FIRST_FSR_FOLDER_NAME%\FSR2*) do set "SECOND_FSR_FOLDER_NAME=%%i"
+
+robocopy "%SECOND_FSR_FOLDER_NAME%\FSR2-%FSR_VER%\FSR2" Plugins\FSR2 /e
+
+rmdir %FIRST_FSR_FOLDER_NAME% /s /q
 
 echo AMD FSR 2 successfully set up.
 
@@ -116,6 +139,11 @@ echo Failed to download FSR 2!
 goto :setupfailed
 
 :kvazaarsetup
+IF EXIST ThirdParty\Kvazaar (
+	echo Kvazaar already found at ThirdParty\Kvazaar, skipping... ^(Please delete the folder manually if you'd like to reinstall it.^)
+	goto :uvgrtpsetup
+)
+
 echo Downloading Kvazaar...
 %powershell% -command "(New-Object Net.WebClient).DownloadFile('https://github.com/ultravideo/kvazaar/archive/v%KVAZAAR_VER%.zip', 'temp\Kvazaar.zip')" || goto :kvazaardownloadfailed
 echo Extracting Kvazaar...
@@ -133,8 +161,8 @@ del temp\Yasm.zip /q
 set PATH=%PATH%;%ROOT_DIR%temp\Yasm\
 
 echo Building Kvazaar...
-IF NOT EXIST ThirdParty\Kvazaar\Lib mkdir ThirdParty\Kvazaar\Lib
-IF NOT EXIST ThirdParty\Kvazaar\Include mkdir ThirdParty\Kvazaar\Include
+mkdir ThirdParty\Kvazaar\Lib
+mkdir ThirdParty\Kvazaar\Include
 
 :: Change the build configuration of Kvazaar to disable assembly output: otherwise Kvazaar doesn't work with CiThruS
 %powershell% -command "((Get-Content -path temp\kvazaar-%KVAZAAR_VER%\build\C_Properties.props -Raw) -replace 'AssemblyAndSourceCode','NoListing') | Set-Content -Path temp\kvazaar-%KVAZAAR_VER%\build\C_Properties.props"
@@ -165,6 +193,11 @@ echo Failed to build Kvazaar!
 goto :setupfailed
 
 :uvgrtpsetup
+IF EXIST ThirdParty\uvgRTP (
+	echo uvgRTP already found at ThirdParty\uvgRTP, skipping... ^(Please delete the folder manually if you'd like to reinstall it.^)
+	goto :contentsetup
+)
+
 echo Downloading uvgRTP...
 %powershell% -command "(New-Object Net.WebClient).DownloadFile('https://github.com/ultravideo/uvgRTP/archive/v%UVGRTP_VER%.zip', 'temp\uvgRTP.zip')" || goto :uvgrtpdownloadfailed
 echo Extracting uvgRTP...
@@ -172,8 +205,8 @@ echo Extracting uvgRTP...
 del temp\uvgRTP.zip /q
 
 echo Building uvgRTP...
-IF NOT EXIST ThirdParty\uvgRTP\Lib mkdir ThirdParty\uvgRTP\Lib
-IF NOT EXIST ThirdParty\uvgRTP\Include mkdir ThirdParty\uvgRTP\Include
+mkdir ThirdParty\uvgRTP\Lib
+mkdir ThirdParty\uvgRTP\Include
 
 mkdir temp\uvgRTP-%UVGRTP_VER%\build
 cmake temp\uvgRTP-%UVGRTP_VER% -Btemp\uvgRTP-%UVGRTP_VER%\build
@@ -187,7 +220,6 @@ echo Cleaning up uvgRTP files...
 rmdir temp\uvgRTP-%UVGRTP_VER% /s /q
 
 echo Finished setting up uvgRTP.
-
 goto :contentsetup
 
 :uvgrtpdownloadfailed
@@ -199,6 +231,11 @@ echo Failed to build uvgRTP!
 goto :setupfailed
 
 :contentsetup
+IF EXIST Content (
+	echo CiThruS content already found at Content, skipping... ^(Please delete the folder manually if you'd like to redownload it.^)
+	goto :setupsuccess
+)
+
 echo Downloading CiThruS2 content...
 %powershell% -command "(New-Object Net.WebClient).DownloadFile('https://ultravideo.fi/sim_env/cithrus2_sim_env_content_%CITHRUS_CONTENT_VER%.zip', 'temp\CiThruS2_content.zip')" || goto :contentdownloadfailed
 echo Extracting CiThruS2 content...
@@ -207,16 +244,13 @@ del temp\CiThruS2_content.zip /q
 
 echo Finished setting up CiThruS2 content.
 
+:setupsuccess
 echo CiThruS2 setup was successful! Next, open HervantaUE4.uproject in Unreal Engine 4 to access the simulation environment.
 
 IF EXIST temp rmdir temp /s /q
 chdir /d %ROOT_DIR% 
 pause
 exit /b 0
-
-:contentdownloadfailed
-echo Failed to download CiThruS2 content!
-goto :setupfailed
 
 :setupfailed
 IF EXIST temp rmdir temp /s /q
