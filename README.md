@@ -14,4 +14,4 @@ If you wish to delete CiThruS2, simply delete the directory in which you downloa
 
 If you are using CiThruS2 in your research, please cite the following paper: 
 
-`E. Gałązka, T. T. Niemirepo, and J. Vanne, “CiThruS2: Open-source photorealistic 3D framework for driving and traffic simulation in real time,” in Proc. IEEE Int. Conf. on Intelligent Transportation Systems, Indianapolis, Indiana, USA, Sept. 2021. `
+`E. Gałązka, A. Leppäaho, and J. Vanne, “CiThruS2: open-source virtual environment for simulating real-time drone operations and piloting,” in Proc. IEEE Int. Automated Vehicle Validation Conf., Austin, Texas, USA, Oct. 2023. `
