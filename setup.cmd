@@ -144,6 +144,11 @@ IF EXIST ThirdParty\Kvazaar (
 	goto :uvgrtpsetup
 )
 
+:: Get the compiler version and paste it in Unreal Engine's build configuration to make sure the libraries and CiThruS are compiled with the same compiler. Otherwise they will fail to link
+for /f "delims=" %%i in ('cl 2^>^&1 ^| findstr "[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*"') do set COMPILER_VER=%%i
+for /f "delims=" %%i in ('%powershell% -command "('%COMPILER_VER%' | Select-String -Pattern '\.[0-9][0-9]*\.[0-9][0-9]*').Matches.Value"') do set COMPILER_VER=%%i
+%powershell% -command "((Get-Content -path Config/UnrealBuildTool/BuildConfiguration.xml -Raw) -replace '14\.[0-9]+\.[0-9]+','14%COMPILER_VER%') | Set-Content -Path Config/UnrealBuildTool/BuildConfiguration.xml"
+
 echo Downloading Kvazaar...
 %powershell% -command "(New-Object Net.WebClient).DownloadFile('https://github.com/ultravideo/kvazaar/archive/v%KVAZAAR_VER%.zip', 'temp\Kvazaar.zip')" || goto :kvazaardownloadfailed
 echo Extracting Kvazaar...
