@@ -25,9 +25,11 @@ if "%VisualStudioVersion%" == "" (
 	call "%ProgramFiles%\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
 	if ERRORLEVEL 1 call "%ProgramFiles%\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
 	if ERRORLEVEL 1 call "%ProgramFiles%\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
+	if ERRORLEVEL 1 call "%ProgramFiles%\Microsoft Visual Studio\2019\Preview\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
 	if ERRORLEVEL 1 call "%ProgramFiles(x86)%\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
 	if ERRORLEVEL 1 call "%ProgramFiles(x86)%\Microsoft Visual Studio\2019\Professional\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
 	if ERRORLEVEL 1 call "%ProgramFiles(x86)%\Microsoft Visual Studio\2019\Enterprise\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
+	if ERRORLEVEL 1 call "%ProgramFiles(x86)%\Microsoft Visual Studio\2019\Preview\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
 	if ERRORLEVEL 1 goto :vslocatefailed
 )
 
