@@ -1,11 +1,10 @@
 #include "DepthToYuvConverter.h"
-#include "Async/ParallelFor.h"
 
 #include <algorithm>
 #include <iostream>
 
-DepthToYuvConverter::DepthToYuvConverter(const uint16_t& frameWidth, const uint16_t& frameHeight, const float& depthRange, const uint8_t& threadCount)
-	: inputFrameWidth_(frameWidth), inputFrameHeight_(frameHeight), outputFrameWidth_(frameWidth), outputFrameHeight_(frameHeight), depthRange_(depthRange), threadCount_(threadCount)
+DepthToYuvConverter::DepthToYuvConverter(const uint16_t& frameWidth, const uint16_t& frameHeight, const float& depthRange)
+	: inputFrameWidth_(frameWidth), inputFrameHeight_(frameHeight), outputFrameWidth_(frameWidth), outputFrameHeight_(frameHeight), depthRange_(depthRange)
 {
 	outputSize_ = outputFrameWidth_ * outputFrameHeight_ * 3 / 2;
 	outputFrame_ = new uint8_t[outputSize_];
@@ -27,23 +26,13 @@ void DepthToYuvConverter::Process()
 		return;
 	}
 
-	const int threadBatchSize = ceil(outputFrameWidth_ / (float)threadCount_);
-
-	ParallelFor(threadCount_, [&](int32_t i)
+	std::transform(
+		reinterpret_cast<const float*>(*inputFrame_),
+		reinterpret_cast<const float*>(*inputFrame_ + *inputSize_),
+		outputFrame_,
+		[&](const float& input)
 		{
-			const int threadBatchStart = threadBatchSize * i;
-			const int threadBatchEnd = std::min(threadBatchSize * (i + 1), static_cast<int>(outputFrameWidth_));
-
-			for (int32_t x = threadBatchStart; x < threadBatchEnd; x++)
-			{
-				for (int32_t y = 0; y < outputFrameHeight_; y++)
-				{
-					// Divide by 100 to convert from centimeters to meters, then scale to desired depth range and convert to 8-bit integer between 0 and 255
-					uint8_t depth = std::min(std::max(reinterpret_cast<float*>(*inputFrame_)[x + y * outputFrameWidth_] * 255.0f / (100.0f * depthRange_), 0.0f), 255.0f);
-
-					outputFrame_[(x + y * outputFrameWidth_)] = depth;
-				}
-			}
+			return std::min(std::max(input * 255.0f / (100.0f * depthRange_), 0.0f), 255.0f);
 		});
 }
 
@@ -55,6 +44,7 @@ bool DepthToYuvConverter::SetInput(const IImageSource* source)
 	}
 
 	inputFrame_ = source->GetOutput();
+	inputSize_ = source->GetOutputSize();
 
 	return true;
 }

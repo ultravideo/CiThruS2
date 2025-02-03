@@ -6,7 +6,7 @@
 class CITHRUS_API DepthToYuvConverter : public IImageFilter
 {
 public:
-	DepthToYuvConverter(const uint16_t& frameWidth, const uint16_t& frameHeight, const float& depthRange, const uint8_t& threadCount);
+	DepthToYuvConverter(const uint16_t& frameWidth, const uint16_t& frameHeight, const float& depthRange);
 	virtual ~DepthToYuvConverter();
 
 	virtual void Process() override;
@@ -19,6 +19,8 @@ public:
 
 protected:
 	uint8_t* const* inputFrame_;
+	const uint32_t* inputSize_;
+
 	uint8_t* outputFrame_;
 	uint32_t outputSize_;
 
@@ -29,5 +31,4 @@ protected:
 	uint16_t outputFrameHeight_;
 
 	float depthRange_;
-	uint8_t threadCount_;
 };

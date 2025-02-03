@@ -1,8 +1,8 @@
 #include "Equirectangular360Converter.h"
-#include "Async/ParallelFor.h"
 
 #include <algorithm>
 #include <stdexcept>
+#include <array>
 
 const int FACES_IN_A_CUBE = 6;
 
@@ -158,194 +158,187 @@ void Equirectangular360Converter::Process()
 		return;
 	}
 
-	const int numFrames = FACES_IN_A_CUBE;
-	const int threadBatchSize = ceil(outputFrameWidth_ / (float)threadCount_);
-
-	ParallelFor(threadCount_, [&](int32_t i)
+	std::transform(
+		panoramaMap_.begin(),
+		panoramaMap_.end(),
+		reinterpret_cast<std::array<uint8_t, 4>*>(outputFrame_),
+		[&](const CubeCoords& faceCoord)
 		{
-			const int threadBatchStart = threadBatchSize * i;
-			const int threadBatchEnd = std::min(threadBatchSize * (i + 1), static_cast<int>(outputFrameWidth_));
+			const CubeFace& face = faceCoord.face;
 
-			for (int32_t x = threadBatchStart; x < threadBatchEnd; x++)
+			if (!bilinearFiltering_)
 			{
-				for (int32_t y = 0; y < outputFrameHeight_; y++)
-				{
-					const int warpedBufferIndex = (y * outputFrameWidth_ + x) * 4;
-					const CubeCoords faceCoord = panoramaMap_.at(x + y * outputFrameWidth_);
-					const CubeFace& face = faceCoord.face;
+				// No filtering
+				const int rgbaBufferIndex = ((int)faceCoord.y * FACES_IN_A_CUBE * inputFrameWidth_ + (int)faceCoord.x + face * inputFrameWidth_) * 4;
 
-					if (!bilinearFiltering_)
-					{
-						// No filtering
-						const int rgbaBufferIndex = ((int)faceCoord.y * numFrames * inputFrameWidth_ + (int)faceCoord.x + face * inputFrameWidth_) * 4;
-						memcpy(&outputFrame_[warpedBufferIndex], &(*inputFrame_)[rgbaBufferIndex], 4);
-
-						continue;
-					}
-
-					// Sample the cubemap textures with bilinear interpolation
-					// The 0.5s here are to center the sampling areas so that each pixel's color is blended around its center
-					int faceX = floor(faceCoord.x - 0.5);
-					int faceY = floor(faceCoord.y - 0.5);
-
-					const float dx = faceCoord.x - 0.5 - faceX;
-					const float dy = faceCoord.y - 0.5 - faceY;
-
-					// These variables are named as follows:
-					// b = bottom, r = right, t = top, l = left
-					// bl = bottom left and so on
-
-					const float weightBl = (1.0f - dx) * (1.0f - dy);
-					const float weightBr = dx * (1.0f - dy);
-					const float weightTl = (1.0f - dx) * dy;
-					const float weightTr = dx * dy;
-
-					const bool rBoundaryCrossed = faceX + 1 >= inputFrameWidth_;
-					const bool tBoundaryCrossed = faceY + 1 >= inputFrameHeight_;
-					const bool lBoundaryCrossed = faceX < 0;
-					const bool bBoundaryCrossed = faceY < 0;
-
-					// Get the correct pixel indices for sampling
-					int rgbaBufferIndexBl;
-					int rgbaBufferIndexBr;
-					int rgbaBufferIndexTl;
-					int rgbaBufferIndexTr;
-
-					if (!rBoundaryCrossed && !tBoundaryCrossed && !lBoundaryCrossed && !bBoundaryCrossed)
-					{
-						// If no boundaries were crossed, getting the sample pixels is simple because they're on the same face
-						rgbaBufferIndexBl = ((faceY + 0) * numFrames * inputFrameWidth_ + (faceX + 0) + face * inputFrameWidth_) * 4;
-						rgbaBufferIndexBr = ((faceY + 0) * numFrames * inputFrameWidth_ + (faceX + 1) + face * inputFrameWidth_) * 4;
-						rgbaBufferIndexTl = ((faceY + 1) * numFrames * inputFrameWidth_ + (faceX + 0) + face * inputFrameWidth_) * 4;
-						rgbaBufferIndexTr = ((faceY + 1) * numFrames * inputFrameWidth_ + (faceX + 1) + face * inputFrameWidth_) * 4;
-					}
-					else
-					{
-						// Adjacent faces for each face in order of the direction enum
-						const static CubeFace ADJACENT_FACES[6][4] =
-						{
-							{ CubeFace::CubeBack,  CubeFace::CubeRight, CubeFace::CubeFront,   CubeFace::CubeLeft  },
-							{ CubeFace::CubeTop,   CubeFace::CubeFront, CubeFace::CubeBottom,  CubeFace::CubeBack  },
-							{ CubeFace::CubeTop,   CubeFace::CubeRight, CubeFace::CubeBottom,  CubeFace::CubeLeft  },
-							{ CubeFace::CubeTop,   CubeFace::CubeBack,  CubeFace::CubeBottom,  CubeFace::CubeFront },
-							{ CubeFace::CubeTop,   CubeFace::CubeLeft,  CubeFace::CubeBottom,  CubeFace::CubeRight },
-							{ CubeFace::CubeFront, CubeFace::CubeRight, CubeFace::CubeBack,    CubeFace::CubeLeft  }
-						};
-
-						// The directions from which each face is entered from when coming from the corresponding adjacent face
-						const static FilterDirection ENTRY_DIRECTIONS[6][4] =
-						{
-							{ FilterDirection::FilterDown,  FilterDirection::FilterDown, FilterDirection::FilterDown,  FilterDirection::FilterDown  },
-							{ FilterDirection::FilterLeft,  FilterDirection::FilterLeft, FilterDirection::FilterLeft,  FilterDirection::FilterRight },
-							{ FilterDirection::FilterUp,    FilterDirection::FilterLeft, FilterDirection::FilterDown,  FilterDirection::FilterRight },
-							{ FilterDirection::FilterRight, FilterDirection::FilterLeft, FilterDirection::FilterRight, FilterDirection::FilterRight },
-							{ FilterDirection::FilterDown,  FilterDirection::FilterLeft, FilterDirection::FilterUp,    FilterDirection::FilterRight },
-							{ FilterDirection::FilterUp,    FilterDirection::FilterUp,   FilterDirection::FilterUp,    FilterDirection::FilterUp    }
-						};
-
-						CubeFace faceBl = face;
-						CubeFace faceBr = face;
-						CubeFace faceTl = face;
-						CubeFace faceTr = face;
-
-						FilterDirection inDirBl;
-						FilterDirection inDirBr;
-						FilterDirection inDirTl;
-						FilterDirection inDirTr;
-
-						FilterDirection outDirBl;
-						FilterDirection outDirBr;
-						FilterDirection outDirTl;
-						FilterDirection outDirTr;
-
-						// Check if any of the sample pixels crosses over onto another side of the cubemap
-						if (rBoundaryCrossed)
-						{
-							FilterDirection outDir = FilterDirection::FilterRight;
-
-							outDirBr = outDir;
-							outDirTr = outDir;
-
-							inDirBr = ENTRY_DIRECTIONS[faceBr][outDir];
-							inDirTr = ENTRY_DIRECTIONS[faceTr][outDir];
-
-							faceBr = ADJACENT_FACES[faceBr][outDir];
-							faceTr = ADJACENT_FACES[faceTr][outDir];
-						}
-
-						if (tBoundaryCrossed)
-						{
-							FilterDirection outDir = FilterDirection::FilterUp;
-
-							outDirTl = outDir;
-							outDirTr = outDir;
-
-							inDirTl = ENTRY_DIRECTIONS[faceTl][outDir];
-							inDirTr = ENTRY_DIRECTIONS[faceTr][outDir];
-
-							faceTl = ADJACENT_FACES[faceTl][outDir];
-							faceTr = ADJACENT_FACES[faceTr][outDir];
-						}
-
-						if (lBoundaryCrossed)
-						{
-							FilterDirection outDir = FilterDirection::FilterLeft;
-
-							outDirBl = outDir;
-							outDirTl = outDir;
-
-							inDirBl = ENTRY_DIRECTIONS[faceBl][outDir];
-							inDirTl = ENTRY_DIRECTIONS[faceTl][outDir];
-
-							faceBl = ADJACENT_FACES[faceBl][outDir];
-							faceTl = ADJACENT_FACES[faceTl][outDir];
-						}
-
-						if (bBoundaryCrossed)
-						{
-							FilterDirection outDir = FilterDirection::FilterDown;
-
-							outDirBl = outDir;
-							outDirBr = outDir;
-
-							inDirBl = ENTRY_DIRECTIONS[faceBl][outDir];
-							inDirBr = ENTRY_DIRECTIONS[faceBr][outDir];
-
-							faceBl = ADJACENT_FACES[faceBl][outDir];
-							faceBr = ADJACENT_FACES[faceBr][outDir];
-						}
-
-						// If any sample pixel crossed over to another cubemap face, calculate the correct pixel there, otherwise
-						// get the correct pixel on this face
-						rgbaBufferIndexBl =
-							faceBl == face
-							? ((faceY + 0) * numFrames * inputFrameWidth_ + (faceX + 0) + faceBl * inputFrameWidth_) * 4
-							: EdgePixelIndexFromDirs(outDirBl, inDirBl, faceBl, faceX + 0, faceY + 0, numFrames);
-						rgbaBufferIndexBr =
-							faceBr == face
-							? ((faceY + 0) * numFrames * inputFrameWidth_ + (faceX + 1) + faceBr * inputFrameWidth_) * 4
-							: EdgePixelIndexFromDirs(outDirBr, inDirBr, faceBr, faceX + 1, faceY + 0, numFrames);
-						rgbaBufferIndexTl =
-							faceTl == face
-							? ((faceY + 1) * numFrames * inputFrameWidth_ + (faceX + 0) + faceTl * inputFrameWidth_) * 4
-							: EdgePixelIndexFromDirs(outDirTl, inDirTl, faceTl, faceX + 0, faceY + 1, numFrames);
-						rgbaBufferIndexTr =
-							faceTr == face
-							? ((faceY + 1) * numFrames * inputFrameWidth_ + (faceX + 1) + faceTr * inputFrameWidth_) * 4
-							: EdgePixelIndexFromDirs(outDirTr, inDirTr, faceTr, faceX + 1, faceY + 1, numFrames);
-					}
-
-					// Calculate the final interpolated color based on the weights and sampled pixels
-					for (int color_channel = 0; color_channel < 4; color_channel++)
-					{
-						outputFrame_[warpedBufferIndex + color_channel] =
-							weightBl * (*inputFrame_)[rgbaBufferIndexBl + color_channel] +
-							weightBr * (*inputFrame_)[rgbaBufferIndexBr + color_channel] +
-							weightTl * (*inputFrame_)[rgbaBufferIndexTl + color_channel] +
-							weightTr * (*inputFrame_)[rgbaBufferIndexTr + color_channel];
-					}
-				}
+				return *reinterpret_cast<std::array<uint8_t, 4>*>(&(*inputFrame_)[rgbaBufferIndex]);
 			}
+
+			// Sample the cubemap textures with bilinear interpolation
+			// The 0.5s here are to center the sampling areas so that each pixel's color is blended around its center
+			int faceX = floor(faceCoord.x - 0.5);
+			int faceY = floor(faceCoord.y - 0.5);
+
+			const float dx = faceCoord.x - 0.5 - faceX;
+			const float dy = faceCoord.y - 0.5 - faceY;
+
+			// These variables are named as follows:
+			// b = bottom, r = right, t = top, l = left
+			// bl = bottom left and so on
+
+			const float weightBl = (1.0f - dx) * (1.0f - dy);
+			const float weightBr = dx * (1.0f - dy);
+			const float weightTl = (1.0f - dx) * dy;
+			const float weightTr = dx * dy;
+
+			const bool rBoundaryCrossed = faceX + 1 >= inputFrameWidth_;
+			const bool tBoundaryCrossed = faceY + 1 >= inputFrameHeight_;
+			const bool lBoundaryCrossed = faceX < 0;
+			const bool bBoundaryCrossed = faceY < 0;
+
+			// Get the correct pixel indices for sampling
+			int rgbaBufferIndexBl;
+			int rgbaBufferIndexBr;
+			int rgbaBufferIndexTl;
+			int rgbaBufferIndexTr;
+
+			if (!rBoundaryCrossed && !tBoundaryCrossed && !lBoundaryCrossed && !bBoundaryCrossed)
+			{
+				// If no boundaries were crossed, getting the sample pixels is simple because they're on the same face
+				rgbaBufferIndexBl = ((faceY + 0) * FACES_IN_A_CUBE * inputFrameWidth_ + (faceX + 0) + face * inputFrameWidth_) * 4;
+				rgbaBufferIndexBr = ((faceY + 0) * FACES_IN_A_CUBE * inputFrameWidth_ + (faceX + 1) + face * inputFrameWidth_) * 4;
+				rgbaBufferIndexTl = ((faceY + 1) * FACES_IN_A_CUBE * inputFrameWidth_ + (faceX + 0) + face * inputFrameWidth_) * 4;
+				rgbaBufferIndexTr = ((faceY + 1) * FACES_IN_A_CUBE * inputFrameWidth_ + (faceX + 1) + face * inputFrameWidth_) * 4;
+			}
+			else
+			{
+				// Adjacent faces for each face in order of the direction enum
+				const static CubeFace ADJACENT_FACES[6][4] =
+				{
+					{ CubeFace::CubeBack,  CubeFace::CubeRight, CubeFace::CubeFront,   CubeFace::CubeLeft  },
+					{ CubeFace::CubeTop,   CubeFace::CubeFront, CubeFace::CubeBottom,  CubeFace::CubeBack  },
+					{ CubeFace::CubeTop,   CubeFace::CubeRight, CubeFace::CubeBottom,  CubeFace::CubeLeft  },
+					{ CubeFace::CubeTop,   CubeFace::CubeBack,  CubeFace::CubeBottom,  CubeFace::CubeFront },
+					{ CubeFace::CubeTop,   CubeFace::CubeLeft,  CubeFace::CubeBottom,  CubeFace::CubeRight },
+					{ CubeFace::CubeFront, CubeFace::CubeRight, CubeFace::CubeBack,    CubeFace::CubeLeft  }
+				};
+
+				// The directions from which each face is entered from when coming from the corresponding adjacent face
+				const static FilterDirection ENTRY_DIRECTIONS[6][4] =
+				{
+					{ FilterDirection::FilterDown,  FilterDirection::FilterDown, FilterDirection::FilterDown,  FilterDirection::FilterDown  },
+					{ FilterDirection::FilterLeft,  FilterDirection::FilterLeft, FilterDirection::FilterLeft,  FilterDirection::FilterRight },
+					{ FilterDirection::FilterUp,    FilterDirection::FilterLeft, FilterDirection::FilterDown,  FilterDirection::FilterRight },
+					{ FilterDirection::FilterRight, FilterDirection::FilterLeft, FilterDirection::FilterRight, FilterDirection::FilterRight },
+					{ FilterDirection::FilterDown,  FilterDirection::FilterLeft, FilterDirection::FilterUp,    FilterDirection::FilterRight },
+					{ FilterDirection::FilterUp,    FilterDirection::FilterUp,   FilterDirection::FilterUp,    FilterDirection::FilterUp    }
+				};
+
+				CubeFace faceBl = face;
+				CubeFace faceBr = face;
+				CubeFace faceTl = face;
+				CubeFace faceTr = face;
+
+				FilterDirection inDirBl;
+				FilterDirection inDirBr;
+				FilterDirection inDirTl;
+				FilterDirection inDirTr;
+
+				FilterDirection outDirBl;
+				FilterDirection outDirBr;
+				FilterDirection outDirTl;
+				FilterDirection outDirTr;
+
+				// Check if any of the sample pixels crosses over onto another side of the cubemap
+				if (rBoundaryCrossed)
+				{
+					FilterDirection outDir = FilterDirection::FilterRight;
+
+					outDirBr = outDir;
+					outDirTr = outDir;
+
+					inDirBr = ENTRY_DIRECTIONS[faceBr][outDir];
+					inDirTr = ENTRY_DIRECTIONS[faceTr][outDir];
+
+					faceBr = ADJACENT_FACES[faceBr][outDir];
+					faceTr = ADJACENT_FACES[faceTr][outDir];
+				}
+
+				if (tBoundaryCrossed)
+				{
+					FilterDirection outDir = FilterDirection::FilterUp;
+
+					outDirTl = outDir;
+					outDirTr = outDir;
+
+					inDirTl = ENTRY_DIRECTIONS[faceTl][outDir];
+					inDirTr = ENTRY_DIRECTIONS[faceTr][outDir];
+
+					faceTl = ADJACENT_FACES[faceTl][outDir];
+					faceTr = ADJACENT_FACES[faceTr][outDir];
+				}
+
+				if (lBoundaryCrossed)
+				{
+					FilterDirection outDir = FilterDirection::FilterLeft;
+
+					outDirBl = outDir;
+					outDirTl = outDir;
+
+					inDirBl = ENTRY_DIRECTIONS[faceBl][outDir];
+					inDirTl = ENTRY_DIRECTIONS[faceTl][outDir];
+
+					faceBl = ADJACENT_FACES[faceBl][outDir];
+					faceTl = ADJACENT_FACES[faceTl][outDir];
+				}
+
+				if (bBoundaryCrossed)
+				{
+					FilterDirection outDir = FilterDirection::FilterDown;
+
+					outDirBl = outDir;
+					outDirBr = outDir;
+
+					inDirBl = ENTRY_DIRECTIONS[faceBl][outDir];
+					inDirBr = ENTRY_DIRECTIONS[faceBr][outDir];
+
+					faceBl = ADJACENT_FACES[faceBl][outDir];
+					faceBr = ADJACENT_FACES[faceBr][outDir];
+				}
+
+				// If any sample pixel crossed over to another cubemap face, calculate the correct pixel there, otherwise
+				// get the correct pixel on this face
+				rgbaBufferIndexBl =
+					faceBl == face
+					? ((faceY + 0) * FACES_IN_A_CUBE * inputFrameWidth_ + (faceX + 0) + faceBl * inputFrameWidth_) * 4
+					: EdgePixelIndexFromDirs(outDirBl, inDirBl, faceBl, faceX + 0, faceY + 0, FACES_IN_A_CUBE);
+				rgbaBufferIndexBr =
+					faceBr == face
+					? ((faceY + 0) * FACES_IN_A_CUBE * inputFrameWidth_ + (faceX + 1) + faceBr * inputFrameWidth_) * 4
+					: EdgePixelIndexFromDirs(outDirBr, inDirBr, faceBr, faceX + 1, faceY + 0, FACES_IN_A_CUBE);
+				rgbaBufferIndexTl =
+					faceTl == face
+					? ((faceY + 1) * FACES_IN_A_CUBE * inputFrameWidth_ + (faceX + 0) + faceTl * inputFrameWidth_) * 4
+					: EdgePixelIndexFromDirs(outDirTl, inDirTl, faceTl, faceX + 0, faceY + 1, FACES_IN_A_CUBE);
+				rgbaBufferIndexTr =
+					faceTr == face
+					? ((faceY + 1) * FACES_IN_A_CUBE * inputFrameWidth_ + (faceX + 1) + faceTr * inputFrameWidth_) * 4
+					: EdgePixelIndexFromDirs(outDirTr, inDirTr, faceTr, faceX + 1, faceY + 1, FACES_IN_A_CUBE);
+			}
+
+			std::array<uint8_t, 4> outputRgba{};
+
+			// Calculate the final interpolated color based on the weights and sampled pixels
+			for (int color_channel = 0; color_channel < 4; color_channel++)
+			{
+				outputRgba[color_channel] =
+					weightBl * (*inputFrame_)[rgbaBufferIndexBl + color_channel] +
+					weightBr * (*inputFrame_)[rgbaBufferIndexBr + color_channel] +
+					weightTl * (*inputFrame_)[rgbaBufferIndexTl + color_channel] +
+					weightTr * (*inputFrame_)[rgbaBufferIndexTr + color_channel];
+			}
+
+			return outputRgba;
 		});
 }
 

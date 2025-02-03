@@ -188,7 +188,6 @@ void RenderTargetExtractor::Extract()
 			int32_t stagingBufferHeight;
 			RHICmdList.MapStagingSurface(stagingBuffer_, resource, stagingBufferWidth, stagingBufferHeight);
 
-			const int32_t threadBatchSize = ceil(stagingBufferHeight / (float)threadCount_);
 			const int32_t numFrames = textures_.size();
 
 			extractionMutex_.lock();
@@ -196,18 +195,10 @@ void RenderTargetExtractor::Extract()
 			if (stagingBufferWidth == numFrames * frameWidth_ && stagingBufferHeight == frameHeight_)
 			{
 				// Mapped texture data has no padding: multiple rows can be copied in a single memcpy
-				const int32_t stagingPitch = stagingBufferWidth * bytesPerPixel_;
-
-				ParallelFor(threadCount_, [&](int32_t i)
-					{
-						const int32_t threadBatchStart = threadBatchSize * i * stagingPitch;
-						const int32_t threadBatchEnd = std::min(threadBatchSize * (i + 1), stagingBufferHeight) * stagingPitch;
-
-						memcpy(
-							frameBuffers_[bufferIndex_] + threadBatchStart,
-							reinterpret_cast<uint8_t*>(resource) + threadBatchStart,
-							threadBatchEnd - threadBatchStart);
-					});
+				memcpy(
+					frameBuffers_[bufferIndex_],
+					reinterpret_cast<uint8_t*>(resource),
+					stagingBufferHeight * stagingBufferWidth * bytesPerPixel_);
 			}
 			else
 			{
@@ -215,19 +206,13 @@ void RenderTargetExtractor::Extract()
 				const int32_t rgbaPitch = numFrames * frameWidth_ * bytesPerPixel_;
 				const int32_t stagingPitch = stagingBufferWidth * bytesPerPixel_;
 
-				ParallelFor(threadCount_, [&](int32_t i)
-					{
-						const int32_t threadRowsStart = threadBatchSize * i;
-						const int32_t threadRowsEnd = std::min(threadBatchSize * (i + 1), stagingBufferHeight);
-
-						for (int j = threadRowsStart; j < threadRowsEnd; j++)
-						{
-							memcpy(
-								frameBuffers_[bufferIndex_] + j * rgbaPitch,
-								reinterpret_cast<uint8_t*>(resource) + j * stagingPitch,
-								rgbaPitch);
-						}
-					});
+				for (int j = 0; j < stagingBufferHeight; j++)
+				{
+					memcpy(
+						frameBuffers_[bufferIndex_] + j * rgbaPitch,
+						reinterpret_cast<uint8_t*>(resource) + j * stagingPitch,
+						rgbaPitch);
+				}
 			}
 
 			RHICmdList.UnmapStagingSurface(stagingBuffer_);

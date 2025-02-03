@@ -1,5 +1,4 @@
 #include "RgbaToYuvConverter.h"
-#include "Async/ParallelFor.h"
 
 #ifdef CITHRUS_SSE41_AVAILABLE
 #include <emmintrin.h>

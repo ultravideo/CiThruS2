@@ -2,6 +2,7 @@
 
 #include "IImageFunnel.h"
 #include "ProxySink.h"
+
 #include <array>
 
 // Concatenates YUV 4:2:0 images vertically. Each image must have the same resolution
@@ -9,10 +10,9 @@ template <uint8_t width>
 class ImageConcatenator : public IImageFunnel<width>
 {
 public:
-	ImageConcatenator(const uint16_t& frameWidth, const uint16_t& frameHeight, const uint8_t& threadCount)
+	ImageConcatenator(const uint16_t& frameWidth, const uint16_t& frameHeight)
 		: inputFrameWidth_(frameWidth), inputFrameHeight_(frameHeight),
-		outputFrameWidth_(frameWidth), outputFrameHeight_(frameHeight* width),
-		threadCount_(threadCount)
+		outputFrameWidth_(frameWidth), outputFrameHeight_(frameHeight* width)
 	{
 		outputSize_ = outputFrameWidth_ * outputFrameHeight_ * 3 / 2;
 		outputFrame_ = new uint8_t[outputSize_];
@@ -54,32 +54,6 @@ public:
 			// Copy V
 			memcpy(outputFrame_ + frameSize / 4 * i + frameSize * 5 / 4 * inputFrames_.size(), *inputFrames_[i] + frameSize * 5 / 4, frameSize / 4);
 		}
-
-		/*const int threadBatchSize = ceil(inputFrameWidth_ / (float)threadCount_);
-
-		ParallelFor(threadCount_, [&](int32_t i)
-			{
-				const int threadBatchStart = threadBatchSize * i;
-				const int threadBatchEnd = std::min(threadBatchSize * (i + 1), static_cast<int>(inputFrameWidth_));
-
-				for (int32_t j = 0; j < inputFrames_.size(); j++)
-				{
-					uint32_t frameOffset = j * inputFrameWidth_ * inputFrameHeight_ * 4;
-
-					for (int32_t x = threadBatchStart; x < threadBatchEnd; x++)
-					{
-						for (int32_t y = 0; y < inputFrameHeight_; y++)
-						{
-							uint32_t pixelOffset = (x + y * inputFrameWidth_) * 4;
-
-							for (uint8_t channelOffset = 0; channelOffset < 4; channelOffset++)
-							{
-								outputFrame_[frameOffset + pixelOffset + channelOffset] = (*inputFrames_[j])[pixelOffset + channelOffset];
-							}
-						}
-					}
-				}
-			});*/
 	}
 
 	inline virtual uint8_t* const* GetOutput() const override { return &outputFrame_; }
@@ -96,8 +70,6 @@ protected:
 
 	uint16_t outputFrameWidth_;
 	uint16_t outputFrameHeight_;
-
-	uint8_t threadCount_;
 
 	std::array<ProxySink*, width> sinks_;
 
