@@ -153,7 +153,7 @@ Equirectangular360Converter::~Equirectangular360Converter()
 
 void Equirectangular360Converter::Process()
 {
-	if (*inputFrame_ == nullptr)
+	if (*inputFrame_ == nullptr || *inputSize_ != inputFrameWidth_ * inputFrameHeight_ * 4)
 	{
 		return;
 	}
@@ -350,6 +350,7 @@ bool Equirectangular360Converter::SetInput(const IImageSource* source)
 	}
 
 	inputFrame_ = source->GetOutput();
+	inputSize_ = source->GetOutputSize();
 
 	return true;
 }

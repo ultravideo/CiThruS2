@@ -6,7 +6,7 @@
 class CITHRUS_API GammaCompressor : public IImageFilter
 {
 public:
-	GammaCompressor(const uint16_t& frameWidth, const uint16_t& frameHeight, const float& gamma);
+	GammaCompressor(const float& gamma) : outputFrame_(nullptr), outputSize_(0), outputFormat_("error"), gamma_(gamma) { }
 	virtual ~GammaCompressor();
 
 	virtual void Process() override;
@@ -23,7 +23,7 @@ protected:
 
 	uint8_t* outputFrame_;
 	uint32_t outputSize_;
-	std::string outputFormat_ = "error";
+	std::string outputFormat_;
 
 	uint16_t inputFrameWidth_;
 	uint16_t inputFrameHeight_;

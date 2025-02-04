@@ -2,13 +2,6 @@
 
 #include <algorithm>
 
-FloatToByteConverter::FloatToByteConverter(const uint16_t& frameWidth, const uint16_t& frameHeight)
-	: inputFrameWidth_(frameWidth), inputFrameHeight_(frameHeight), outputFrameWidth_(frameWidth), outputFrameHeight_(frameHeight)
-{
-	outputSize_ = outputFrameWidth_ * outputFrameHeight_ * 4;
-	outputFrame_ = new uint8_t[outputSize_];
-}
-
 FloatToByteConverter::~FloatToByteConverter()
 {
 	delete[] outputFrame_;
@@ -21,6 +14,14 @@ void FloatToByteConverter::Process()
 	if (*inputFrame_ == nullptr)
 	{
 		return;
+	}
+
+	if (outputSize_ != *inputSize_ / 4)
+	{
+		outputSize_ = *inputSize_ / 4;
+
+		delete[] outputFrame_;
+		outputFrame_ = new uint8_t[outputSize_];
 	}
 
 	std::transform(

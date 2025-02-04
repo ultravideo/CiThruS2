@@ -6,7 +6,7 @@
 class CITHRUS_API FloatToByteConverter : public IImageFilter
 {
 public:
-	FloatToByteConverter(const uint16_t& frameWidth, const uint16_t& frameHeight);
+	FloatToByteConverter() : outputFrame_(nullptr), outputSize_(0) { };
 	virtual ~FloatToByteConverter();
 
 	virtual void Process() override;

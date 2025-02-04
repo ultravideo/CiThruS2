@@ -3,13 +3,6 @@
 #include <algorithm>
 #include <math.h>
 
-GammaCompressor::GammaCompressor(const uint16_t& frameWidth, const uint16_t& frameHeight, const float& gamma)
-	: inputFrameWidth_(frameWidth), inputFrameHeight_(frameHeight), outputFrameWidth_(frameWidth), outputFrameHeight_(frameHeight), gamma_(gamma)
-{
-	outputSize_ = outputFrameWidth_ * outputFrameHeight_ * 4 * 4;
-	outputFrame_ = new uint8_t[outputSize_];
-}
-
 GammaCompressor::~GammaCompressor()
 {
 	delete[] outputFrame_;
@@ -22,6 +15,14 @@ void GammaCompressor::Process()
 	if (*inputFrame_ == nullptr)
 	{
 		return;
+	}
+
+	if (outputSize_ != *inputSize_)
+	{
+		outputSize_ = *inputSize_;
+
+		delete[] outputFrame_;
+		outputFrame_ = new uint8_t[outputSize_];
 	}
 
 	std::transform(

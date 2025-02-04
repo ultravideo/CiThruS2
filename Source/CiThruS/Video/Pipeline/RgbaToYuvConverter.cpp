@@ -10,7 +10,7 @@
 #include <stdexcept>
 
 RgbaToYuvConverter::RgbaToYuvConverter(const uint16_t& frameWidth, const uint16_t& frameHeight)
-	: inputFrameWidth_(frameWidth), inputFrameHeight_(frameHeight), outputFrameWidth_(frameWidth), outputFrameHeight_(frameHeight)
+	: inputFormat_("error"), outputFrameWidth_(frameWidth), outputFrameHeight_(frameHeight)
 {
     outputSize_ = outputFrameWidth_ * outputFrameHeight_ * 2;
     outputFrame_ = new uint8_t[outputSize_];
@@ -25,7 +25,9 @@ RgbaToYuvConverter::~RgbaToYuvConverter()
 
 void RgbaToYuvConverter::Process()
 {
-    if (*inputFrame_ == nullptr)
+    if (*inputFrame_ == nullptr
+        || *inputSize_ != outputFrameWidth_ * outputFrameHeight_ * 4
+        || inputFormat_ == "error")
     {
         return;
     }
@@ -43,6 +45,7 @@ bool RgbaToYuvConverter::SetInput(const IImageSource* source)
     }
 
     inputFrame_ = source->GetOutput();
+    inputSize_ = source->GetOutputSize();
     inputFormat_ = inputFormat;
 
     return true;

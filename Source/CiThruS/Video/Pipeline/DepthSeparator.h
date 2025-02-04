@@ -6,7 +6,7 @@
 class CITHRUS_API DepthSeparator : public IImageFilter
 {
 public:
-	DepthSeparator(const uint16_t& frameWidth, const uint16_t& frameHeight);
+	DepthSeparator() : outputFrame_(nullptr), outputSize_(0) { }
 	virtual ~DepthSeparator();
 
 	virtual void Process() override;
