@@ -3,7 +3,7 @@ setlocal
 set AIRSIM_VER=2.1.0
 set DLSS_VER=ue5.4_dlss_3.7.20_plugin_2024.09.06
 set FSR_VER=520
-set KVAZAAR_VER=2.2.0
+set KVAZAAR_VER=2.3.1
 set YASM_VER=1.3.0
 set UVGRTP_VER=2.3.0
 set CITHRUS_CONTENT_VER=21_01_2025
