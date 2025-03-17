@@ -12,7 +12,7 @@
 RgbaToYuvConverter::RgbaToYuvConverter(const uint16_t& frameWidth, const uint16_t& frameHeight)
 	: inputFormat_("error"), outputFrameWidth_(frameWidth), outputFrameHeight_(frameHeight)
 {
-    outputSize_ = outputFrameWidth_ * outputFrameHeight_ * 2;
+    outputSize_ = outputFrameWidth_ * outputFrameHeight_ * 3 / 2;
     outputFrame_ = new uint8_t[outputSize_];
 }
 
@@ -175,5 +175,5 @@ void RgbaToYuvConverter::RgbaToYuvSse41(uint8_t* input, uint8_t** output, int wi
         }
     }
 
-#endif CITHRUS_SSE41_AVAILABLE
+#endif // CITHRUS_SSE41_AVAILABLE
 }

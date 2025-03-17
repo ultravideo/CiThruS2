@@ -5,6 +5,7 @@ public class CiThruS : ModuleRules
 {
 	public CiThruS(ReadOnlyTargetRules Target) : base(Target)
 	{
+		// These are here to fix some weird Windows issue
 		PublicDefinitions.Add("_WIN32_WINNT_WIN10_TH2");
         PublicDefinitions.Add("_WIN32_WINNT_WIN10_RS1");
         PublicDefinitions.Add("_WIN32_WINNT_WIN10_RS2");
@@ -17,10 +18,12 @@ public class CiThruS : ModuleRules
 		bUseUnity = false;
 		var uvgrtp_base_path = Path.Combine(ModuleDirectory, "../../ThirdParty/uvgRTP/");
 		var kvazaar_base_path = Path.Combine(ModuleDirectory, "../../ThirdParty/Kvazaar/");
+		var openhevc_base_path = Path.Combine(ModuleDirectory, "../../ThirdParty/OpenHEVC/");
 		
 		// Keep these include paths even if the files don't exist because C++17 checks for them in VideoTransmitter.h at compilation time
 		PublicIncludePaths.Add(Path.Combine(uvgrtp_base_path, "Include"));
 		PublicIncludePaths.Add(Path.Combine(kvazaar_base_path, "Include"));
+		PublicIncludePaths.Add(Path.Combine(openhevc_base_path, "Include"));
 
 		if (File.Exists(Path.Combine(uvgrtp_base_path, "Lib/uvgrtp.lib")))
 		{
@@ -30,6 +33,11 @@ public class CiThruS : ModuleRules
 		if (File.Exists(Path.Combine(kvazaar_base_path, "Lib/kvazaar_lib.lib")))
 		{
 			PublicAdditionalLibraries.Add(Path.Combine(kvazaar_base_path, "Lib/kvazaar_lib.lib"));
+		}
+		
+		if (File.Exists(Path.Combine(openhevc_base_path, "Lib/LibOpenHevcWrapper.lib")))
+		{
+			PublicAdditionalLibraries.Add(Path.Combine(openhevc_base_path, "Lib/LibOpenHevcWrapper.lib"));
 		}
 		
 		// This is needed to use kvazaar.lib instead of kvazaar.dll

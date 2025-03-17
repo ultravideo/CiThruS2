@@ -16,6 +16,9 @@ public:
 	template <uint8_t I>
 	inline IImageSource* GetSourceAtIndex() const
 	{
+		// Template functions can't be virtual, so doing it like this allows the use of
+		// static asserts on the index while also allowing the actual indexing logic to be
+		// overwritten
 		static_assert(I < N, "Source index out of bounds");
 		return GetSourceAtIndexInternal(N);
 	}

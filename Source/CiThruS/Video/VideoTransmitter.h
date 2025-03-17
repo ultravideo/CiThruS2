@@ -17,13 +17,13 @@
 
 #include "VideoTransmitter.generated.h"
 
-class RenderTargetExtractor;
+class RenderTargetReader;
 class IImageFilter;
 class ImagePipeline;
 class SyncBarrier;
 class AnnotationTransmitter;
 class HevcEncoder;
-class RtpStreamer;
+class RtpTransmitter;
 
 // Transmits 360 or regular video through an RTP stream
 UCLASS()
@@ -96,7 +96,7 @@ public:
 	void ResetStreams();
 
 private:
-	RenderTargetExtractor* extractor_;
+	RenderTargetReader* reader_;
 	ImagePipeline* pipeline_;
 	AnnotationTransmitter* annotationTransmitter_;
 

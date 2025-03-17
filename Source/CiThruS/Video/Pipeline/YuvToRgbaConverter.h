@@ -8,12 +8,12 @@
 
 #include "IImageFilter.h"
 
-// Converts RGBA or ABGR images to YUV 4:2:0
-class CITHRUS_API RgbaToYuvConverter : public IImageFilter
+// Converts YUV 4:2:0 images to RGBA
+class CITHRUS_API YuvToRgbaConverter : public IImageFilter
 {
 public:
-	RgbaToYuvConverter(const uint16_t& frameWidth, const uint16_t& frameHeight);
-	virtual ~RgbaToYuvConverter();
+	YuvToRgbaConverter(const uint16_t& frameWidth, const uint16_t& frameHeight, const std::string& format = "rgba");
+	virtual ~YuvToRgbaConverter();
 
 	virtual void Process() override;
 
@@ -21,18 +21,18 @@ public:
 
 	inline virtual uint8_t* const* GetOutput() const override { return &outputFrame_; }
 	inline virtual const uint32_t* GetOutputSize() const override { return &outputSize_; }
-	inline virtual std::string GetOutputFormat() const override { return "yuv420"; }
+	inline virtual std::string GetOutputFormat() const override { return outputFormat_; }
 
 protected:
 	uint8_t* const* inputFrame_;
 	const uint32_t* inputSize_;
-	std::string inputFormat_;
 
 	uint8_t* outputFrame_;
 	uint32_t outputSize_;
+	std::string outputFormat_;
 
 	uint16_t outputFrameWidth_;
 	uint16_t outputFrameHeight_;
 
-	void RgbaToYuvSse41(uint8_t* input, uint8_t** output, int width, int height);
+	void YuvToRgbaSse41(uint8_t* input, uint8_t** output, int width, int height);
 };

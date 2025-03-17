@@ -1,15 +1,13 @@
 #pragma once
 
-#if __cplusplus >= 201703L || _MSC_VER > 1911
 #if __has_include("../ThirdParty/Kvazaar/Include/kvazaar.h")
+#ifndef CITHRUS_KVAZAAR_AVAILABLE
 #define CITHRUS_KVAZAAR_AVAILABLE
+#endif // CITHRUS_KVAZAAR_AVAILABLE
 #include "../ThirdParty/Kvazaar/Include/kvazaar.h"
 #else
 #pragma message (__FILE__ ": warning: Kvazaar not found, HEVC encoding is unavailable")
 #endif // __has_include(...)
-#else
-#include "../ThirdParty/Kvazaar/Include/kvazaar.h"
-#endif // __cplusplus(...)
 
 #include "IImageFilter.h"
 
@@ -36,6 +34,8 @@ protected:
 	uint32_t frameHeight_;
 
 	uint8_t* const* inputFrame_;
+	const uint32_t* inputSize_;
+
 	uint8_t* outputFrame_;
 	uint32_t outputSize_;
 

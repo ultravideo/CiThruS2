@@ -2,7 +2,7 @@
 #include "Misc/Debug.h"
 
 HevcEncoder::HevcEncoder(const uint16_t& frameWidth, const uint16_t& frameHeight, const uint8_t& threadCount, const uint8_t& qp, const uint8_t& wpp, const uint8_t& owf)
-	: frameWidth_(frameWidth), frameHeight_(frameHeight), inputFrame_(nullptr), outputFrame_(nullptr), outputSize_(0)
+	: frameWidth_(frameWidth), frameHeight_(frameHeight), inputFrame_(nullptr), inputSize_(0), outputFrame_(nullptr), outputSize_(0)
 {
 #ifdef CITHRUS_KVAZAAR_AVAILABLE
 	// Set up Kvazaar for encoding
@@ -33,7 +33,7 @@ HevcEncoder::HevcEncoder(const uint16_t& frameWidth, const uint16_t& frameHeight
 	kvazaarConfig_->calc_psnr = 0;
 
 	kvazaarEncoder_ = kvazaarApi_->encoder_open(kvazaarConfig_);
-	kvazaarTransmitPicture_ = kvazaarApi_->picture_alloc(frameWidth, frameHeight);
+	kvazaarTransmitPicture_ = kvazaarApi_->picture_alloc(frameWidth_, frameHeight_);
 #endif // CITHRUS_KVAZAAR_AVAILABLE
 }
 
@@ -55,7 +55,7 @@ HevcEncoder::~HevcEncoder()
 
 void HevcEncoder::Process()
 {
-	if (*inputFrame_ == nullptr)
+	if (*inputFrame_ == nullptr || *inputSize_ == 0)
 	{
 		return;
 	}
@@ -116,6 +116,7 @@ bool HevcEncoder::SetInput(const IImageSource* source)
 	}
 
 	inputFrame_ = source->GetOutput();
+	inputSize_ = source->GetOutputSize();
 
 	return true;
 }

@@ -19,7 +19,7 @@
 #undef UpdateResource
 
 #else
-#warning "Annotation streaming not available: currently only implemented for Windows"
+#pragma message (__FILE__ ": warning: Annotation streaming not available: currently only implemented for Windows")
 #endif // _WIN32
 
 #include <list>

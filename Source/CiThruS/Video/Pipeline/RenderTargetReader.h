@@ -6,20 +6,20 @@
 #include <vector>
 #include <mutex>
 
-// Extracts RHI render targets from VRAM to RAM
-class CITHRUS_API RenderTargetExtractor : public IImageSource
+// Reads data from RHI render targets in VRAM
+class CITHRUS_API RenderTargetReader : public IImageSource
 {
 public:
-	RenderTargetExtractor(std::vector<UTextureRenderTarget2D*> textures, const uint8_t& threadCount = 16);
-	~RenderTargetExtractor();
-
-	void Extract();
+	RenderTargetReader(std::vector<UTextureRenderTarget2D*> textures);
+	~RenderTargetReader();
 
 	virtual void Process() override;
 
 	inline virtual uint8_t* const* GetOutput() const override { return &outputFrame_; }
 	inline virtual const uint32_t* GetOutputSize() const override { return &outputSize_; }
 	inline virtual std::string GetOutputFormat() const override { return outputFormat_; }
+
+	void Read();
 
 protected:
 	std::vector<FRHITexture*> textures_;
@@ -41,15 +41,16 @@ protected:
 	// Whether there's a new frame to pass onward or not
 	bool frameDirty_;
 
-	uint8_t threadCount_;
-
-	// Used to prevent extracted texture data from being read and written at the same time
-	std::mutex extractionMutex_;
+	// Used to prevent texture data from being read and written at the same time
+	std::mutex readMutex_;
 
 	// Used to prevent resources from being deleted while they might still be in use on another thread
 	std::mutex resourceMutex_;
 
 	uint8_t bufferIndex_;
 
+	// These are separate because theoretically this object may get destroyed before being initialized,
+	// in which case the initialization needs to be cancelled
 	bool initialized_;
+	bool destroyed_;
 };

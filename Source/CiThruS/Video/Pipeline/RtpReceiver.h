@@ -12,16 +12,14 @@
 
 #endif // _WIN32
 
-#if __cplusplus >= 201703L || _MSC_VER > 1911
 #if __has_include("../ThirdParty/uvgRTP/Include/lib.hh")
+#ifndef CITHRUS_UVGRTP_AVAILABLE
 #define CITHRUS_UVGRTP_AVAILABLE
+#endif // CITHRUS_UVGRTP_AVAILABLE
 #include "../ThirdParty/uvgRTP/Include/lib.hh"
 #else
 #pragma message (__FILE__ ": warning: uvgRTP not found, RTP streaming is unavailable")
 #endif // __has_include(...)
-#else
-#include "../ThirdParty/uvgRTP/Include/lib.hh"
-#endif // __cplusplus(...)
 
 // uvgRTP includes winsock2.h which defines a macro called UpdateResource which
 // breaks Unreal Engine's texture classes as they also contain a function
@@ -31,28 +29,32 @@
 #endif
 
 #include "CoreMinimal.h"
-#include "IImageSink.h"
+#include "IImageSource.h"
 
 #include <string>
 
-// Streams HEVC video through an RTP stream
-class CITHRUS_API RtpStreamer : public IImageSink
+// Receives data from an RTP stream. Currently HEVC data only
+class CITHRUS_API RtpReceiver : public IImageSource
 {
 public:
-	RtpStreamer(const std::string& ip, const int& dstPort);
-	virtual ~RtpStreamer();
+	RtpReceiver(const std::string& ip, const int& srcPort);
+	virtual ~RtpReceiver();
 
 	virtual void Process() override;
 
-	virtual bool SetInput(const IImageSource* source) override;
+	inline virtual uint8_t* const* GetOutput() const override { return &outputFrame_; }
+	inline virtual const uint32_t* GetOutputSize() const override { return &outputSize_; }
+	inline virtual std::string GetOutputFormat() const override { return "hevc"; }
 
 protected:
-	uint8_t* const* inputFrame_;
-	const uint32_t* inputSize_;
+	uint8_t* outputFrame_;
+	uint32_t outputSize_;
 
 #ifdef CITHRUS_UVGRTP_AVAILABLE
 	uvgrtp::context streamContext_;
 	uvgrtp::session* streamSession_;
 	uvgrtp::media_stream* stream_;
+
+	uvgrtp::frame::rtp_frame* frame_;
 #endif // CITHRUS_UVGRTP_AVAILABLE
 };

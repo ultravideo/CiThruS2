@@ -1,8 +1,8 @@
-#include "RtpStreamer.h"
+#include "RtpTransmitter.h"
 #include "IImageSource.h"
 #include "Misc/Debug.h"
 
-RtpStreamer::RtpStreamer(const std::string& ip, const int& dstPort)
+RtpTransmitter::RtpTransmitter(const std::string& ip, const int& dstPort)
 {
 #ifdef CITHRUS_UVGRTP_AVAILABLE
 	streamSession_ = streamContext_.create_session(ip);
@@ -15,7 +15,7 @@ RtpStreamer::RtpStreamer(const std::string& ip, const int& dstPort)
 #endif // CITHRUS_UVGRTP_AVAILABLE
 }
 
-RtpStreamer::~RtpStreamer()
+RtpTransmitter::~RtpTransmitter()
 {
 #ifdef CITHRUS_UVGRTP_AVAILABLE
 	if (stream_)
@@ -32,7 +32,7 @@ RtpStreamer::~RtpStreamer()
 #endif // CITHRUS_UVGRTP_AVAILABLE
 }
 
-void RtpStreamer::Process()
+void RtpTransmitter::Process()
 {
 	if (*inputFrame_ == nullptr || *inputSize_ == 0)
 	{
@@ -47,7 +47,7 @@ void RtpStreamer::Process()
 #endif // CITHRUS_UVGRTP_AVAILABLE
 }
 
-bool RtpStreamer::SetInput(const IImageSource* source)
+bool RtpTransmitter::SetInput(const IImageSource* source)
 {
 	if (source->GetOutputFormat() != "hevc")
 	{

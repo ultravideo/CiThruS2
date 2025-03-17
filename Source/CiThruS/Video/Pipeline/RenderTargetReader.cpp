@@ -1,9 +1,9 @@
-#include "RenderTargetExtractor.h"
+#include "RenderTargetReader.h"
 #include "Misc/Debug.h"
 #include "Engine/TextureRenderTarget2D.h"
 
-RenderTargetExtractor::RenderTargetExtractor(std::vector<UTextureRenderTarget2D*> textures, const uint8_t& threadCount)
-	: outputFrame_(nullptr), outputSize_(0), frameDirty_(false), threadCount_(threadCount)
+RenderTargetReader::RenderTargetReader(std::vector<UTextureRenderTarget2D*> textures)
+	: outputFrame_(nullptr), outputSize_(0), frameDirty_(false), initialized_(false), destroyed_(false)
 {
 	if (!textures.empty())
 	{
@@ -37,10 +37,16 @@ RenderTargetExtractor::RenderTargetExtractor(std::vector<UTextureRenderTarget2D*
 	}
 
 	// Note that this is executed on the render thread later and not yet
-	ENQUEUE_RENDER_COMMAND(InitializeExtractor)(
+	ENQUEUE_RENDER_COMMAND(InitializeReader)(
 		[this, textures](FRHICommandListImmediate& RHICmdList)
 		{
 			resourceMutex_.lock();
+
+			if (destroyed_)
+			{
+				resourceMutex_.unlock();
+				return;
+			}
 
 			textures_.resize(textures.size(), nullptr);
 
@@ -65,13 +71,13 @@ RenderTargetExtractor::RenderTargetExtractor(std::vector<UTextureRenderTarget2D*
 			if (textures.size() != 1 && FString(GDynamicRHI->GetName()) == TEXT("Vulkan"))
 			{
 				FRHITextureDesc concatTextureDesc(ETextureDimension::Texture2D, ETextureCreateFlags::None, pixelFormat, FClearValueBinding::Black, FIntPoint(textures_.size() * frameWidth_, frameHeight_), 1, 1, 1, 1, 0);
-				FRHITextureCreateDesc concatCreateDesc(concatTextureDesc, ERHIAccess::DSVRead | ERHIAccess::DSVWrite, TEXT("Frame Extraction Concatenation Texture"));
+				FRHITextureCreateDesc concatCreateDesc(concatTextureDesc, ERHIAccess::DSVRead | ERHIAccess::DSVWrite, TEXT("Render Target Reader Concatenation Texture"));
 
 				concatBuffer_ = RHICmdList.CreateTexture(concatCreateDesc);
 			}
 
 			FRHITextureDesc stagingTextureDesc(ETextureDimension::Texture2D, ETextureCreateFlags::CPUReadback, pixelFormat, FClearValueBinding::Black, FIntPoint(textures_.size() * frameWidth_, frameHeight_), 1, 1, 1, 1, 0);
-			FRHITextureCreateDesc stagingCreateDesc(stagingTextureDesc, ERHIAccess::CPURead | ERHIAccess::DSVWrite, TEXT("Frame Extraction Concatenation Texture"));
+			FRHITextureCreateDesc stagingCreateDesc(stagingTextureDesc, ERHIAccess::CPURead | ERHIAccess::DSVWrite, TEXT("Render Target Reader Staging Texture"));
 
 			stagingBuffer_ = RHICmdList.CreateTexture(stagingCreateDesc);
 
@@ -89,10 +95,11 @@ RenderTargetExtractor::RenderTargetExtractor(std::vector<UTextureRenderTarget2D*
 		});
 }
 
-RenderTargetExtractor::~RenderTargetExtractor()
+RenderTargetReader::~RenderTargetReader()
 {
 	resourceMutex_.lock();
 
+	destroyed_ = true;
 	initialized_ = false;
 
 	textures_.clear();
@@ -116,14 +123,14 @@ RenderTargetExtractor::~RenderTargetExtractor()
 	resourceMutex_.unlock();
 }
 
-void RenderTargetExtractor::Process()
+void RenderTargetReader::Process()
 {
-	extractionMutex_.lock();
+	readMutex_.lock();
 
 	// Should not swap buffers if there is no new data as that would lead to showing old frames again
 	if (!frameDirty_)
 	{
-		extractionMutex_.unlock();
+		readMutex_.unlock();
 
 		return;
 	}
@@ -134,10 +141,10 @@ void RenderTargetExtractor::Process()
 
 	frameDirty_ = false;
 
-	extractionMutex_.unlock();
+	readMutex_.unlock();
 }
 
-void RenderTargetExtractor::Extract()
+void RenderTargetReader::Read()
 {
 	// Note that this is executed on the render thread later and not yet
 	ENQUEUE_RENDER_COMMAND(ExtractRenderTargets)(
@@ -182,7 +189,7 @@ void RenderTargetExtractor::Extract()
 				}
 			}
 
-			// Extract the contents of the staging texture
+			// Read the contents of the staging texture
 			void* resource;
 			int32_t stagingBufferWidth;
 			int32_t stagingBufferHeight;
@@ -190,7 +197,7 @@ void RenderTargetExtractor::Extract()
 
 			const int32_t numFrames = textures_.size();
 
-			extractionMutex_.lock();
+			readMutex_.lock();
 
 			if (stagingBufferWidth == numFrames * frameWidth_ && stagingBufferHeight == frameHeight_)
 			{
@@ -219,7 +226,7 @@ void RenderTargetExtractor::Extract()
 
 			frameDirty_ = true;
 
-			extractionMutex_.unlock();
+			readMutex_.unlock();
 			resourceMutex_.unlock();
 		});
 }

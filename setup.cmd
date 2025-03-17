@@ -6,6 +6,7 @@ set FSR_VER=520
 set KVAZAAR_VER=2.3.1
 set YASM_VER=1.3.0
 set UVGRTP_VER=2.3.0
+set OPENHEVC_VER=ffmpeg_update
 set CITHRUS_CONTENT_VER=21_01_2025
 
 set ROOT_DIR=%~dp0
@@ -46,7 +47,7 @@ mkdir temp
 
 echo Setting up CiThruS2...
 
-:: AirSim is not available for UE 5.4. Skip for now
+:: AirSim is not available for UE 5.4, skip for now
 goto :dlsssetup
 
 :: AirSim setup
@@ -94,7 +95,7 @@ goto :setupfailed
 :dlsssetup
 if exist Plugins\DLSS (
 	echo Nvidia DLSS already found at Plugins\DLSS, skipping... ^(Please delete the folder manually if you'd like to reinstall it.^)
-	goto :impostorbakersetup
+	goto :fsrsetup
 )
 
 echo Downloading Nvidia DLSS...
@@ -112,40 +113,20 @@ rmdir temp\DLSS /s /q
 
 echo Nvidia DLSS successfully set up.
 
-goto :impostorbakersetup
+goto :fsrsetup
 
 :dlssdownloadfailed
 echo Failed to download Nvidia DLSS!
 goto :setupfailed
 
-:impostorbakersetup
-if exist Plugins\ImpostorBaker-master (
-	echo ImpostorBaker already found at ImpostorBaker-master, skipping... ^(Please delete the folder manually if you'd like to reinstall it.^)
-	goto :fsrsetup
-)
-
-echo Downloading ImpostorBaker...
-%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://github.com/ictusbrucks/ImpostorBaker/archive/refs/heads/master.zip', 'temp\impostorbaker.zip')" || goto :impostorbakerdownloadfailed
-echo Extracting ImpostorBaker...
-%powershell% -command "Expand-Archive -Path temp\ImpostorBaker.zip -DestinationPath Plugins"
-del temp\ImpostorBaker.zip /q
-
-echo ImpostorBaker successfully set up.
-
-goto :fsrsetup
-
-:impostorbakerdownloadfailed
-echo Failed to download ImpostorBaker!
-goto :setupfailed
-
 :fsrsetup
+:: FSR is not available for UE 5.4, skip for now
+goto :impostorbakersetup
+
 if exist Plugins\FSR2 IF EXIST Plugins\FSR2MovieRenderPipeline (
 	echo AMD FSR2 already found at Plugins\FSR2 and Plugins\FSR2MovieRenderPipeline, skipping... ^(Please delete the folders manually if you'd like to reinstall it.^)
-	goto :kvazaarsetup
+	goto :impostorbakersetup
 )
-
-:: FSR 2 is not available for UE 5.4. Skip for now
-goto :kvazaarsetup
 
 echo Downloading AMD FSR 2...
 %powershell% -command "(New-Object Net.WebClient).DownloadFile('https://gpuopen.com/download-Unreal-Engine-FSR2-plugin/', 'temp\FSR.zip')" || goto :fsrdownloadfailed
@@ -170,17 +151,31 @@ rmdir %FIRST_FSR_FOLDER_NAME% /s /q
 
 echo AMD FSR 2 successfully set up.
 
-goto :kvazaarsetup
+goto :impostorbakersetup
 
 :fsrdownloadfailed
 echo Failed to download FSR 2!
 goto :setupfailed
 
-:kvazaarsetup
-if exist ThirdParty\Kvazaar (
-	echo Kvazaar already found at ThirdParty\Kvazaar, skipping... ^(Please delete the folder manually if you'd like to reinstall it.^)
-	goto :uvgrtpsetup
+:impostorbakersetup
+if exist Plugins\ImpostorBaker-master (
+	echo ImpostorBaker already found at Plugins\ImpostorBaker-master, skipping... ^(Please delete the folder manually if you'd like to reinstall it.^)
+	goto :librarysetup
 )
+
+echo Downloading ImpostorBaker...
+%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://github.com/ictusbrucks/ImpostorBaker/archive/refs/heads/master.zip', 'temp\impostorbaker.zip')" || goto :impostorbakerdownloadfailed
+echo Extracting ImpostorBaker...
+%powershell% -command "Expand-Archive -Path temp\ImpostorBaker.zip -DestinationPath Plugins"
+del temp\ImpostorBaker.zip /q
+
+echo ImpostorBaker successfully set up.
+
+goto :librarysetup
+
+:impostorbakerdownloadfailed
+echo Failed to download ImpostorBaker!
+goto :setupfailed
 
 :librarysetup
 :: Get the compiler version and paste it in Unreal Engine's build configuration to make sure the libraries and CiThruS are compiled with the same compiler. Otherwise they will fail to link
@@ -206,13 +201,13 @@ if not exist Saved\UnrealBuildTool\BuildConfiguration.xml (
 
 %powershell% -command "((Get-Content -path Saved/UnrealBuildTool/BuildConfiguration.xml -Raw) -replace '14\.[0-9]+\.[0-9]+','14%COMPILER_VER%') | Set-Content -Path Saved/UnrealBuildTool/BuildConfiguration.xml"
 
-echo Downloading Kvazaar...
-%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://github.com/ultravideo/kvazaar/archive/v%KVAZAAR_VER%.zip', 'temp\Kvazaar.zip')" || goto :kvazaardownloadfailed
-echo Extracting Kvazaar...
-%powershell% -command "Expand-Archive -Path temp\Kvazaar.zip -DestinationPath temp -Force"
-del temp\Kvazaar.zip /q
+if not exist ThirdParty\Kvazaar goto :yasmsetup
+if not exist ThirdParty\OpenHEVC goto :yasmsetup
 
-:: Yasm is needed to build Kvazaar
+goto :uvgrtpsetup
+
+:yasmsetup
+:: Yasm is needed to build Kvazaar and OpenHEVC
 echo Downloading Yasm...
 %powershell% -command "(New-Object Net.WebClient).DownloadFile('http://www.tortall.net/projects/yasm/releases/vsyasm-%YASM_VER%-win64.zip', 'temp\Yasm.zip')" || goto :yasmdownloadfailed
 echo Extracting Yasm...
@@ -222,36 +217,116 @@ del temp\Yasm.zip /q
 :: Kvazaar finds Yasm through the PATH environment variable
 set PATH=%PATH%;%ROOT_DIR%temp\Yasm\
 
+goto :kvazaarsetup
+
+:yasmdownloadfailed
+echo Failed to download Yasm!
+goto :setupfailed
+
+:kvazaarsetup
+if exist ThirdParty\Kvazaar (
+	echo Kvazaar already found at ThirdParty\Kvazaar, skipping... ^(Please delete the folder manually if you'd like to reinstall it.^)
+	goto :openhevcsetup
+)
+
+echo Downloading Kvazaar...
+%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://github.com/ultravideo/kvazaar/archive/v%KVAZAAR_VER%.zip', 'temp\Kvazaar.zip')" || goto :kvazaardownloadfailed
+echo Extracting Kvazaar...
+%powershell% -command "Expand-Archive -Path temp\Kvazaar.zip -DestinationPath temp -Force"
+del temp\Kvazaar.zip /q
+
 echo Building Kvazaar...
-mkdir ThirdParty\Kvazaar\Lib
-mkdir ThirdParty\Kvazaar\Include
 
 :: Change the build configuration of Kvazaar to disable assembly output: otherwise Kvazaar doesn't work with CiThruS
 %powershell% -command "((Get-Content -path temp\kvazaar-%KVAZAAR_VER%\build\C_Properties.props -Raw) -replace 'AssemblyAndSourceCode','NoListing') | Set-Content -Path temp\kvazaar-%KVAZAAR_VER%\build\C_Properties.props"
 
 msbuild temp\kvazaar-%KVAZAAR_VER%\build\kvazaar_VS2015.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /p:WindowsTargetPlatformVersion=10.0 || goto :kvazaarbuildfailed
 
+mkdir ThirdParty\Kvazaar\Lib
+mkdir ThirdParty\Kvazaar\Include
+
 robocopy temp\kvazaar-%KVAZAAR_VER%\build\x64-Release-libs ThirdParty\Kvazaar\Lib /e
 robocopy temp\kvazaar-%KVAZAAR_VER%\src ThirdParty\Kvazaar\Include kvazaar.h
 
-echo Cleaning up Kvazaar and Yasm files...
-rmdir temp\Yasm /s /q
+echo Cleaning up Kvazaar files...
 rmdir temp\kvazaar-%KVAZAAR_VER% /s /q
 
 echo Kvazaar successfully set up.
 
-goto :uvgrtpsetup
+goto :openhevcsetup
 
 :kvazaardownloadfailed
 echo Failed to download Kvazaar!
 goto :setupfailed
 
-:yasmdownloadfailed
-echo Failed to download Yasm!
-goto :setupfailed
-
 :kvazaarbuildfailed
 echo Failed to build Kvazaar!
+goto :setupfailed
+
+:openhevcsetup
+if exist ThirdParty\OpenHEVC (
+	echo OpenHEVC already found at ThirdParty\OpenHEVC, skipping... ^(Please delete the folder manually if you'd like to reinstall it.^)
+	goto :uvgrtpsetup
+)
+
+echo Downloading OpenHEVC...
+%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://github.com/OpenHEVC/openHEVC/archive/refs/heads/%OPENHEVC_VER%.zip', 'temp\OpenHEVC.zip')" || goto :openhevcdownloadfailed
+echo Extracting OpenHEVC...
+%powershell% -command "Expand-Archive -Path temp\OpenHEVC.zip -DestinationPath temp -Force"
+del temp\OpenHEVC.zip /q
+
+:: Building OpenHEVC is broken on Windows, needs to be patched
+echo Patching OpenHEVC...
+:: Set correct CMake version and enable C11
+%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt -Raw) -replace 'cmake_minimum_required \(VERSION 2\.8\)',\""cmake_minimum_required (VERSION 3.1)`nset (CMAKE_C_STANDARD 11)\"") | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt"
+:: m library doesn't exist on Windows and isn't needed anyway. Replace with explicitly enabling C11 atomics
+%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt -Raw) -replace 'target_link_libraries\(LibOpenHevcWrapper m\)',\""if (MSVC)`n`ttarget_compile_options(LibOpenHevcWrapper PRIVATE /experimental:c11atomics)`nendif()\"") | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt"
+:: These definitions break MSVC and aren't needed anyway
+%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt -Raw) -replace 'if\(WIN32\)\s*add_definitions\([\s\S]*?\)\s*endif\(\)','') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt"
+:: Yasm output file extension is incorrect
+%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt -Raw) -replace 'set\(YASM_OBJ \""\${CMAKE_CURRENT_BINARY_DIR}\/\${BASENAME}.o\""\)','set(YASM_OBJ \""${CMAKE_CURRENT_BINARY_DIR}/${BASENAME}.obj\"")') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt"
+:: Inline assembly is not supported on Windows, clear this file to disable it
+%powershell% -command "'' | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\libavutil\x86\intreadwrite.h"
+:: Many parts of config.h have been written incorrectly for Windows and the configure script that generates it doesn't work either
+%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_W32THREADS 0\s*#define HAVE_OS2THREADS 0\s*#endif\s*#define HAVE_ATOMICS_GCC 1\s*#define HAVE_ATOMICS_SUNCC 0\s*#define HAVE_ATOMICS_WIN32 0',\""#define HAVE_W32THREADS 0`n#define HAVE_OS2THREADS 0`n#define HAVE_ATOMICS_GCC 1`n#define HAVE_ATOMICS_SUNCC 0`n#define HAVE_ATOMICS_WIN32 0`n#endif\"") | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
+%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_FCNTL @FCNTL_H_FOUND@','#define HAVE_FCNTL 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
+%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_LSTAT 1','#define HAVE_LSTAT 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
+%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_SYS_PARAM_H 1','#define HAVE_SYS_PARAM_H 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
+%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_SYSCTL 1','#define HAVE_SYSCTL 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
+%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_MMAP 1','#define HAVE_MMAP 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
+%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_DIRENT_H 1','#define HAVE_DIRENT_H 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
+%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_NANOSLEEP 1','#define HAVE_NANOSLEEP 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
+%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_POSIX_MEMALIGN 1','#define HAVE_POSIX_MEMALIGN 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
+%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_MEMALIGN 1','#define HAVE_MEMALIGN 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
+:: POSIX threads don't exist on Windows but there's a wrapper for them in the files
+%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\gpac\modules\openhevc_dec\openHevcWrapper.c -Raw) -replace '#include \""pthread.h\""','#include \""compat/w32pthreads.h\""') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\gpac\modules\openhevc_dec\openHevcWrapper.c"
+:: ATOMIC_VAR_INIT is deprecated
+%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\libavutil\cpu.c -Raw) -replace 'static atomic_int cpu_flags = ATOMIC_VAR_INIT\(-1\);','static atomic_int cpu_flags = -1;') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\libavutil\cpu.c"
+
+echo Building OpenHEVC...
+
+cmake temp\openHEVC-%OPENHEVC_VER% -Btemp\openHEVC-%OPENHEVC_VER%\build -DYASM_EXECUTABLE="%ROOT_DIR%temp\Yasm\vsyasm.exe" -DYASM_FOUND=True -DENABLE_STATIC=True
+msbuild temp\openHEVC-%OPENHEVC_VER%\build\openHEVC.sln /target:LibOpenHevcWrapper /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /p:WindowsTargetPlatformVersion=10.0 || goto :openhevcbuildfailed
+
+mkdir ThirdParty\OpenHEVC\Lib
+mkdir ThirdParty\OpenHEVC\Include
+
+robocopy temp\openHEVC-%OPENHEVC_VER%\build\Release ThirdParty\OpenHEVC\Lib /e
+robocopy temp\openHEVC-%OPENHEVC_VER%\gpac\modules\openhevc_dec ThirdParty\OpenHEVC\Include openHevcWrapper.h
+
+echo Cleaning up OpenHEVC files...
+rmdir temp\openHEVC-%OPENHEVC_VER% /s /q
+
+echo OpenHEVC successfully set up.
+
+goto :uvgrtpsetup
+
+:openhevcdownloadfailed
+echo Failed to download OpenHEVC!
+goto :setupfailed
+
+:openhevcbuildfailed
+echo Failed to build OpenHEVC!
 goto :setupfailed
 
 :uvgrtpsetup
@@ -267,13 +342,14 @@ echo Extracting uvgRTP...
 del temp\uvgRTP.zip /q
 
 echo Building uvgRTP...
-mkdir ThirdParty\uvgRTP\Lib
-mkdir ThirdParty\uvgRTP\Include
 
 mkdir temp\uvgRTP-%UVGRTP_VER%\build
 cmake temp\uvgRTP-%UVGRTP_VER% -Btemp\uvgRTP-%UVGRTP_VER%\build
 
 msbuild temp\uvgRTP-%UVGRTP_VER%\build\uvgrtp.sln /p:Configuration="Release" /p:Platform=x64 /p:PlatformToolset=v143 /p:WindowsTargetPlatformVersion=10.0 || goto :uvgrtpbuildfailed
+
+mkdir ThirdParty\uvgRTP\Lib
+mkdir ThirdParty\uvgRTP\Include
 
 robocopy temp\uvgRTP-%UVGRTP_VER%\build\Release ThirdParty\uvgRTP\Lib /e
 robocopy temp\uvgRTP-%UVGRTP_VER%\include\uvgrtp ThirdParty\uvgRTP\Include
@@ -293,7 +369,7 @@ echo Failed to build uvgRTP!
 goto :setupfailed
 
 :contentsetup
-IF EXIST Content (
+if exist Content (
 	echo CiThruS content already found at Content, skipping... ^(Please delete the folder manually if you'd like to redownload it.^)
 	goto :setupsuccess
 )
@@ -312,6 +388,11 @@ echo Failed to download CiThruS2 content!
 goto :setupfailed
 
 :setupsuccess
+if exist temp\Yasm (
+	echo Cleaning up Yasm files...
+	rmdir temp\Yasm /s /q
+)
+
 echo CiThruS2 setup was successful! Next, open CiThruS.uproject in Unreal Engine 5 to access the simulation environment.
 
 if exist temp rmdir temp /s /q

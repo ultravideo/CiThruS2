@@ -63,7 +63,7 @@
 		},
 		{
 			"Name": "ViewSynthesis",
-			"Enabled": true
+			"Enabled": false
 		},
 		{
 			"Name": "PCGGeometryScriptInterop",

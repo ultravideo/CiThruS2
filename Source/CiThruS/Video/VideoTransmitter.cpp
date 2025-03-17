@@ -1,8 +1,8 @@
 #include "VideoTransmitter.h"
 #include "Pipeline/ImagePipeline.h"
 #include "Pipeline/HevcEncoder.h"
-#include "Pipeline/RtpStreamer.h"
-#include "Pipeline/RenderTargetExtractor.h"
+#include "Pipeline/RtpTransmitter.h"
+#include "Pipeline/RenderTargetReader.h"
 #include "Pipeline/RgbaToYuvConverter.h"
 #include "Pipeline/Equirectangular360Converter.h"
 #include "Pipeline/SolidColorImageGenerator.h"
@@ -52,8 +52,8 @@ void AVideoTransmitter::DeleteStreams()
 
 	frameNumber_ = 0;
 
-	delete extractor_;
-	extractor_ = nullptr;
+	delete reader_;
+	reader_ = nullptr;
 
 	delete annotationTransmitter_;
 	annotationTransmitter_ = nullptr;
@@ -86,16 +86,16 @@ void AVideoTransmitter::StartStreams()
 			renderTargets[i] = sceneCapture_->Get360FrameTarget(i);
 		}
 
-		extractor_ = new RenderTargetExtractor(renderTargets, threadCount_);
+		reader_ = new RenderTargetReader(renderTargets);
 
 		pipeline_ = new ImagePipeline(
-			extractor_,
+			reader_,
 			{
 				new Equirectangular360Converter(widthAndHeightPerCaptureSide_, widthAndHeightPerCaptureSide_, transmitFrameWidth_, transmitFrameHeight_, bilinearFiltering_, threadCount_),
 				new RgbaToYuvConverter(transmitFrameWidth_, transmitFrameHeight_),
 				new HevcEncoder(transmitFrameWidth_, transmitFrameHeight_, threadCount_, quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_)
 			},
-			new RtpStreamer(TCHAR_TO_UTF8(*remoteStreamIp_), remoteVideoDstPort_));
+			new RtpTransmitter(TCHAR_TO_UTF8(*remoteStreamIp_), remoteVideoDstPort_));
 	}
 	else
 	{
@@ -103,15 +103,15 @@ void AVideoTransmitter::StartStreams()
 
 		std::vector<UTextureRenderTarget2D*> renderTargets = { sceneCapture_->GetPerspectiveFrameTarget() };
 
-		extractor_ = new RenderTargetExtractor(renderTargets, threadCount_);
+		reader_ = new RenderTargetReader(renderTargets);
 
 		pipeline_ = new ImagePipeline(
-			extractor_,
+			reader_,
 			{
 				new RgbaToYuvConverter(transmitFrameWidth_, transmitFrameHeight_),
 				new HevcEncoder(transmitFrameWidth_, transmitFrameHeight_, threadCount_, quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_)
 			},
-			new RtpStreamer(TCHAR_TO_UTF8(*remoteStreamIp_), remoteVideoDstPort_));
+			new RtpTransmitter(TCHAR_TO_UTF8(*remoteStreamIp_), remoteVideoDstPort_));
 	}
 
 	annotationTransmitter_ = new AnnotationTransmitter(TCHAR_TO_UTF8(*remoteStreamIp_), remoteAnnotationsDstPort_);
@@ -159,7 +159,7 @@ void AVideoTransmitter::StopTransmit()
 
 void AVideoTransmitter::CaptureAndTransmit()
 {
-	extractor_->Extract();
+	reader_->Read();
 	markerData_ = sceneCapture_->GetMarkerData();
 
 	if (!transmitAsync_)

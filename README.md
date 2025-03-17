@@ -1,6 +1,6 @@
 # CiThruS2 Simulation Environment
 
-CiThruS2 (See-Through Sight 2) is a virtual city environment and framework built in Unreal Engine 5 to aid in testing and developing various traffic-related systems, drone systems and vision-based systems. The environment is based on the real city of Hervanta, Finland, and it supports features such as simulated cars, drones and pedestrians, weather, seasonal effects, a changeable time of day and real-time video recording and streaming.
+CiThruS2 (See-Through Sight 2) is a virtual city environment and framework built in Unreal Engine 5 to aid in testing and developing various traffic-related systems, drone systems and vision-based systems. The environment is based on the real city of Hervanta, Finland, and it supports features such as simulated cars, drones and pedestrians, weather, seasonal effects, a changeable time of day and real-time video streaming and receiving.
 
 ## First-Time Setup Instructions
 

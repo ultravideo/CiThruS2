@@ -16,17 +16,27 @@ public:
 
 	inline virtual uint8_t* const* GetOutput() const override { return &outputFrame_; }
 	inline virtual const uint32_t* GetOutputSize() const override { return &outputSize_; }
-	inline virtual std::string GetOutputFormat() const override { return "rgba"; }
+	inline virtual std::string GetOutputFormat() const override { return outputFormat_; }
 
 protected:
 	enum FilterDirection : uint8_t { FilterDown, FilterRight, FilterUp, FilterLeft };
-	enum CubeFace { CubeTop, CubeLeft, CubeFront, CubeRight, CubeBack, CubeBottom };
+	enum CubeFace : uint32_t { CubeTop, CubeLeft, CubeFront, CubeRight, CubeBack, CubeBottom };
 
 	struct CubeCoords
 	{
 		CubeFace face;
-		float x;
-		float y;
+		uint16_t x;
+		uint16_t y;
+
+		uint32_t indexBl;
+		uint32_t indexBr;
+		uint32_t indexTl;
+		uint32_t indexTr;
+
+		float weightBl;
+		float weightBr;
+		float weightTl;
+		float weightTr;
 	};
 
 	uint8_t* const* inputFrame_;
@@ -34,6 +44,7 @@ protected:
 
 	uint8_t* outputFrame_;
 	uint32_t outputSize_;
+	std::string outputFormat_;
 
 	uint16_t inputFrameWidth_;
 	uint16_t inputFrameHeight_;
@@ -48,5 +59,5 @@ protected:
 	std::vector<CubeCoords> panoramaMap_;
 
 	int EdgePixelIndexFromDirs(const FilterDirection& outDir, const FilterDirection& inDir,
-		const CubeFace& face, const int& faceX, const int& faceY, const int& numFrames);
+		const CubeFace& face, const int& faceX, const int& faceY);
 };
