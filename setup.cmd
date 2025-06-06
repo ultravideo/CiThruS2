@@ -5,7 +5,7 @@ set DLSS_VER=ue5.4_dlss_3.7.20_plugin_2024.09.06
 set FSR_VER=520
 set KVAZAAR_VER=2.3.1
 set YASM_VER=1.3.0
-set UVGRTP_VER=2.3.0
+set UVGRTP_VER=3.1.6
 set OPENHEVC_VER=ffmpeg_update
 set CITHRUS_CONTENT_VER=21_01_2025
 
@@ -23,14 +23,10 @@ if errorlevel 1 (
 if "%VisualStudioVersion%" == "" (
 	echo Starting x64 Native Tools Command Prompt for VS 2022...
 	:: Try the default installation locations
-    call "%ProgramFiles%\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat" > nul 2>&1
-	if errorlevel 1 call "%ProgramFiles%\Microsoft Visual Studio\2022\Professional\Common7\Tools\VsDevCmd.bat" > nul 2>&1
-	if errorlevel 1 call "%ProgramFiles%\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" > nul 2>&1
-	if errorlevel 1 call "%ProgramFiles%\Microsoft Visual Studio\2022\Preview\Common7\Tools\VsDevCmd.bat" > nul 2>&1
-	if errorlevel 1 call "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\Community\Common7\Tools\VsDevCmd.bat" > nul 2>&1
-	if errorlevel 1 call "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\Professional\Common7\Tools\VsDevCmd.bat" > nul 2>&1
-	if errorlevel 1 call "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\VsDevCmd.bat" > nul 2>&1
-	if errorlevel 1 call "%ProgramFiles(x86)%\Microsoft Visual Studio\2022\Preview\Common7\Tools\VsDevCmd.bat" > nul 2>&1
+    call "%ProgramW6432%\Microsoft Visual Studio\2022\Community\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
+	if errorlevel 1 call "%ProgramW6432%\Microsoft Visual Studio\2022\Professional\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
+	if errorlevel 1 call "%ProgramW6432%\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
+	if errorlevel 1 call "%ProgramW6432%\Microsoft Visual Studio\2022\Preview\VC\Auxiliary\Build\vcvars64.bat" > nul 2>&1
 	if errorlevel 1 goto :vslocatefailed
 )
 
@@ -245,6 +241,7 @@ msbuild temp\kvazaar-%KVAZAAR_VER%\build\kvazaar_VS2015.sln /p:Configuration=Rel
 mkdir ThirdParty\Kvazaar\Lib
 mkdir ThirdParty\Kvazaar\Include
 
+robocopy temp\kvazaar-%KVAZAAR_VER% ThirdParty\Kvazaar LICENSE
 robocopy temp\kvazaar-%KVAZAAR_VER%\build\x64-Release-libs ThirdParty\Kvazaar\Lib /e
 robocopy temp\kvazaar-%KVAZAAR_VER%\src ThirdParty\Kvazaar\Include kvazaar.h
 
@@ -278,7 +275,7 @@ del temp\OpenHEVC.zip /q
 :: Building OpenHEVC is broken on Windows, needs to be patched
 echo Patching OpenHEVC...
 :: Set correct CMake version and enable C11
-%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt -Raw) -replace 'cmake_minimum_required \(VERSION 2\.8\)',\""cmake_minimum_required (VERSION 3.1)`nset (CMAKE_C_STANDARD 11)\"") | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt"
+%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt -Raw) -replace 'cmake_minimum_required \(VERSION 2\.8\)',\""cmake_minimum_required (VERSION 3.5)`nset (CMAKE_C_STANDARD 11)\"") | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt"
 :: m library doesn't exist on Windows and isn't needed anyway. Replace with explicitly enabling C11 atomics
 %powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt -Raw) -replace 'target_link_libraries\(LibOpenHevcWrapper m\)',\""if (MSVC)`n`ttarget_compile_options(LibOpenHevcWrapper PRIVATE /experimental:c11atomics)`nendif()\"") | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt"
 :: These definitions break MSVC and aren't needed anyway
@@ -311,6 +308,7 @@ msbuild temp\openHEVC-%OPENHEVC_VER%\build\openHEVC.sln /target:LibOpenHevcWrapp
 mkdir ThirdParty\OpenHEVC\Lib
 mkdir ThirdParty\OpenHEVC\Include
 
+robocopy temp\openHEVC-%OPENHEVC_VER% ThirdParty\OpenHEVC COPYING.LGPLv2.1
 robocopy temp\openHEVC-%OPENHEVC_VER%\build\Release ThirdParty\OpenHEVC\Lib /e
 robocopy temp\openHEVC-%OPENHEVC_VER%\gpac\modules\openhevc_dec ThirdParty\OpenHEVC\Include openHevcWrapper.h
 
@@ -351,6 +349,7 @@ msbuild temp\uvgRTP-%UVGRTP_VER%\build\uvgrtp.sln /p:Configuration="Release" /p:
 mkdir ThirdParty\uvgRTP\Lib
 mkdir ThirdParty\uvgRTP\Include
 
+robocopy temp\uvgRTP-%UVGRTP_VER% ThirdParty\uvgRTP COPYING
 robocopy temp\uvgRTP-%UVGRTP_VER%\build\Release ThirdParty\uvgRTP\Lib /e
 robocopy temp\uvgRTP-%UVGRTP_VER%\include\uvgrtp ThirdParty\uvgRTP\Include
 
