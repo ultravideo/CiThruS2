@@ -6,7 +6,7 @@ RtpReceiver::RtpReceiver(const std::string& ip, const int& srcPort)
 {
 #ifdef CITHRUS_UVGRTP_AVAILABLE
 	streamSession_ = streamContext_.create_session(ip);
-	stream_ = streamSession_->create_stream(srcPort, 0, RTP_FORMAT_H265, RCE_NO_SYSTEM_CALL_CLUSTERING);
+	stream_ = streamSession_->create_stream(srcPort, 0, RTP_FORMAT_H265, RCE_NO_FLAGS);
 
 	if (!stream_)
 	{
