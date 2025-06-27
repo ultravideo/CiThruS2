@@ -3,6 +3,7 @@
 
 HevcDecoder::HevcDecoder() : outputFrame_(nullptr), outputSize_(0), bufferIndex_(0)
 {
+#ifdef CITHRUS_OPENHEVC_AVAILABLE
     handle_ = libOpenHevcInit(1, 2);
 
 	if (libOpenHevcStartDecoder(handle_) == -1)
@@ -13,6 +14,7 @@ HevcDecoder::HevcDecoder() : outputFrame_(nullptr), outputSize_(0), bufferIndex_
 	libOpenHevcSetTemporalLayer_id(handle_, 0);
 	libOpenHevcSetActiveDecoders(handle_, 0);
 	libOpenHevcSetViewLayers(handle_, 0);
+#endif // CITHRUS_OPENHEVC_AVAILABLE
 
     buffers_[0] = nullptr;
     buffers_[1] = nullptr;
@@ -23,7 +25,9 @@ HevcDecoder::HevcDecoder() : outputFrame_(nullptr), outputSize_(0), bufferIndex_
 
 HevcDecoder::~HevcDecoder()
 {
+#ifdef CITHRUS_OPENHEVC_AVAILABLE
     libOpenHevcClose(handle_);
+#endif // CITHRUS_OPENHEVC_AVAILABLE
 
     delete buffers_[0];
     delete buffers_[1];
@@ -42,6 +46,7 @@ void HevcDecoder::Process()
         return;
     }
 
+#ifdef CITHRUS_OPENHEVC_AVAILABLE
     OpenHevc_Frame ohevc_frame;
     int decode_status = libOpenHevcDecode(handle_, *inputFrame_, *inputSize_, 0);
     int output_status = libOpenHevcGetOutput(handle_, decode_status, &ohevc_frame);
@@ -78,6 +83,7 @@ void HevcDecoder::Process()
         memcpy(buffers_[bufferIndex_] + width * height + i * width / 2, (uint8_t*)ohevc_frame.pvU + i * ohevc_frame.frameInfo.nUPitch, width / 2);
         memcpy(buffers_[bufferIndex_] + width * height * 5 / 4 + i * width / 2, (uint8_t*)ohevc_frame.pvV + i * ohevc_frame.frameInfo.nVPitch, width / 2);
     }
+#endif // CITHRUS_OPENHEVC_AVAILABLE
 
     outputFrame_ = buffers_[bufferIndex_];
     bufferIndex_ = (bufferIndex_ + 1) % 2;

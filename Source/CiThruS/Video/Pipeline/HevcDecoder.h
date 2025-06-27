@@ -41,5 +41,7 @@ protected:
 
 	uint8_t bufferIndex_;
 
+#ifdef CITHRUS_OPENHEVC_AVAILABLE
 	OpenHevc_Handle handle_;
+#endif // CITHRUS_OPENHEVC_AVAILABLE
 };
