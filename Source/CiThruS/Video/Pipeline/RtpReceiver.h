@@ -32,6 +32,8 @@
 #include "IImageSource.h"
 
 #include <string>
+#include <queue>
+#include <mutex>
 
 // Receives data from an RTP stream. Currently HEVC data only
 class CITHRUS_API RtpReceiver : public IImageSource
@@ -50,11 +52,18 @@ protected:
 	uint8_t* outputFrame_;
 	uint32_t outputSize_;
 
+	bool destroyed_;
+
+	std::mutex queueMutex_;
+
 #ifdef CITHRUS_UVGRTP_AVAILABLE
 	uvgrtp::context streamContext_;
 	uvgrtp::session* streamSession_;
 	uvgrtp::media_stream* stream_;
 
-	uvgrtp::frame::rtp_frame* frame_;
+	uvgrtp::frame::rtp_frame* currentFrame_;
+	std::queue<uvgrtp::frame::rtp_frame*> frameQueue_;
+
+	static void ReceiveAsync(void* args, uvgrtp::frame::rtp_frame* frame);
 #endif // CITHRUS_UVGRTP_AVAILABLE
 };
