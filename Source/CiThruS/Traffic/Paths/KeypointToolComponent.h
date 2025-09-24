@@ -10,6 +10,7 @@ enum class EKeypointToolGraph : uint8 {
 	E_Car       UMETA(DisplayName = "Car"),
 	E_Pedestrian        UMETA(DisplayName = "Pedestrian"),
 	E_Tram        UMETA(DisplayName = "Tram"),
+	E_Bicycle	UMETA(DisplayName = "Bicycle"),
 };
 
 USTRUCT(BlueprintType)

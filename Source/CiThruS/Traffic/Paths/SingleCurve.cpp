@@ -89,3 +89,55 @@ void SingleCurve::GetPositionAndTangent(const float& step, FVector& position, FV
 		position = endAnchor_ + (endPosition_ - endAnchor_).GetSafeNormal() * (step - cumulativeLength_[1]);
 	}
 }
+
+// return a position along the curve 0.0 ... 1.0
+float SingleCurve::GetCurveProgress(float segmentProgress) const
+{
+	//UE_LOG(LogTemp, Warning, TEXT("Single curve: %f"), (step - cumulativeLength_[0]) / (cumulativeLength_[1] - cumulativeLength_[0]));
+	if (segmentProgress < cumulativeLength_[0]) return 0.0f; // before the curve
+	else if (segmentProgress < cumulativeLength_[1]) {
+		float result = (segmentProgress - cumulativeLength_[0]) / (cumulativeLength_[1] - cumulativeLength_[0]);
+		//UE_LOG(LogTemp, Warning, TEXT("in: %f, cLen0: %f, cLen1: %f, cLen2: %f, result: %f"), segmentProgress, cumulativeLength_[0], cumulativeLength_[1], cumulativeLength_[2], result);
+		return result; // on the curve
+	}
+	else return 1.0; // past the curve
+
+}
+
+// return curvature at 
+float SingleCurve::GetCurvatureAt(float segmentProgress) const
+{
+	float curveProgress = GetCurveProgress(segmentProgress);
+	if (curveProgress > 0.9999f) 
+	{ 
+		// We are before the curved portion of the segment and going straight
+		//UE_LOG(LogTemp, Warning, TEXT("Past turn, going straight"));
+		return 0.0f; 
+	}
+	if (curveProgress < 0.0001f) 
+	{ 
+		// We are past the curved portion of the segment and going straight 
+		//UE_LOG(LogTemp, Warning, TEXT("Before turn, going straight"));
+		return 0.0f; 
+	}
+
+	FVector currPos;
+	FVector currTan;
+	GetPositionAndTangent(segmentProgress, currPos, currTan);
+	FVector currDir = FVector(-currTan.Y, currTan.X, currTan.Z); // rotate 90deg so that the dot product will return -1...1 depending on which side the other vector is
+
+//	UE_LOG(LogTemp, Warning, TEXT("progress: %f, startTan: %s, endTangent: %s, current: %s"), curveProgress, *startTangent_.GetSafeNormal().ToCompactString(), *endTangent_.GetSafeNormal().ToCompactString(), *currTan.GetSafeNormal().ToCompactString());
+
+	if (curveProgress <= 0.5f) {
+		float dot = -static_cast<float>(FVector::DotProduct(startTangent_, currDir));
+		//UE_LOG(LogTemp, Warning, TEXT("pre, dot: %f"), dot);
+		return dot;
+	}
+	else 
+	{
+		float dot = static_cast<float>(FVector::DotProduct(currDir, endTangent_));
+		//UE_LOG(LogTemp, Warning, TEXT("post, dot: %f"), dot);
+		return dot;
+		
+	}
+}

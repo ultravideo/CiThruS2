@@ -95,30 +95,50 @@ void APedestrian::Tick(float deltaTime)
 
 	if (Stopped())
 	{
+		// inActiveStopArea_ = true;
 		// No need to move
 		aiController->StopMovement();
 
 		return;
 	}
 
-	EPathFollowingRequestResult::Type pathFollowResult = aiController->MoveToLocation(pathFollower_.GetLocation(), 50.0f, true, true, true);
+	EPathFollowingRequestResult::Type pathFollowResult = aiController->MoveToLocation(pathFollower_.GetLocation(), 50.0f, true, true, true, true, nullptr, false);
 
-	if (pathFollowResult == EPathFollowingRequestResult::AlreadyAtGoal)
+	if (pathFollowResult == EPathFollowingRequestResult::AlreadyAtGoal || pathFollowResult == EPathFollowingRequestResult::Failed)
 	{
 		// Reached current target point: get next target point or new path if end reached.
 		pathFollower_.AdvanceTarget();
 	}
 	else if (aiController->GetPathFollowingComponent()->GetStatus() == EPathFollowingStatus::Moving && !pathFollower_.IsLastTarget())
 	{
+/* 		boing_ = true;
 		// Calculate a new target location slightly before reaching the current goal. Reduces weird movement.
 		// Doesn't get rid of the brief stop when calculating a new target though.
 		FVector goalLocation = aiController->GetTargetLocation();
+		UE_LOG(LogTemp, Warning, TEXT("HEP! aiController->GetTargetLocation is %s"), *goalLocation.ToString());
 		float distToGoal = FVector::Dist2D(goalLocation, GetActorLocation());
 		if (distToGoal <= 100.0f)
 		{
 			pathFollower_.AdvanceTarget();
-		}
+		} */
 	}
+	
+	// Update pathfinding status
+	pathFollowerGoal_ = pathFollower_.GetLocation();
+	distanceToFollowerGoal_ = FVector::Dist2D(pathFollowerGoal_, GetActorLocation());
+	controllerGoal_ = aiController->GetTargetLocation();
+	distanceToControllerGoal_ = FVector::Dist2D(controllerGoal_, GetActorLocation());
+
+	if (pathFollowResult == EPathFollowingRequestResult::AlreadyAtGoal)
+		atGoal_ = true; else atGoal_ = false;
+
+	if (aiController->GetPathFollowingComponent()->GetStatus() == EPathFollowingStatus::Moving)
+		moving_ = true; else moving_ = false;
+	
+	lastTarget_ = pathFollower_.IsLastTarget();
+
+	pathFollowingRqResult_ = UEnum::GetValueAsString(pathFollowResult);
+	pathFollowingStatus_ = UEnum::GetValueAsString(aiController->GetPathFollowingComponent()->GetStatus());
 
 	moveDirection_ = GetActorForwardVector();
 

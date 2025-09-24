@@ -1,8 +1,8 @@
 #include "RtpReceiver.h"
-#include "IImageSource.h"
+#include "PipelineSource.h"
 #include "Misc/Debug.h"
 
-RtpReceiver::RtpReceiver(const std::string& ip, const int& srcPort) : outputFrame_(nullptr), outputSize_(0), destroyed_(false)
+RtpReceiver::RtpReceiver(const std::string& ip, const int& srcPort) : destroyed_(false)
 {
 #ifdef CITHRUS_UVGRTP_AVAILABLE
 	currentFrame_ = nullptr;
@@ -20,15 +20,17 @@ RtpReceiver::RtpReceiver(const std::string& ip, const int& srcPort) : outputFram
 		Debug::Log("Failed to create RTP stream");
 	}
 #endif // CITHRUS_UVGRTP_AVAILABLE
+
+	GetOutputPin<0>().SetFormat({ "hevc" });
 }
 
 RtpReceiver::~RtpReceiver()
 {
-#ifdef CITHRUS_UVGRTP_AVAILABLE
 	queueMutex_.lock();
 
 	destroyed_ = true;
 
+#ifdef CITHRUS_UVGRTP_AVAILABLE
 	if (currentFrame_)
 	{
 		uvgrtp::frame::dealloc_frame(currentFrame_);
@@ -41,8 +43,6 @@ RtpReceiver::~RtpReceiver()
 
 		frameQueue_.pop();
 	}
-
-	queueMutex_.unlock();
 	
 	if (stream_)
 	{
@@ -56,6 +56,11 @@ RtpReceiver::~RtpReceiver()
 		streamSession_ = nullptr;
 	}
 #endif // CITHRUS_UVGRTP_AVAILABLE
+
+	queueMutex_.unlock();
+
+	GetOutputPin<0>().SetData(nullptr);
+	GetOutputPin<0>().SetSize(0);
 }
 
 void RtpReceiver::Process()
@@ -73,8 +78,8 @@ void RtpReceiver::Process()
 		currentFrame_ = frameQueue_.front();
 		frameQueue_.pop();
 
-		outputFrame_ = currentFrame_->payload;
-		outputSize_ = currentFrame_->payload_len;
+		GetOutputPin<0>().SetData(currentFrame_->payload);
+		GetOutputPin<0>().SetSize(currentFrame_->payload_len);
 	}
 
 	queueMutex_.unlock();

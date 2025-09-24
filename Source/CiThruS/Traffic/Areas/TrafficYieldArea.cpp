@@ -15,7 +15,7 @@ ATrafficYieldArea::ATrafficYieldArea()
 #if WITH_EDITOR
 	UStaticMeshComponent* visualMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("VisualMesh"));
 	RootComponent = visualMesh;
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> visualAsset(TEXT("/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> visualAsset(TEXT("/Engine/BasicShapes/Cube.Cube"));
 
 	if (visualAsset.Succeeded())
 	{

@@ -25,6 +25,8 @@ namespace Debug
 
 	CITHRUS_API inline void Log(const char* message) { Log(FString(message)); }
 
+	CITHRUS_API inline void Log(const std::string& message) { Log(FString(message.data())); }
+
 	CITHRUS_API void LogBinary(const int32& value);
 
 	CITHRUS_API void DrawTemporaryLine(UWorld* world, const FVector& start, const FVector& end, const FColor& color, const float& duration, const float& width = 20.0f);

@@ -12,11 +12,11 @@
 
 #endif // _WIN32
 
-#if __has_include("../ThirdParty/uvgRTP/Include/lib.hh")
+#if __has_include("uvgRTP/Include/lib.hh")
 #ifndef CITHRUS_UVGRTP_AVAILABLE
 #define CITHRUS_UVGRTP_AVAILABLE
 #endif // CITHRUS_UVGRTP_AVAILABLE
-#include "../ThirdParty/uvgRTP/Include/lib.hh"
+#include "uvgRTP/Include/lib.hh"
 #else
 #pragma message (__FILE__ ": warning: uvgRTP not found, RTP streaming is unavailable")
 #endif // __has_include(...)
@@ -29,14 +29,14 @@
 #endif
 
 #include "CoreMinimal.h"
-#include "IImageSource.h"
+#include "PipelineSource.h"
 
 #include <string>
 #include <queue>
 #include <mutex>
 
 // Receives data from an RTP stream. Currently HEVC data only
-class CITHRUS_API RtpReceiver : public IImageSource
+class CITHRUS_API RtpReceiver : public PipelineSource<1>
 {
 public:
 	RtpReceiver(const std::string& ip, const int& srcPort);
@@ -44,14 +44,7 @@ public:
 
 	virtual void Process() override;
 
-	inline virtual uint8_t* const* GetOutput() const override { return &outputFrame_; }
-	inline virtual const uint32_t* GetOutputSize() const override { return &outputSize_; }
-	inline virtual std::string GetOutputFormat() const override { return "hevc"; }
-
 protected:
-	uint8_t* outputFrame_;
-	uint32_t outputSize_;
-
 	bool destroyed_;
 
 	std::mutex queueMutex_;

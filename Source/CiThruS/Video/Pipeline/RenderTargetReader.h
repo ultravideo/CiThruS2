@@ -1,45 +1,50 @@
 #pragma once
 
 #include "RHIResources.h"
-#include "IImageSource.h"
+#include "PipelineSource.h"
 
 #include <vector>
 #include <mutex>
 
 // Reads data from RHI render targets in VRAM
-class CITHRUS_API RenderTargetReader : public IImageSource
+class CITHRUS_API RenderTargetReader : public PipelineSource<2>
 {
 public:
-	RenderTargetReader(std::vector<UTextureRenderTarget2D*> textures);
+	RenderTargetReader(std::vector<UTextureRenderTarget2D*> textures, const bool& depth = false, const float& depthRange = 150.0f);
 	~RenderTargetReader();
 
 	virtual void Process() override;
 
-	inline virtual uint8_t* const* GetOutput() const override { return &outputFrame_; }
-	inline virtual const uint32_t* GetOutputSize() const override { return &outputSize_; }
-	inline virtual std::string GetOutputFormat() const override { return outputFormat_; }
-
-	void Read();
+	void Read(uint8_t* userData = nullptr, const uint32_t& userDataSize = 0);
 
 protected:
 	std::vector<FRHITexture*> textures_;
 
-	std::string outputFormat_;
-
 	FTextureRHIRef concatBuffer_;
 	FTextureRHIRef stagingBuffer_;
-
-	uint8_t* outputFrame_;
-	uint32_t outputSize_;
+	FTextureRHIRef depthBuffer_;
 
 	uint8_t* frameBuffers_[2];
+
+	uint8_t* userData_[2];
+	uint32_t userDataSize_;
+
+	uint8_t* queuedUserData_;
+	uint32_t queuedUserDataSize_;
 
 	uint16_t frameWidth_;
 	uint16_t frameHeight_;
 	uint8_t bytesPerPixel_;
 
+	bool depth_;
+	float depthRange_;
+
 	// Whether there's a new frame to pass onward or not
 	bool frameDirty_;
+
+	bool flushNeeded_;
+	std::condition_variable flushCv_;
+	std::mutex flushMutex_;
 
 	// Used to prevent texture data from being read and written at the same time
 	std::mutex readMutex_;
@@ -53,4 +58,9 @@ protected:
 	// in which case the initialization needs to be cancelled
 	bool initialized_;
 	bool destroyed_;
+
+	void Flush();
+	void ConvertDepth(FRHICommandListImmediate& RHICmdList) const;
+	void ExtractStagingBuffer(FRHICommandListImmediate& RHICmdList);
+	void CopyToStagingBuffer(FRHICommandListImmediate& RHICmdList);
 };

@@ -33,3 +33,16 @@ namespace TemplateUtility
 		For(std::make_integer_sequence<decltype(N), N>(), func);
 	}
 }
+
+// This is useful for simplifying some template function calls so that you
+// don't have to explicitly cast things
+template<typename T>
+struct ConstWrapper
+{
+public:
+	ConstWrapper() : Value() {}
+	ConstWrapper(T value)
+		: Value(value) {}
+
+	const T Value;
+};

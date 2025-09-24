@@ -9,12 +9,11 @@ const int FACES_IN_A_CUBE = 6;
 Equirectangular360Converter::Equirectangular360Converter(
 	const uint16_t& inputFrameWidth, const uint16_t& inputFrameHeight,
 	const uint16_t& outputFrameWidth, const uint16_t& outputFrameHeight,
-	const bool& bilinearFiltering, const uint8_t& threadCount)
+	const bool& bilinearFiltering)
 	:
 	inputFrameWidth_(inputFrameWidth), inputFrameHeight_(inputFrameHeight),
-	outputFrameWidth_(outputFrameWidth), outputFrameHeight_(outputFrameHeight),
-	bilinearFiltering_(bilinearFiltering), threadCount_(threadCount),
-	panoramaMap_(outputFrameWidth_* outputFrameHeight_, CubeCoords())
+	bilinearFiltering_(bilinearFiltering),
+	panoramaMap_(outputFrameWidth * outputFrameHeight, CubeCoords())
 {
 	float halfPi = PI / 2.0f;
 	float quarterPi = PI / 4.0f;
@@ -23,12 +22,12 @@ Equirectangular360Converter::Equirectangular360Converter(
 	float halfCubeSide = inputFrameWidth_ / 2.0f;
 
 	// Precalculate a map of where each panorama pixel is on the cubemap
-	for (uint32_t i = 0; i < outputFrameWidth_; i++)
+	for (uint32_t i = 0; i < outputFrameWidth; i++)
 	{
-		for (uint32_t j = 0; j < outputFrameHeight_; j++)
+		for (uint32_t j = 0; j < outputFrameHeight; j++)
 		{
-			float theta = ((2.0f * i) / outputFrameWidth_ - 1.0f) * PI;
-			float phi = ((2.0f * j) / outputFrameHeight_ - 1.0f) * halfPi;
+			float theta = ((2.0f * i) / outputFrameWidth - 1.0f) * PI;
+			float phi = ((2.0f * j) / outputFrameHeight - 1.0f) * halfPi;
 
 			float x = cos(phi) * cos(theta);
 			float y = sin(phi);
@@ -269,7 +268,7 @@ Equirectangular360Converter::Equirectangular360Converter(
 				? ((faceY + 1) * FACES_IN_A_CUBE * inputFrameWidth_ + (faceX + 1) + faceTr * inputFrameWidth_) * 4
 				: EdgePixelIndexFromDirs(outDirTr, inDirTr, faceTr, faceX + 1, faceY + 1);
 
-			panoramaMap_[i + j * static_cast<size_t>(outputFrameWidth_)] =
+			panoramaMap_[i + j * static_cast<size_t>(outputFrameWidth)] =
 			{
 				face,
 				static_cast<uint16_t>(std::min(std::max(static_cast<int>(rawX), 0), inputFrameWidth_ - 1)),
@@ -286,21 +285,32 @@ Equirectangular360Converter::Equirectangular360Converter(
 		}
 	}
 
-	outputSize_ = outputFrameWidth_ * outputFrameHeight_ * 4;
-	outputFrame_ = new uint8_t[outputSize_];
+	GetInputPin<0>().SetAcceptedFormats({ "rgba", "bgra" });
+
+	outputSize_ = outputFrameWidth * outputFrameHeight * 4;
+	outputData_ = new uint8_t[outputSize_];
 }
 
 Equirectangular360Converter::~Equirectangular360Converter()
 {
-	delete[] outputFrame_;
-	outputFrame_ = nullptr;
+	delete[] outputData_;
+	outputData_ = nullptr;
 	outputSize_ = 0;
+
+	GetOutputPin<0>().SetData(outputData_);
+	GetOutputPin<0>().SetSize(outputSize_);
 }
 
 void Equirectangular360Converter::Process()
 {
-	if (*inputFrame_ == nullptr || *inputSize_ != inputFrameWidth_ * inputFrameHeight_ * FACES_IN_A_CUBE * 4)
+	const uint8_t* inputData = GetInputPin<0>().GetData();
+	uint32_t inputSize = GetInputPin<0>().GetSize();
+
+	if (!inputData || inputSize != inputFrameWidth_ * inputFrameHeight_ * FACES_IN_A_CUBE * 4)
 	{
+		GetOutputPin<0>().SetData(nullptr);
+		GetOutputPin<0>().SetSize(0);
+
 		return;
 	}
 
@@ -309,10 +319,10 @@ void Equirectangular360Converter::Process()
 		std::transform(
 			panoramaMap_.begin(),
 			panoramaMap_.end(),
-			reinterpret_cast<std::array<uint8_t, 4>*>(outputFrame_),
+			reinterpret_cast<std::array<uint8_t, 4>*>(outputData_),
 			[&](const CubeCoords& faceCoord)
 			{
-				return *reinterpret_cast<std::array<uint8_t, 4>*>(*inputFrame_ + (faceCoord.y * FACES_IN_A_CUBE * inputFrameWidth_ + faceCoord.x + faceCoord.face * inputFrameWidth_) * 4);
+				return *reinterpret_cast<const std::array<uint8_t, 4>*>(inputData + (faceCoord.y * FACES_IN_A_CUBE * inputFrameWidth_ + faceCoord.x + faceCoord.face * inputFrameWidth_) * 4);
 			});
 	}
 	else
@@ -320,7 +330,7 @@ void Equirectangular360Converter::Process()
 		std::transform(
 			panoramaMap_.begin(),
 			panoramaMap_.end(),
-			reinterpret_cast<std::array<uint8_t, 4>*>(outputFrame_),
+			reinterpret_cast<std::array<uint8_t, 4>*>(outputData_),
 			[&](const CubeCoords& faceCoord)
 			{
 				std::array<uint8_t, 4> outputRgba{};
@@ -329,31 +339,23 @@ void Equirectangular360Converter::Process()
 				for (int color_channel = 0; color_channel < 4; color_channel++)
 				{
 					outputRgba[color_channel] =
-						faceCoord.weightBl * (*inputFrame_)[faceCoord.indexBl + color_channel] +
-						faceCoord.weightBr * (*inputFrame_)[faceCoord.indexBr + color_channel] +
-						faceCoord.weightTl * (*inputFrame_)[faceCoord.indexTl + color_channel] +
-						faceCoord.weightTr * (*inputFrame_)[faceCoord.indexTr + color_channel];
+						faceCoord.weightBl * inputData[faceCoord.indexBl + color_channel] +
+						faceCoord.weightBr * inputData[faceCoord.indexBr + color_channel] +
+						faceCoord.weightTl * inputData[faceCoord.indexTl + color_channel] +
+						faceCoord.weightTr * inputData[faceCoord.indexTr + color_channel];
 				}
 
 				return outputRgba;
 			});
 	}
+
+	GetOutputPin<0>().SetData(outputData_);
+	GetOutputPin<0>().SetSize(outputSize_);
 }
 
-bool Equirectangular360Converter::SetInput(const IImageSource* source)
+void Equirectangular360Converter::OnInputPinsConnected()
 {
-	std::string inputFormat = source->GetOutputFormat();
-
-	if (inputFormat == "rgba" && inputFormat != "bgra")
-	{
-		return false;
-	}
-
-	outputFormat_ = inputFormat;
-	inputFrame_ = source->GetOutput();
-	inputSize_ = source->GetOutputSize();
-
-	return true;
+	GetOutputPin<0>().SetFormat(GetInputPin<0>().GetFormat());
 }
 
 int Equirectangular360Converter::EdgePixelIndexFromDirs(const FilterDirection& outDir, const FilterDirection& inDir,

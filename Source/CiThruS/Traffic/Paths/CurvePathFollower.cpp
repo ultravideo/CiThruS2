@@ -10,11 +10,14 @@
 #include "Traffic/Parking/ParkingSpace.h"
 #include <iostream>
 
-void CurvePathFollower::Initialize(const KeypointGraph* graph, AActor* trafficEntity)
+void CurvePathFollower::Initialize(const KeypointGraph* graph, AActor* trafficEntity, bool makeSCurve)
 {
+	makeSCurve_ = makeSCurve;
 	trafficEntity_ = trafficEntity;
 	path_ = KeypointPath();
 	path_.graph = graph;
+
+
 
 	if (trafficEntity->GetActorLocation().IsZero()) // Position not set, spawn to any random keypoint
 	{
@@ -34,6 +37,7 @@ void CurvePathFollower::Advance(const float& step)
 	}
 
 	AdvancePointAndProgress(currentPoint_, progressToNextPoint_, currentCurve_, step);
+	GetTurnAmount(progressToNextPoint_);
 
 	if (currentPoint_ >= PointCount() - 1)
 	{
@@ -92,9 +96,7 @@ FVector CurvePathFollower::GetLocationAt(const int& target, const float& progres
 	if (currentCurve_ != nullptr)
 	{
 		std::shared_ptr<ICurve> dummyCurve = currentCurve_->Clone();
-
 		AdvancePointAndProgress(dummyTarget, dummyProgress, dummyCurve, step);
-
 		return GetLocationAt(dummyTarget, dummyProgress, tangent, dummyCurve);
 	}
 	else
@@ -113,7 +115,7 @@ void CurvePathFollower::AdvancePointAndProgress(int& point, float& progress, std
 	}
 	
 	int pointNum = PointCount();
-	
+
 	if (pointNum < 2 || point >= pointNum - 1 || point < 0)
 	{
 		return;
@@ -141,7 +143,7 @@ void CurvePathFollower::AdvancePointAndProgress(int& point, float& progress, std
 			}
 		}
 	}
-	else if (distance < 0)
+	else if (distance < 0) // moving backwards?
 	{
 		while (distance < 0 && point > 0)
 		{
@@ -276,6 +278,7 @@ FVector CurvePathFollower::GetPosition(const int& index) const
 	return (path_.GetPointPosition(index) + path_.GetPointPosition(index - 1)) * 0.5f;
 }
 
+// Gets the tangent (vector) between KeypointPath[index] and KeypointPath[index - 1]
 FVector CurvePathFollower::GetTangent(const int& index) const
 {
 	// Calculate the tangent between the two keypoints around the index
@@ -309,7 +312,13 @@ std::shared_ptr<ICurve> CurvePathFollower::CreateCurveFromPoint(const int& point
 	FVector startPointTangent = GetTangent(point);
 	FVector endPointTangent = GetTangent(point + 1);
 
-	return CurveFactory::GetCurveFor(startPosition, endPosition, startPointTangent, endPointTangent);
+/* 	
+	UWorld *world;
+	if (trafficEntity_) world = trafficEntity_->GetWorld();
+	else UE_LOG(LogTemp, Warning, TEXT("ALERT! trafficEntity pointer is null!"));
+ */
+
+	return CurveFactory::GetCurveFor(/* trafficEntity_->GetWorld() , */startPosition, endPosition, startPointTangent, endPointTangent, makeSCurve_);
 }
 
 int32 CurvePathFollower::GetKeypointRuleExceptions() const
@@ -323,4 +332,12 @@ int32 CurvePathFollower::GetKeypointRuleExceptions() const
 	}
 
 	return 0;
+}
+
+float CurvePathFollower::GetTurnAmount(const float progress) const
+{
+	//float asdf = currentCurve_->GetCurvatureAt(step);
+	//UE_LOG(LogTemp, Warning, TEXT("HEP! %f"), asdf);
+	if (currentCurve_) return currentCurve_->GetCurvatureAt(currentCurve_->GetLength() * progress);
+	else return 0.0f;
 }

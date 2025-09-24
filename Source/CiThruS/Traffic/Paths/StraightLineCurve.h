@@ -10,6 +10,8 @@ public:
 	virtual float GetLength() const override;
 	inline virtual std::shared_ptr<ICurve> Clone() const override { return std::make_shared<StraightLineCurve>(*this); }
 
+	virtual float GetCurvatureAt(float step) const { /*UE_LOG(LogTemp, Warning, TEXT("On straight line"));*/ return 0.0f; };
+
 	StraightLineCurve(const FVector& startPosition, const FVector& endPosition);
 
 protected:

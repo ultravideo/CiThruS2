@@ -13,6 +13,7 @@ class ATrafficController;
 
 struct Keypoint;
 
+// KeypointPath is the subset of KeypointGraph that a path follower will take
 struct KeypointPath
 {
 	const KeypointGraph* graph;

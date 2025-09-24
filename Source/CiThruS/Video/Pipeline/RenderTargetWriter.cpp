@@ -1,5 +1,5 @@
 #include "RenderTargetWriter.h"
-#include "IImageSource.h"
+#include "PipelineSource.h"
 #include "Misc/Debug.h"
 #include "Engine/Texture2D.h"
 #include "Engine/TextureRenderTarget2D.h"
@@ -18,21 +18,20 @@ RenderTargetWriter::RenderTargetWriter(UTextureRenderTarget2D* texture)
 	switch (format)
 	{
 	case ETextureRenderTargetFormat::RTF_R32f:
-		inputFormat_ = "gray32f";
+		GetInputPin<0>().SetAcceptedFormat("gray32f");
 		bytesPerPixel_ = 4 * 1;
 		break;
 	case ETextureRenderTargetFormat::RTF_RGBA32f:
-		inputFormat_ = "rgba32f";
+		GetInputPin<0>().SetAcceptedFormat("rgba32f");
 		bytesPerPixel_ = 4 * 4;
 		break;
 	case ETextureRenderTargetFormat::RTF_RGBA8:
 	case ETextureRenderTargetFormat::RTF_RGBA8_SRGB:
 		// For some reason UE actually expects BGRA, not RGBA...
-		inputFormat_ = "bgra";
+		GetInputPin<0>().SetAcceptedFormat("bgra");
 		bytesPerPixel_ = 1 * 4;
 		break;
 	default:
-		inputFormat_ = "error";
 		return;
 	}
 
@@ -75,7 +74,10 @@ RenderTargetWriter::~RenderTargetWriter()
 
 void RenderTargetWriter::Process()
 {
-	if (*inputFrame_ == nullptr || *inputSize_ != frameWidth_ * frameHeight_ * bytesPerPixel_ || !initialized_)
+	const uint8_t* inputData = GetInputPin<0>().GetData();
+	uint32_t inputSize = GetInputPin<0>().GetSize();
+
+	if (!inputData || inputSize != frameWidth_ * frameHeight_ * bytesPerPixel_ || !initialized_)
 	{
 		return;
 	}
@@ -91,7 +93,7 @@ void RenderTargetWriter::Process()
 	}
 
 	// Input data must be grabbed now, there's no guarantee inputFrame_ will be valid after exiting this function
-	memcpy(inputBuffer_, *inputFrame_, frameWidth_ * frameHeight_ * bytesPerPixel_);
+	memcpy(inputBuffer_, inputData, inputSize);
 
 	frameDirty_ = true;
 
@@ -130,17 +132,4 @@ void RenderTargetWriter::Process()
 
 			resourceMutex_.unlock();
 		});
-}
-
-bool RenderTargetWriter::SetInput(const IImageSource* source)
-{
-	if (source->GetOutputFormat() != inputFormat_)
-	{
-		return false;
-	}
-
-	inputFrame_ = source->GetOutput();
-	inputSize_ = source->GetOutputSize();
-
-	return true;
 }

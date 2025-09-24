@@ -236,7 +236,9 @@ bool KeypointGraph::LoadFromFile(const std::string& filePath)
 			const int beginI = FCString::Atoi(*begin);
 			const int endI = FCString::Atoi(*end);
 
-			LinkKeypoints(beginI, endI);
+
+			if (endI < keypoints_.size())
+				LinkKeypoints(beginI, endI);
 		}
 		// spawnpoints
 		else if (readKpsLinksSpawnpoints == 2)

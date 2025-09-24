@@ -10,48 +10,41 @@
 #include <stdexcept>
 
 RgbaToYuvConverter::RgbaToYuvConverter(const uint16_t& frameWidth, const uint16_t& frameHeight)
-	: inputFormat_("error"), outputFrameWidth_(frameWidth), outputFrameHeight_(frameHeight)
+	: outputFrameWidth_(frameWidth), outputFrameHeight_(frameHeight)
 {
-    outputSize_ = outputFrameWidth_ * outputFrameHeight_ * 3 / 2;
-    outputFrame_ = new uint8_t[outputSize_];
+    uint32_t outputSize = outputFrameWidth_ * outputFrameHeight_ * 3 / 2;
+    outputData_ = new uint8_t[outputSize];
+
+    GetInputPin<0>().SetAcceptedFormats({ "rgba", "bgra" });
+    GetOutputPin<0>().SetFormat("yuv420");
+
+    GetOutputPin<0>().SetData(outputData_);
+    GetOutputPin<0>().SetSize(outputSize);
 }
 
 RgbaToYuvConverter::~RgbaToYuvConverter()
 {
-	delete[] outputFrame_;
-	outputFrame_ = nullptr;
-    outputSize_ = 0;
+	delete[] outputData_;
+	outputData_ = nullptr;
+
+    GetOutputPin<0>().SetData(nullptr);
+    GetOutputPin<0>().SetSize(0);
 }
 
 void RgbaToYuvConverter::Process()
 {
-    if (*inputFrame_ == nullptr
-        || *inputSize_ != outputFrameWidth_ * outputFrameHeight_ * 4
-        || inputFormat_ == "error")
+    const uint8_t* inputData = GetInputPin<0>().GetData();
+    uint32_t inputSize = GetInputPin<0>().GetSize();
+
+    if (!inputData || inputSize != outputFrameWidth_ * outputFrameHeight_ * 4)
     {
         return;
     }
 
-	RgbaToYuvSse41(*inputFrame_, &outputFrame_, outputFrameWidth_, outputFrameHeight_);
+	RgbaToYuvSse41(inputData, &outputData_, outputFrameWidth_, outputFrameHeight_);
 }
 
-bool RgbaToYuvConverter::SetInput(const IImageSource* source)
-{
-    std::string inputFormat = source->GetOutputFormat();
-
-    if (inputFormat != "rgba" && inputFormat != "bgra")
-    {
-        return false;
-    }
-
-    inputFrame_ = source->GetOutput();
-    inputSize_ = source->GetOutputSize();
-    inputFormat_ = inputFormat;
-
-    return true;
-}
-
-void RgbaToYuvConverter::RgbaToYuvSse41(uint8_t* input, uint8_t** output, int width, int height)
+void RgbaToYuvConverter::RgbaToYuvSse41(const uint8_t* input, uint8_t** output, int width, int height)
 {
 #ifdef CITHRUS_SSE41_AVAILABLE
     // This efficiently converts pixels from RGBA to YUV 4:2:0 by using SSE 4.1 instructions to process multiple values simultaneously
@@ -85,7 +78,7 @@ void RgbaToYuvConverter::RgbaToYuvSse41(uint8_t* input, uint8_t** output, int wi
 
     const int chroma_offset[4] = { 255 * 255, 255 * 255, 255 * 255, 255 * 255 };
 
-    uint8_t* in = input;
+    const uint8_t* in = input;
 
     const __m128i min_val = _mm_loadu_si128((__m128i const*)mini);
     const __m128i max_val = _mm_loadu_si128((__m128i const*)maxi);
@@ -99,13 +92,15 @@ void RgbaToYuvConverter::RgbaToYuvSse41(uint8_t* input, uint8_t** output, int wi
     __m128i shufflemask_g;
     __m128i shufflemask_b;
 
-    if (inputFormat_ == "rgba")
+    std::string inputFormat = GetInputPin<0>().GetFormat();
+
+    if (inputFormat == "rgba")
     {
         shufflemask_r = _mm_set_epi8(-1, -1, -1, 12, -1, -1, -1, 8, -1, -1, -1, 4, -1, -1, -1, 0);
         shufflemask_g = _mm_set_epi8(-1, -1, -1, 13, -1, -1, -1, 9, -1, -1, -1, 5, -1, -1, -1, 1);
         shufflemask_b = _mm_set_epi8(-1, -1, -1, 14, -1, -1, -1, 10, -1, -1, -1, 6, -1, -1, -1, 2);
     }
-    else if (inputFormat_ == "bgra")
+    else if (inputFormat == "bgra")
     {
         shufflemask_r = _mm_set_epi8(-1, -1, -1, 14, -1, -1, -1, 10, -1, -1, -1, 6, -1, -1, -1, 2);
         shufflemask_g = _mm_set_epi8(-1, -1, -1, 13, -1, -1, -1, 9, -1, -1, -1, 5, -1, -1, -1, 1);
@@ -113,7 +108,7 @@ void RgbaToYuvConverter::RgbaToYuvSse41(uint8_t* input, uint8_t** output, int wi
     }
     else
     {
-        throw std::invalid_argument("Unsupported format");
+        throw std::exception("Unsupported format");
     }
 
     __m128i shufflemask = _mm_set_epi8(-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 12, 8, 4, 0);
@@ -123,7 +118,7 @@ void RgbaToYuvConverter::RgbaToYuvSse41(uint8_t* input, uint8_t** output, int wi
     for (int32_t i = 0; i < width * height << 2; i += 16)
     {
         // Load 16 bytes (4 pixels)
-        const __m128i a = _mm_loadu_si128((__m128i const*) in);
+        const __m128i a = _mm_loadu_si128((__m128i const*)in);
         in += 16;
 
         __m128i r = _mm_shuffle_epi8(a, shufflemask_r);

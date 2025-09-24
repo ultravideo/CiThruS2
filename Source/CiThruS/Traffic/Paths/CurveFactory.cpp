@@ -3,7 +3,7 @@
 #include "SCurve.h"
 #include "StraightLineCurve.h"
 
-std::shared_ptr<ICurve> CurveFactory::GetCurveFor(const FVector& startPosition, const FVector& endPosition, const FVector& startTangent, const FVector& endTangent)
+std::shared_ptr<ICurve> CurveFactory::GetCurveFor(/* const UWorld *world, */ const FVector& startPosition, const FVector& endPosition, const FVector& startTangent, const FVector& endTangent, const bool allowSCurve)
 {
 	FVector startToEnd = endPosition - startPosition;
 
@@ -44,14 +44,25 @@ std::shared_ptr<ICurve> CurveFactory::GetCurveFor(const FVector& startPosition, 
 		endCurveDirection = -endCurveDirection;
 	}
 
+/* 	
+	if (world) {
+//		UE_LOG(LogTemp, Warning, TEXT("Debug start arrow from: %s, to: %s, "), *startPosition.ToCompactString(), *(startPosition + startCurveDirection * 1000).ToCompactString());
+//		UE_LOG(LogTemp, Warning, TEXT("Debug end arrow from: %s, to: %s, "), *endPosition.ToCompactString(), *(endPosition + endCurveDirection * 1000).ToCompactString());
+		//DrawDebugDirectionalArrow(world, startPosition, startPosition + startCurveDirection * 100, 50, FColor::White, false, 2.50f, 0, 5);
+		//DrawDebugDirectionalArrow(world, endPosition, endPosition + endCurveDirection * 100, 10, FColor::Emerald, false, 2.50f, SDPG_World, 5);
+	} else {
+		UE_LOG(LogTemp, Warning, TEXT("ALERT! UWorld pointer is null!"));
+	}
+*/
+
 	// If startCurveDirection and endCurveDirection are on the same side of the line from start to end, a SingleCurve can be used
 	// to connect them. If they're on the opposite sides, an SCurve is needed instead
-	if (startCurveDirection.Dot(endCurveDirection) > 0.0)
+	if ( !allowSCurve || startCurveDirection.Dot(endCurveDirection) > 0.0)
 	{
 		return std::make_shared<SingleCurve>(startPosition, endPosition, startTangent, endTangent, startCurveDirection, endCurveDirection);
 	}
 	else
 	{
-		return std::make_shared<SCurve>(startPosition, endPosition, startTangent, endTangent, startCurveDirection, endCurveDirection);
+		return std::make_shared<SCurve>(/* world, */ startPosition, endPosition, startTangent, endTangent, startCurveDirection, endCurveDirection);
 	}
 }

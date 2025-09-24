@@ -80,12 +80,15 @@ bool AKeypointToolComponent::SaveToFile(TArray<FKeypointToolKP> keypointsData, E
 	case EKeypointToolGraph::E_Tram:
 		filePath += "newTramwayTrackGraph.data";
 		break;
+	case EKeypointToolGraph::E_Bicycle:
+		filePath += "newBicycleGraph.data";
+		break;
 	default:
 		filePath += "newDefaultGraph.data";
 		break;
 	}
 
-	return roadGraph.SaveToFile(TCHAR_TO_UTF8(*filePath));
+	return newGraph.SaveToFile(TCHAR_TO_UTF8(*filePath));
 }
 
 void AKeypointToolComponent::InitZoneController()
@@ -144,6 +147,9 @@ KeypointGraph AKeypointToolComponent::GetCorrectGraph(EKeypointToolGraph eg)
 		break;
 	case EKeypointToolGraph::E_Tram:
 		roadGraph.LoadFromFile(TCHAR_TO_UTF8(*(FPaths::ProjectDir() + "DataFiles/tramwayTrackGraph.data")));
+		break;
+	case EKeypointToolGraph::E_Bicycle:
+		roadGraph.LoadFromFile(TCHAR_TO_UTF8(*(FPaths::ProjectDir() + "DataFiles/bicycleGraph.data")));
 		break;
 	default:
 		roadGraph.LoadFromFile(TCHAR_TO_UTF8(*(FPaths::ProjectDir() + "DataFiles/roadGraph.data")));

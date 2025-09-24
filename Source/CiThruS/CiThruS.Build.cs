@@ -16,15 +16,12 @@ public class CiThruS : ModuleRules
 		PCHUsage = PCHUsageMode.UseExplicitOrSharedPCHs;
 		bEnableExceptions = true;
 		bUseUnity = false;
+		
 		var uvgrtp_base_path = Path.Combine(ModuleDirectory, "../../ThirdParty/uvgRTP/");
 		var kvazaar_base_path = Path.Combine(ModuleDirectory, "../../ThirdParty/Kvazaar/");
 		var openhevc_base_path = Path.Combine(ModuleDirectory, "../../ThirdParty/OpenHEVC/");
+		var fpng_base_path = Path.Combine(ModuleDirectory, "../../ThirdParty/fpng/");
 		
-		// Keep these include paths even if the files don't exist because C++17 checks for them in VideoTransmitter.h at compilation time
-		PublicIncludePaths.Add(Path.Combine(uvgrtp_base_path, "Include"));
-		PublicIncludePaths.Add(Path.Combine(kvazaar_base_path, "Include"));
-		PublicIncludePaths.Add(Path.Combine(openhevc_base_path, "Include"));
-
 		if (File.Exists(Path.Combine(uvgrtp_base_path, "Lib/uvgrtp.lib")))
 		{
 			PublicAdditionalLibraries.Add(Path.Combine(uvgrtp_base_path, "Lib/uvgrtp.lib"));
@@ -40,12 +37,23 @@ public class CiThruS : ModuleRules
 			PublicAdditionalLibraries.Add(Path.Combine(openhevc_base_path, "Lib/LibOpenHevcWrapper.lib"));
 		}
 		
-		// This is needed to use kvazaar.lib instead of kvazaar.dll
+		if (File.Exists(Path.Combine(fpng_base_path, "Lib/fpng.lib")))
+		{
+			PublicAdditionalLibraries.Add(Path.Combine(fpng_base_path, "Lib/fpng.lib"));
+		}
+		
+		// These are needed to use static libraries
 		PublicDefinitions.Add("KVZ_STATIC_LIB=1");
 		
 		// This lets us #include files with their path from the root folder which makes includes more convenient and consistent between files
 		PublicIncludePaths.Add(ModuleDirectory);
+		PublicIncludePaths.Add(Path.Combine(ModuleDirectory, "../../ThirdParty/"));
 
 		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "RHI", "RenderCore", "AIModule", "Landscape", "ChaosVehicles", "Niagara", "NiagaraCore" });
+		
+		if (Target.bBuildEditor)
+		{
+            PrivateDependencyModuleNames.AddRange(new string[] { "UnrealEd" });
+        }
 	}
 }

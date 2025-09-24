@@ -13,49 +13,47 @@
 YuvToRgbaConverter::YuvToRgbaConverter(const uint16_t& frameWidth, const uint16_t& frameHeight, const std::string& format)
     : outputFrameWidth_(frameWidth), outputFrameHeight_(frameHeight)
 {
-    outputSize_ = outputFrameWidth_ * outputFrameHeight_ * 4;
-    outputFrame_ = new uint8_t[outputSize_];
-    outputFormat_ = format;
+    uint32_t outputSize = outputFrameWidth_ * outputFrameHeight_ * 4;
+    outputData_ = new uint8_t[outputSize];
 
-    if (outputFormat_ != "rgba" && outputFormat_ != "bgra")
+    if (format != "rgba" && format != "bgra")
     {
-        throw std::invalid_argument("Unsupported format");
+        throw std::invalid_argument("Unsupported output format: " + format);
     }
+
+    GetInputPin<0>().SetAcceptedFormat("yuv420");
+    GetOutputPin<0>().SetFormat(format);
+
+    GetOutputPin<0>().SetData(outputData_);
+    GetOutputPin<0>().SetSize(outputSize);
 }
 
 YuvToRgbaConverter::~YuvToRgbaConverter()
 {
-	delete[] outputFrame_;
-	outputFrame_ = nullptr;
-    outputSize_ = 0;
+	delete[] outputData_;
+	outputData_ = nullptr;
+
+    GetOutputPin<0>().SetData(nullptr);
+    GetOutputPin<0>().SetSize(0);
 }
 
 void YuvToRgbaConverter::Process()
 {
-    if (*inputFrame_ == nullptr
-        || *inputSize_ != outputFrameWidth_ * outputFrameHeight_ * 3 / 2)
+    const uint8_t* inputData = GetInputPin<0>().GetData();
+    size_t inputSize = GetInputPin<0>().GetSize();
+
+    if (!inputData || inputSize != outputFrameWidth_ * outputFrameHeight_ * 3 / 2)
     {
         return;
     }
 
-    YuvToRgbaSse41(*inputFrame_, &outputFrame_, outputFrameWidth_, outputFrameHeight_);
+    YuvToRgbaSse41(inputData, &outputData_, outputFrameWidth_, outputFrameHeight_);
 }
 
-bool YuvToRgbaConverter::SetInput(const IImageSource* source)
+void YuvToRgbaConverter::YuvToRgbaSse41(const uint8_t* input, uint8_t** output, int width, int height)
 {
-    if (source->GetOutputFormat() != "yuv420")
-    {
-        return false;
-    }
+    // TODO: Something is not right here. The result has a slight greenish tint
 
-    inputFrame_ = source->GetOutput();
-    inputSize_ = source->GetOutputSize();
-
-    return true;
-}
-
-void YuvToRgbaConverter::YuvToRgbaSse41(uint8_t* input, uint8_t** output, int width, int height)
-{
 #ifdef CITHRUS_SSE41_AVAILABLE
     // This efficiently converts pixels from YUV 4:2:0 to RGBA by using SSE 4.1 instructions to process multiple values simultaneously
 
@@ -71,9 +69,9 @@ void YuvToRgbaConverter::YuvToRgbaSse41(uint8_t* input, uint8_t** output, int wi
     uint8_t* row_g = (uint8_t*)malloc(width * 4);
     uint8_t* row_b = (uint8_t*)malloc(width * 4);
 
-    uint8_t* in_y = &input[0];
-    uint8_t* in_u = &input[width * height];
-    uint8_t* in_v = &input[width * height + (width * height >> 2)];
+    const uint8_t* in_y = &input[0];
+    const uint8_t* in_u = &input[width * height];
+    const uint8_t* in_v = &input[width * height + (width * height >> 2)];
     uint8_t* out = *output;
 
     int8_t row = 0;
@@ -86,13 +84,15 @@ void YuvToRgbaConverter::YuvToRgbaSse41(uint8_t* input, uint8_t** output, int wi
     int shift_g;
     int shift_b;
 
-    if (outputFormat_ == "rgba")
+    std::string outputFormat = GetOutputPin<0>().GetFormat();
+
+    if (outputFormat == "rgba")
     {
         shift_r = 0;
         shift_g = 8;
         shift_b = 16;
     }
-    else if (outputFormat_ == "bgra")
+    else if (outputFormat == "bgra")
     {
         shift_r = 16;
         shift_g = 8;
@@ -100,7 +100,7 @@ void YuvToRgbaConverter::YuvToRgbaSse41(uint8_t* input, uint8_t** output, int wi
     }
     else
     {
-        throw std::invalid_argument("Unsupported format");
+        throw std::exception("Unsupported format");
     }
 
     __m128i a_pix = _mm_set_epi8(-1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0);

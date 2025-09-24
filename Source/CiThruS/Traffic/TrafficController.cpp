@@ -1,6 +1,7 @@
 #include "TrafficController.h"
 #include "Entities/Car.h"
 #include "Entities/Pedestrian.h"
+#include "Entities/Bicycle.h"
 #include "Areas/TrafficStopArea.h"
 #include "EngineUtils.h"
 #include "Misc/MathUtility.h"
@@ -11,6 +12,12 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Runtime/Core/Public/Async/ParallelFor.h"
+
+#if WITH_EDITOR
+#include "GameFramework/SpectatorPawn.h"
+#include "Editor.h"
+#include "EditorViewportClient.h"
+#endif
 
 #include <list>
 
@@ -44,6 +51,10 @@ void ATrafficController::BeginPlay()
 	tramwayGraph_.LoadFromFile(TCHAR_TO_UTF8(*(FPaths::ProjectDir() + "/DataFiles/tramwayTrackGraph.data")));
 	tramwayGraph_.AlignWithWorldGround(GetWorld());
 
+	bicycleGraph_.LoadFromFile(TCHAR_TO_UTF8(*(FPaths::ProjectDir() + "/DataFiles/bicycleGraph.data")));
+	bicycleGraph_.AlignWithWorldGround(GetWorld());
+
+
 	// Fetch traffic areas
 	trafficAreas_.Empty();
 
@@ -62,17 +73,20 @@ void ATrafficController::BeginPlay()
 	// Apply extra rules to car keypoints from VehicleRuleZones, incase they aren't applied manually
 	roadGraph_.ApplyZoneRules(this);
 
-	// Get ref to parking controller
-	TArray<AActor*> find;
-	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AParkingController::StaticClass(), find);
+	if (simulateParking_) {
+		// Get ref to parking controller
+		TArray<AActor*> find;
+		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AParkingController::StaticClass(), find);
 
-	if (find.Num() <= 0)
-	{
-		Debug::Log("No ParkingController placed");
-		return;
+		if (find.Num() <= 0)
+		{
+			Debug::Log("No ParkingController placed");
+			return;
+		}
+
+		parkingController_ = Cast<AParkingController>(find[0]);
 	}
-
-	parkingController_ = Cast<AParkingController>(find[0]);
+	else parkingController_ = nullptr;
 
 	BeginSimulateTraffic();
 }
@@ -140,33 +154,63 @@ void ATrafficController::CheckEntityCollisions()
 {
 	std::list<CollisionRectangle> pawnCollisions;
 
-	// Collect current pawns in the scene
-	for (TActorIterator<APawn> it = TActorIterator<APawn>(GetWorld()); it; it.operator++())
+	if (checkPawnCollisions_)
 	{
-		if (*it == nullptr)
+
+		// Collect current pawns in the scene
+		for (TActorIterator<APawn> it = TActorIterator<APawn>(GetWorld()); it; it.operator++())
 		{
-			continue;
+			if (*it == nullptr)
+			{
+				continue;
+			}
+			
+			// Calculate pawns collision bounds
+			FBox box = it->CalculateComponentsBoundingBoxInLocalSpace(false, false);
+			CollisionRectangle pawnCollision = CollisionRectangle(box.GetSize(), it->GetActorLocation(), it->GetActorQuat());
+			pawnCollisions.push_back(pawnCollision);
 		}
-
-		// Calculate pawns collision bounds
-		FBox box = it->CalculateComponentsBoundingBoxInLocalSpace(false, false);
-		CollisionRectangle pawnCollision = CollisionRectangle(box.GetSize(), it->GetActorLocation(), it->GetActorQuat());
-		pawnCollisions.push_back(pawnCollision);
 	}
-
+		
 	FMinimalViewInfo cameraViewInfo;
-	FMatrix cameraViewMatrix;
-	float cameraTanInverse;
-	float aspectRatioInverse;
+	FMatrix cameraViewMatrix = FMatrix::Identity;
+	float cameraTanInverse = 0.0f;
+	float aspectRatioInverse = 0.0f;
 	UWorld* world = GetWorld();
-
+	
+	FVector cameraLocation = FVector::ZeroVector;
+	FMatrix cameraMatrix = FMatrix::Identity;
+	
+	// Get camera view info
 	if (world != nullptr)
 	{
-		cameraViewInfo = world->GetFirstPlayerController()->PlayerCameraManager->GetCameraCacheView();
-		FMatrix cameraMatrix = FTransform(cameraViewInfo.Rotation, cameraViewInfo.Location).ToMatrixNoScale();
-		cameraViewMatrix = FTransform(cameraViewInfo.Rotation, cameraViewInfo.Location).Inverse().ToMatrixNoScale();
-		aspectRatioInverse = 1.0f / cameraViewInfo.AspectRatio;
-		cameraTanInverse = 1.0f / tan(FMath::DegreesToRadians(cameraViewInfo.FOV / 2.0f));
+		#if WITH_EDITOR
+		if (GEditor && useEditorViewportCamera_)
+		{
+			for (FEditorViewportClient* viewportClient : GEditor->GetAllViewportClients())
+			{
+				if (viewportClient && viewportClient->IsPerspective() && viewportClient->IsLevelEditorClient() && viewportClient->IsRealtime())
+				{
+					cameraViewMatrix = FTransform(viewportClient->GetViewRotation(), viewportClient->GetViewLocation()).Inverse().ToMatrixNoScale();
+					//cameraMatrix = FInverseRotationMatrix(viewportClient->GetViewRotation()) * FTranslationMatrix(-viewportClient->GetViewLocation());
+					cameraMatrix = FTransform(viewportClient->GetViewRotation(), viewportClient->GetViewLocation()).ToMatrixNoScale();
+					aspectRatioInverse = 1.0f / viewportClient->AspectRatio;
+					cameraTanInverse = 1.0f / tan(FMath::DegreesToRadians(viewportClient->FOVAngle / 2.0f));
+					cameraLocation = viewportClient->GetViewLocation();
+					break;
+				}
+			}
+		}
+		if (cameraLocation == FVector::ZeroVector)
+		#endif
+		{
+			cameraViewInfo = world->GetFirstPlayerController()->PlayerCameraManager->GetCameraCacheView();
+			cameraMatrix = FTransform(cameraViewInfo.Rotation, cameraViewInfo.Location).ToMatrixNoScale();
+			cameraViewMatrix = FTransform(cameraViewInfo.Rotation, cameraViewInfo.Location).Inverse().ToMatrixNoScale();
+			aspectRatioInverse = 1.0f / cameraViewInfo.AspectRatio;
+			cameraTanInverse = 1.0f / tan(FMath::DegreesToRadians(cameraViewInfo.FOV / 2.0f));
+			cameraLocation = cameraViewInfo.Location;
+		}
 
 		if (visualizeViewFrustrum_)
 		{
@@ -189,7 +233,7 @@ void ATrafficController::CheckEntityCollisions()
 	entityInFront_ = nullptr;
 	entityInFrontDistance_ = std::numeric_limits<float>::max();
 
-	//for (int i = 0; i < vehiclesInScene.Num(); i++)
+	// Process every entity
 	ParallelFor(simulatedEntities_.size(), [&](int32 i)
 	{
 		TrafficEntityWrapper& entityWrapper = simulatedEntities_[i];
@@ -212,35 +256,37 @@ void ATrafficController::CheckEntityCollisions()
 			entityWrapper.entity->UpdateBlockingCollisionWith(otherEntity);
 		}
 
-		// Check if this vehicle collides with pawns
-		for (CollisionRectangle pawnCollision : pawnCollisions)
+		if (checkPawnCollisions_)
 		{
-			entityWrapper.entity->UpdatePawnCollision(pawnCollision);
-		}
-
-		if (!pawnCollisions.empty())
-		{
-			FVector pawnForward = pawnCollisions.front().GetRotation() * FVector::UnitX();
-			FVector entityRelativeToPawn = entityWrapper.entity->GetCollisionRectangle().GetPosition() - pawnCollisions.front().GetPosition();
-
-			if (FVector::DotProduct(pawnForward, entityRelativeToPawn.GetSafeNormal()) > 0.8f && pawnCollisions.front().GetRotation().AngularDistance(entityWrapper.entity->GetCollisionRectangle().GetRotation()) < UE_PI / 3.0f)
+			// Check if this vehicle collides with pawns
+			for (CollisionRectangle pawnCollision : pawnCollisions)
 			{
-				float entityDistance = entityRelativeToPawn.SquaredLength();
-
-				entityInFrontMutex_.lock();
-
-				if (entityDistance < entityInFrontDistance_)
+				entityWrapper.entity->UpdatePawnCollision(pawnCollision);
+			}
+			
+			if (!pawnCollisions.empty())
+			{
+				FVector pawnForward = pawnCollisions.front().GetRotation() * FVector::UnitX();
+				FVector entityRelativeToPawn = entityWrapper.entity->GetCollisionRectangle().GetPosition() - pawnCollisions.front().GetPosition();
+				
+				if (FVector::DotProduct(pawnForward, entityRelativeToPawn.GetSafeNormal()) > 0.8f && pawnCollisions.front().GetRotation().AngularDistance(entityWrapper.entity->GetCollisionRectangle().GetRotation()) < UE_PI / 3.0f)
 				{
-					entityInFront_ = entityWrapper.entity;
-					entityInFrontDistance_ = entityDistance;
+					float entityDistance = entityRelativeToPawn.SquaredLength();
+					
+					entityInFrontMutex_.lock();
+					
+					if (entityDistance < entityInFrontDistance_)
+					{
+						entityInFront_ = entityWrapper.entity;
+						entityInFrontDistance_ = entityDistance;
+					}
+					
+					entityInFrontMutex_.unlock();
 				}
-
-				entityInFrontMutex_.unlock();
 			}
 		}
-
-		// Update entity distance from camera
-		entityWrapper.distanceFromCamera = FVector::Dist(cameraViewInfo.Location, entityWrapper.entity->GetCollisionRectangle().GetPosition());
+			
+		entityWrapper.distanceFromCamera = FVector::Dist(cameraLocation, entityWrapper.entity->GetCollisionRectangle().GetPosition());
 
 		// Check if entity is in camera view
 		std::vector<FVector> corners = entityWrapper.entity->GetCollisionRectangle().GetCorners();
@@ -251,7 +297,7 @@ void ATrafficController::CheckEntityCollisions()
 		bool bboxInitialized = false;
 
 		// Calculate the bounding box of the object's collision rectangle in the camera view
-		if (lowDetailVehiclesOutsideCamera_)
+		if (lowDetailEntitiesOutsideCamera_)
 		{
 			for (int j = 0; j < 8; j++)
 			{
@@ -262,6 +308,7 @@ void ATrafficController::CheckEntityCollisions()
 					continue;
 				}
 
+				// Calculate the projected position of the object in the camera view
 				FVector posProjected = FVector(
 					posInCameraSpace.Y * cameraTanInverse / std::abs(posInCameraSpace.X),
 					posInCameraSpace.Z * cameraTanInverse / std::abs(posInCameraSpace.X * aspectRatioInverse),
@@ -286,9 +333,9 @@ void ATrafficController::CheckEntityCollisions()
 						bboxMin.Y = posProjected.Y;
 					}
 
-					if (posProjected.Z > bboxMax.Z)
+					if (posProjected.Z < bboxMin.Z)
 					{
-						bboxMax.Z = posProjected.Z;
+						bboxMin.Z = posProjected.Z;
 					}
 
 					if (posProjected.X > bboxMax.X)
@@ -308,13 +355,14 @@ void ATrafficController::CheckEntityCollisions()
 				}
 			}
 		}
+		
 
-		if (entityWrapper.distanceFromCamera < farDistance_
-			&& !lowDetailVehiclesOutsideCamera_
+		if (!lowDetailEntitiesOutsideCamera_
 			|| (bboxInitialized
 				&& bboxMin.X < 1.0f && bboxMin.Y < 1.0f && bboxMin.Z < 1.0f
 				&& bboxMax.X > -1.0f && bboxMax.Y > -1.0f && bboxMax.Z > 0.0f))
 		{
+			// Entity in camera view or LOD disabled
 			if (maxHighDetailVehiclesZeroForUnlimited_ <= 0)
 			{
 				entityWrapper.isNear = true;
@@ -351,10 +399,13 @@ void ATrafficController::CheckEntityCollisions()
 		}
 		else
 		{
+			// Entity is outside camera view
 			entityWrapper.isNear = false;
 		}
 	});
 
+
+	// Check against static entities
 	ParallelFor(staticEntities_.size(), [&](int32 i)
 	{
 		TrafficEntityWrapper& entityWrapper = staticEntities_[i];
@@ -542,6 +593,49 @@ APedestrian* ATrafficController::SpawnPedestrian(const FVector& position, const 
 	return pedestrian;
 }
 
+ABicycle* ATrafficController::SpawnBicycle(const FVector& position, const FRotator& rotation, const bool& simulate)
+{
+	if (templateBicycles_.Num() == 0)
+	{
+		Debug::Log("Can't spawn bicycles: no template bicycles available!");
+		return nullptr;
+	}
+
+	FActorSpawnParameters spawnParams;
+
+	spawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	ABicycle* bicycle = GetWorld()->SpawnActor<ABicycle>(
+		templateBicycles_[FMath::RandRange(0, templateBicycles_.Num() - 1)],
+		position /* + ABicycle::PreferredSpawnPositionOffset()*/, rotation, spawnParams);
+	//UE_LOG(LogTemp, Log, TEXT("Spawning bicycle at: %s"), *position.ToString());
+
+
+
+	if (!bicycle)
+	{
+		Debug::Log("Bicycle spawn failed");
+		return nullptr;
+	}
+
+#if WITH_EDITOR
+	bicycle->SetFolderPath(FName("TrafficSystems/Bicycles"));
+#endif
+	
+	if (simulate)
+	{
+		simulatedEntities_.push_back({ bicycle, false });
+		bicycle->SetController(this);
+		bicycle->Simulate(&bicycleGraph_);
+	}
+	else
+	{
+		staticEntities_.push_back({ bicycle, false });
+	}
+
+	return bicycle;
+}
+
 ATram* ATrafficController::SpawnTram(const FVector& position, const bool& simulate)
 {
 	if (templateTrams_.Num() == 0)
@@ -586,10 +680,12 @@ void ATrafficController::RespawnCar(ACar* car)
 {
 	car->Destroy();
 
-	// Try to spawn from a parking space 50% of the time
-	if (FMath::RandRange(0.0f, 1.0f) > 0.5f && parkingController_->DepartRandomParkedCar())
-	{
-		return;
+	if (parkingController_ && simulateParking_) {
+		// Try to spawn from a parking space 50% of the time
+		if (FMath::RandRange(0.0f, 1.0f) > 0.5f && parkingController_->DepartRandomParkedCar())
+		{
+			return;
+		}
 	}
 	
 	SpawnCar();
@@ -664,6 +760,8 @@ void ATrafficController::BeginSimulateTraffic()
 		Debug::Log("no road keypoints, can't spawn cars!");
 	}
 
+
+
 	 // Create new trams
 
 	if (tramwayGraph_.KeypointCount() > 0)
@@ -691,6 +789,8 @@ void ATrafficController::BeginSimulateTraffic()
 		Debug::Log("No tramway keypoints, can't spawn trams!");
 	}
 
+
+
 	// Create new pedestrians
 
 	if (sharedUseGraph_.KeypointCount() > 0)
@@ -708,6 +808,27 @@ void ATrafficController::BeginSimulateTraffic()
 	{
 		Debug::Log("no shared use keypoints, can't spawn pedestrians!");
 	}
+
+
+
+	// Create new bicycles
+
+	if (bicycleGraph_.KeypointCount() > 0)
+	{
+		for (int i = 0; i < amountOfBicyclesToSpawn_; i++)
+		{
+			int kpIndex = (i * prime + randomSeed) % bicycleGraph_.KeypointCount();
+			const FVector position = bicycleGraph_.GetKeypointPosition(kpIndex);
+			const FRotator rotation = bicycleGraph_.GetKeypointRotation(kpIndex);
+
+			SpawnBicycle(position, rotation, true);
+		}
+	}
+	else
+	{
+		Debug::Log("no bicycle keypoints, can't spawn pedestrians!");
+	}
+
 }
 
 template<class T>
@@ -758,7 +879,7 @@ void ATrafficController::VisualizeCollisionForEntity(ITrafficEntity* entity, con
 
 	const FVector rayEnd = rayBegin + entity->GetMoveDirection() * 250.0f;
 
-	Debug::DrawTemporaryLine(GetWorld(), rayBegin, rayEnd, FColor::Blue, deltaTime * 1.1f, 35.0f);
+	Debug::DrawTemporaryLine(GetWorld(), rayBegin, rayEnd, FColor::Blue, deltaTime * 1.1f, 5.0f);
 }
 
 void ATrafficController::ClearLinkLines()
@@ -773,6 +894,7 @@ void ATrafficController::RedrawLinkLines()
 	VisualizeGraph(&roadGraph_);
 	VisualizeGraph(&sharedUseGraph_);
 	VisualizeGraph(&tramwayGraph_);
+	VisualizeGraph(&bicycleGraph_);
 }
 
 void ATrafficController::VisualizeGraph(KeypointGraph* graph) const

@@ -13,7 +13,7 @@ ATrafficStopArea::ATrafficStopArea()
 #if WITH_EDITOR
 	UStaticMeshComponent* boxMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BoxMesh"));
 	RootComponent = boxMesh;
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> boxAsset(TEXT("/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> boxAsset(TEXT("/Engine/BasicShapes/Cube.Cube"));
 
 	if (boxAsset.Succeeded())
 	{
@@ -28,7 +28,7 @@ ATrafficStopArea::ATrafficStopArea()
 	arrowMesh->SetRelativeLocation(FVector(50.0f, 0.0f, 50.0f));
 	arrowMesh->SetupAttachment(RootComponent);
 
-	static ConstructorHelpers::FObjectFinder<UStaticMesh> arrowAsset(TEXT("/Game/StarterContent/Shapes/Shape_QuadPyramid.Shape_QuadPyramid"));
+	static ConstructorHelpers::FObjectFinder<UStaticMesh> arrowAsset(TEXT("/Engine/BasicShapes/Cone.Cone"));
 
 	if (arrowAsset.Succeeded())
 	{

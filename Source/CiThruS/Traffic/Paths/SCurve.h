@@ -10,7 +10,10 @@ public:
 	inline virtual float GetLength() const override { return cumulativeLength_[1]; }
 	inline virtual std::shared_ptr<ICurve> Clone() const override { return std::make_shared<SCurve>(*this); }
 
+	virtual float GetCurvatureAt(float step) const { UE_LOG(LogTemp, Warning, TEXT("On S-Curve at: start %s -- end %s"), *startPosition_.ToCompactString(), *endPosition_.ToCompactString()); return 0.0f; };
+
 	SCurve(
+		/* const UWorld *world, */
 		const FVector& startPosition, const FVector& endPosition,
 		const FVector& startTangent, const FVector& endTangent,
 		const FVector& startCurveDirection, const FVector& endCurveDirection);
@@ -29,9 +32,15 @@ protected:
 	float radius2_;
 	float cumulativeLength_[2];
 
-	static void CalculateRadiiAndPivots(
+	void CalculateRadiiAndPivots(
 		const FVector& end1, const FVector& end2,
 		const FVector& curveDirection1, const FVector& curveDirection2,
 		FVector& pivot1, FVector& pivot2,
 		float& radius1, float& radius2);
+
+	void initCurve(
+		/* const UWorld* world, */
+		const FVector& startPosition, const FVector& endPosition,
+		const FVector& startTangent, const FVector& endTangent,
+		const FVector& startCurveDirection, const FVector& endCurveDirection);
 };

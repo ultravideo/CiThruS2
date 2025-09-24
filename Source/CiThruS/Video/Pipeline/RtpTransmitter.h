@@ -12,11 +12,11 @@
 
 #endif // _WIN32
 
-#if __has_include("../ThirdParty/uvgRTP/Include/lib.hh")
+#if __has_include("uvgRTP/Include/lib.hh")
 #ifndef CITHRUS_UVGRTP_AVAILABLE
 #define CITHRUS_UVGRTP_AVAILABLE
 #endif // CITHRUS_UVGRTP_AVAILABLE
-#include "../ThirdParty/uvgRTP/Include/lib.hh"
+#include "uvgRTP/Include/lib.hh"
 #else
 #pragma message (__FILE__ ": warning: uvgRTP not found, RTP streaming is unavailable")
 #endif // __has_include(...)
@@ -29,12 +29,12 @@
 #endif
 
 #include "CoreMinimal.h"
-#include "IImageSink.h"
+#include "PipelineSink.h"
 
 #include <string>
 
 // Transmits data in an RTP stream
-class CITHRUS_API RtpTransmitter : public IImageSink
+class CITHRUS_API RtpTransmitter : public PipelineSink<1>
 {
 public:
 	RtpTransmitter(const std::string& ip, const int& dstPort);
@@ -42,12 +42,7 @@ public:
 
 	virtual void Process() override;
 
-	virtual bool SetInput(const IImageSource* source) override;
-
 protected:
-	uint8_t* const* inputFrame_;
-	const uint32_t* inputSize_;
-
 #ifdef CITHRUS_UVGRTP_AVAILABLE
 	uvgrtp::context streamContext_;
 	uvgrtp::session* streamSession_;

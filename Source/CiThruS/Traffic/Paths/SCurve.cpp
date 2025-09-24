@@ -2,6 +2,8 @@
 #include <algorithm>
 
 SCurve::SCurve(
+	// World pointer needed by debug drawing functions
+	/* const UWorld *world, */
 	const FVector& startPosition, const FVector& endPosition,
 	const FVector& startTangent, const FVector& endTangent,
 	const FVector& startCurveDirection, const FVector& endCurveDirection)
@@ -10,26 +12,49 @@ SCurve::SCurve(
 	startCurveDirection_(startCurveDirection), endCurveDirection_(endCurveDirection),
 	cumulativeLength_()
 {
+	initCurve(/* world, */ startPosition, endPosition, startTangent, endTangent, startCurveDirection, endCurveDirection);
+}
+
+void SCurve::initCurve(
+	/* const UWorld *world, */
+	const FVector& startPosition, const FVector& endPosition,
+	const FVector& startTangent, const FVector& endTangent,
+	const FVector& startCurveDirection, const FVector& endCurveDirection)
+{
 	double startIdealAngleCos = startTangent.Dot(endCurveDirection);
 	double endIdealAngleCos = endTangent.Dot(startCurveDirection);
 
-	if (startIdealAngleCos > endIdealAngleCos)
+	if (startIdealAngleCos < endIdealAngleCos)
 	{
+/*		UE_LOG(LogTemp, Warning, TEXT("SCurve constructor taking branch 1"));*/
 		CalculateRadiiAndPivots(startPosition, endPosition, startCurveDirection, endCurveDirection, pivot1_, pivot2_, radius1_, radius2_);
 	}
 	else
 	{
+		UE_LOG(LogTemp, Warning, TEXT("DIDN'T THINK THIS COULD HAPPEN! SCurve constructor taking branch 2"));
 		CalculateRadiiAndPivots(endPosition, startPosition, endCurveDirection, startCurveDirection, pivot2_, pivot1_, radius2_, radius1_);
 	}
 
+/* 	
+	if (world) 
+	{
+		DrawDebugSphere(world, pivot1_, 10.0f, 16, FColor::Red, false, 10.0f, 0, 2.0f);
+		DrawDebugSphere(world, pivot2_, 10.0f, 16, FColor::Green, false, 10.0f, 0, 2.0f);
+		DrawDebugCircle(world, pivot1_, radius1_, 16, FColor::Red, false, 10.0f, 0, 2.0, startTangent, startCurveDirection );
+		DrawDebugCircle(world, pivot2_, radius2_, 16, FColor::Green, false, 10.0f, 0, 2.0, endTangent, endCurveDirection);
+	}
+	*/
+	
 	FVector pivotToPivotDir = (pivot2_ - pivot1_).GetSafeNormal();
 
 	float gamma1 = acos((-startCurveDirection).Dot(pivotToPivotDir));
 	float gamma2 = acos((-endCurveDirection).Dot(-pivotToPivotDir));
 
-	/*Debug::DrawTemporaryLine(trafficEntity_->GetWorld(), startKeypointPos, c1, FColor::Blue, 0.3f, 35.0f);
+	/*
+	Debug::DrawTemporaryLine(trafficEntity_->GetWorld(), startKeypointPos, c1, FColor::Blue, 0.3f, 35.0f);
 	Debug::DrawTemporaryLine(trafficEntity_->GetWorld(), c1, c1 + dm * (radius1 + radius2), FColor::Red, 0.3f, 35.0f);
-	Debug::DrawTemporaryLine(trafficEntity_->GetWorld(), c2, endKeypointPos, FColor::Yellow, 0.3f, 35.0f);*/
+	Debug::DrawTemporaryLine(trafficEntity_->GetWorld(), c2, endKeypointPos, FColor::Yellow, 0.3f, 35.0f);
+	*/
 
 	//Debug::Log(FString::SanitizeFloat((float)((radius1 + radius2) - (c1 - c2).Length())) + FString(" - ") + FString::SanitizeFloat((float)(radius2 - (endKeypointPos - c2).Length())));
 

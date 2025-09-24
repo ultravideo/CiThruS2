@@ -43,13 +43,16 @@ public:
 
 	virtual bool Yielding() const = 0;
 	virtual bool Stopped() const = 0;
+	virtual bool Blocked() const = 0;
 
 	virtual FVector GetMoveDirection() const = 0;
 
 	virtual CollisionRectangle GetCollisionRectangle() const = 0;
 	virtual CollisionRectangle GetPredictedFutureCollisionRectangle() const = 0;
 
-	inline virtual int32 GetKeypointRuleExceptions() const { return 0; }
+	virtual FString GetName() const = 0;
+
+	virtual int32 GetKeypointRuleExceptions() const { return 0; }
 
 protected:
 	ITrafficEntity() { }

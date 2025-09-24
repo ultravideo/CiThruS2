@@ -1,5 +1,5 @@
 #include "RtpTransmitter.h"
-#include "IImageSource.h"
+#include "PipelineSource.h"
 #include "Misc/Debug.h"
 
 RtpTransmitter::RtpTransmitter(const std::string& ip, const int& dstPort)
@@ -13,6 +13,8 @@ RtpTransmitter::RtpTransmitter(const std::string& ip, const int& dstPort)
 		Debug::Log("Failed to create RTP stream");
 	}
 #endif // CITHRUS_UVGRTP_AVAILABLE
+
+	GetInputPin<0>().SetAcceptedFormat("hevc");
 }
 
 RtpTransmitter::~RtpTransmitter()
@@ -34,28 +36,19 @@ RtpTransmitter::~RtpTransmitter()
 
 void RtpTransmitter::Process()
 {
-	if (*inputFrame_ == nullptr || *inputSize_ == 0)
+	const uint8_t* inputData = GetInputPin<0>().GetData();
+	size_t inputSize = GetInputPin<0>().GetSize();
+
+	if (!inputData || inputSize == 0)
 	{
 		return;
 	}
 
 #ifdef CITHRUS_UVGRTP_AVAILABLE
-	if (stream_->push_frame(*inputFrame_, *inputSize_, RTP_NO_FLAGS) != RTP_ERROR::RTP_OK)
+	// This const_cast should be okay as there should be no reason for uvgRTP to ever modify the input data
+	if (stream_->push_frame(const_cast<uint8_t*>(inputData), inputSize, RTP_NO_FLAGS) != RTP_ERROR::RTP_OK)
 	{
 		Debug::Log("Failed to push frame");
 	}
 #endif // CITHRUS_UVGRTP_AVAILABLE
-}
-
-bool RtpTransmitter::SetInput(const IImageSource* source)
-{
-	if (source->GetOutputFormat() != "hevc")
-	{
-		return false;
-	}
-
-	inputFrame_ = source->GetOutput();
-	inputSize_ = source->GetOutputSize();
-
-	return true;
 }

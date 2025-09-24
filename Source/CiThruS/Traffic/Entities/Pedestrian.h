@@ -21,6 +21,8 @@ class CITHRUS_API APedestrian : public ACharacter, public ITrafficEntity
 	GENERATED_BODY()
 
 public:
+	virtual FString GetName() const override { return ACharacter::GetName(); }
+	
 	static FVector PreferredSpawnPositionOffset();
 
 	void Simulate(const KeypointGraph* graph);
@@ -44,6 +46,7 @@ public:
 
 	inline virtual bool Yielding() const override { return shouldYield_; }
 	inline virtual bool Stopped() const override { return inActiveStopArea_; }
+	inline virtual bool Blocked() const { return true; } // TODO: Hack to prevent pedestrians from dropping bicycle speeds to min, actually need to implement proper blocking
 
 	virtual void OnFar() override;
 	virtual void OnNear() override;
@@ -64,10 +67,39 @@ protected:
 	bool simulate_ = false;
 	bool useEditorTick_ = false;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere)
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Traffic System|Pedestrian")
 	float moveSpeed_ = 200.0f;
 
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
+	FVector pathFollowerGoal_ = FVector::ZeroVector;
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
+	float distanceToFollowerGoal_ = 0.0f;
+ 
+//	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
+	FVector controllerGoal_ = FVector::ZeroVector;
+//	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
+	float distanceToControllerGoal_ = 0.0f;
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
+	bool atGoal_ = false;
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
+	bool moving_ = false;
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
+	bool lastTarget_ = false;
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
+	FString pathFollowingRqResult_ = "";
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
+	FString pathFollowingStatus_ = "";
+
+	//UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
+	bool boing_ = false;
+
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Collision Status")
 	bool shouldYield_;
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Collision Status")
 	bool inActiveStopArea_;
 
 	std::set<ATrafficStopArea*> overlappedStopAreas_;
@@ -75,7 +107,7 @@ protected:
 
 	FVector moveDirection_;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "NPC vehicle properties")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Traffic System|Pedestrian")
 	FVector collisionDimensions_ = FVector(100.0f, 100.0f, 180.0f);
 
 	UFUNCTION(BlueprintNativeEvent)

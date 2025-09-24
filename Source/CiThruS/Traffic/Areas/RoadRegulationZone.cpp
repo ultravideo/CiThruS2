@@ -20,7 +20,7 @@ ARoadRegulationZone::ARoadRegulationZone()
     mesh_->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
     // Set the default static mesh
-    static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Game/StarterContent/Shapes/Shape_Cube.Shape_Cube"));
+    static ConstructorHelpers::FObjectFinder<UStaticMesh> MeshAsset(TEXT("/Engine/BasicShapes/Cube.Cube"));
     if (MeshAsset.Succeeded())
     {
         mesh_->SetStaticMesh(MeshAsset.Object);

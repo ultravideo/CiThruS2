@@ -1,13 +1,14 @@
 @echo off
 setlocal
 set AIRSIM_VER=2.1.0
-set DLSS_VER=ue5.4_dlss_3.7.20_plugin_2024.09.06
+set DLSS_VER=2025.04.16_UE_5.5_Plugin_4.0.2
 set FSR_VER=520
-set KVAZAAR_VER=2.3.1
+set KVAZAAR_VER=2.3.2
 set YASM_VER=1.3.0
 set UVGRTP_VER=3.1.6
 set OPENHEVC_VER=ffmpeg_update
-set CITHRUS_CONTENT_VER=21_01_2025
+set FPNG_VER=1.0.6
+set CITHRUS_CONTENT_VER=23_09_2025
 
 set ROOT_DIR=%~dp0
 
@@ -43,7 +44,28 @@ mkdir temp
 
 echo Setting up CiThruS2...
 
-:: AirSim is not available for UE 5.4, skip for now
+:contentsetup
+if exist Content (
+	echo CiThruS content already found at Content, skipping... ^(Please delete the folder manually if you'd like to redownload it.^)
+	goto :airsimsetup
+)
+
+echo Downloading CiThruS2 content...
+%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://ultravideo.fi/sim_env/cithrus2_sim_env_content_%CITHRUS_CONTENT_VER%.zip', 'temp\CiThruS2_content.zip')" || goto :contentdownloadfailed
+echo Extracting CiThruS2 content...
+%powershell% -command "Expand-Archive -Path temp\CiThruS2_content.zip -DestinationPath . -Force"
+del temp\CiThruS2_content.zip /q
+
+echo Finished setting up CiThruS2 content.
+goto :airsimsetup
+
+:contentdownloadfailed
+echo Failed to download CiThruS2 content!
+goto :setupfailed
+
+:airsimsetup
+
+:: AirSim is not available for UE 5.5, skip for now
 goto :dlsssetup
 
 :: AirSim setup
@@ -95,7 +117,7 @@ if exist Plugins\DLSS (
 )
 
 echo Downloading Nvidia DLSS...
-%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://developer.nvidia.com/downloads/assets/gameworks/downloads/secure/dlss/%DLSS_VER%.zip', 'temp\DLSS.zip')" || goto :dlssdownloadfailed
+%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://dlss.download.nvidia.com/uebinarypackages/%DLSS_VER%.zip', 'temp\DLSS.zip')" || goto :dlssdownloadfailed
 echo Extracting Nvidia DLSS...
 mkdir temp\DLSS
 %powershell% -command "Expand-Archive -Path temp\DLSS.zip -DestinationPath temp\DLSS"
@@ -116,7 +138,7 @@ echo Failed to download Nvidia DLSS!
 goto :setupfailed
 
 :fsrsetup
-:: FSR is not available for UE 5.4, skip for now
+:: TODO update to FSR 4
 goto :impostorbakersetup
 
 if exist Plugins\FSR2 IF EXIST Plugins\FSR2MovieRenderPipeline (
@@ -198,7 +220,9 @@ if not exist Saved\UnrealBuildTool\BuildConfiguration.xml (
 %powershell% -command "((Get-Content -path Saved/UnrealBuildTool/BuildConfiguration.xml -Raw) -replace '14\.[0-9]+\.[0-9]+','14%COMPILER_VER%') | Set-Content -Path Saved/UnrealBuildTool/BuildConfiguration.xml"
 
 if not exist ThirdParty\Kvazaar goto :yasmsetup
+echo Kvazaar already found at ThirdParty\Kvazaar, skipping... ^(Please delete the folder manually if you'd like to reinstall it.^)
 if not exist ThirdParty\OpenHEVC goto :yasmsetup
+echo OpenHEVC already found at ThirdParty\OpenHEVC, skipping... ^(Please delete the folder manually if you'd like to reinstall it.^)
 
 goto :uvgrtpsetup
 
@@ -357,7 +381,7 @@ echo Cleaning up uvgRTP files...
 rmdir temp\uvgRTP-%UVGRTP_VER% /s /q
 
 echo Finished setting up uvgRTP.
-goto :contentsetup
+goto :fpngsetup
 
 :uvgrtpdownloadfailed
 echo Failed to download uvgRTP!
@@ -367,23 +391,42 @@ goto :setupfailed
 echo Failed to build uvgRTP!
 goto :setupfailed
 
-:contentsetup
-if exist Content (
-	echo CiThruS content already found at Content, skipping... ^(Please delete the folder manually if you'd like to redownload it.^)
+:fpngsetup
+if exist ThirdParty\fpng (
+	echo fpng already found at ThirdParty\fpng, skipping... ^(Please delete the folder manually if you'd like to reinstall it.^)
 	goto :setupsuccess
 )
 
-echo Downloading CiThruS2 content...
-%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://ultravideo.fi/sim_env/cithrus2_sim_env_content_%CITHRUS_CONTENT_VER%.zip', 'temp\CiThruS2_content.zip')" || goto :contentdownloadfailed
-echo Extracting CiThruS2 content...
-%powershell% -command "Expand-Archive -Path temp\CiThruS2_content.zip -DestinationPath . -Force"
-del temp\CiThruS2_content.zip /q
+echo Downloading fpng...
+%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://github.com/richgel999/fpng/archive/refs/tags/v%FPNG_VER%.zip', 'temp\fpng.zip')" || goto :fpngdownloadfailed
+echo Extracting fpng...
+%powershell% -command "Expand-Archive -Path temp\fpng.zip -DestinationPath temp -Force"
+del temp\fpng.zip /q
 
-echo Finished setting up CiThruS2 content.
+echo Building fpng...
+
+cl /c /Fotemp\fpng-%FPNG_VER%\fpng.obj /D_MT /D_DLL temp\fpng-%FPNG_VER%\src\fpng.cpp || goto :fpngbuildfailed
+lib /OUT:temp\fpng-%FPNG_VER%\fpng.lib temp\fpng-%FPNG_VER%\fpng.obj || goto :fpngbuildfailed
+
+mkdir ThirdParty\fpng\Lib
+mkdir ThirdParty\fpng\Include
+
+robocopy temp\fpng-%FPNG_VER% ThirdParty\fpng README.md
+robocopy temp\fpng-%FPNG_VER%\src ThirdParty\fpng\Include fpng.h
+robocopy temp\fpng-%FPNG_VER% ThirdParty\fpng\Lib fpng.lib
+
+echo Cleaning up fpng files...
+rmdir temp\fpng-%FPNG_VER% /s /q
+
+echo Finished setting up fpng.
 goto :setupsuccess
 
-:contentdownloadfailed
-echo Failed to download CiThruS2 content!
+:fpngdownloadfailed
+echo Failed to download fpng!
+goto :setupfailed
+
+:fpngbuildfailed
+echo Failed to build fpng!
 goto :setupfailed
 
 :setupsuccess

@@ -17,6 +17,8 @@ class CITHRUS_API ATram : public AActor, public ITrafficEntity
 	GENERATED_BODY()
 
 public:	
+	virtual FString GetName() const override { return AActor::GetName(); }
+
 	inline void SetMoveSpeed(float speed) { targetSpeed_ = speed; }
 
 	// Called every frame
@@ -43,6 +45,7 @@ public:
 	// Tram should always have priority over cars
 	inline virtual bool Yielding() const override { return false; }
 	inline virtual bool Stopped() const override { return blocked_ || inActiveStopArea_; }
+	inline virtual bool Blocked() const override { return blocked_; }
 
 	inline virtual FVector GetMoveDirection() const override { return moveDirection_; }
 

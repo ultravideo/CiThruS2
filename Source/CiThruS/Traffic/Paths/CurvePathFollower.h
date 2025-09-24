@@ -16,37 +16,27 @@ public:
 	CurvePathFollower() { }
 	~CurvePathFollower() { }
 
-	void Initialize(const KeypointGraph* graph, AActor* trafficEntity);
+	void Initialize(const KeypointGraph* graph, AActor* trafficEntity, bool makeSCurve = true);
 
 	// Advance on path by <step>
 	void Advance(const float& step);
 
 	// Get current location and tangent on path, or a location offset by <step>
-	inline FVector GetLocation(FVector& tangent)
-	{
-		return GetLocationAt(currentPoint_, progressToNextPoint_, tangent, currentCurve_);
-	}
+	inline FVector GetLocation(FVector& tangent) { return GetLocationAt(currentPoint_, progressToNextPoint_, tangent, currentCurve_); }
+	inline FVector GetLocation(const float& step, FVector& tangent) { return GetLocationAt(currentPoint_, progressToNextPoint_, tangent, step); }
+	inline FVector GetLocation() { FVector dummyTangent; return GetLocation(dummyTangent); }
+	inline FVector GetLocation(const float& step) { FVector dummyTangent; return GetLocation(step, dummyTangent); }
 
-	inline FVector GetLocation(const float& step, FVector& tangent)
-	{
-		return GetLocationAt(currentPoint_, progressToNextPoint_, tangent, step);
-	}
+	float GetTurnAmount(const float progress) const;
+	float GetTurnAmount() const { return GetTurnAmount(progressToNextPoint_); };
 
-	inline FVector GetLocation()
-	{
-		FVector dummyTangent;
-		return GetLocation(dummyTangent);
-	}
-
-	inline FVector GetLocation(const float& step)
-	{
-		FVector dummyTangent;
-		return GetLocation(step, dummyTangent);
-	}
-
+	// Set a new path from one point to another known point
+	// Note: startKeypoint & targetKeypoint are indexes of the global graph(i.e from roadGraph.data), not the local path indexes
+	// Serves the same purpose as KeypointGraph.FindPath, but locally, for this entity
 	void NewPath(const int& startKeypoint, const int& targetKeypoint); // Get path from point A to B
 	void NewPath(const bool& fromNearestKeypoint); // Get a random path from current location or a random spawnpoint
 
+	// Getters
 	inline KeypointPath& GetPath() { return path_; }
 	inline int GetCurrentLocalPoint() { return currentPoint_; }
 	inline float GetProgress() { return progressToNextPoint_; }
@@ -66,6 +56,8 @@ protected:
 
 	int currentPoint_ = 0;
 	float progressToNextPoint_ = 0.0f;
+
+	bool makeSCurve_ = true;
 
 	void AdvancePointAndProgress(int& startPoint, float& startProgress, std::shared_ptr<ICurve>& curve, float distance) const;
 

@@ -58,6 +58,8 @@ class CITHRUS_API ACar : public AActor, public ITrafficEntity
 	GENERATED_BODY()
 	
 public:	
+	virtual FString GetName() const override { return AActor::GetName(); }
+
 	virtual void Tick(float deltaTime) override;
 
 	virtual void Simulate(const KeypointGraph* graph);
@@ -110,6 +112,7 @@ public:
 
 	inline virtual bool Yielding() const override { return shouldYield_; }
 	inline virtual bool Stopped() const override { return blocked_ || inActiveStopArea_; }
+	inline virtual bool Blocked() const override { return blocked_ || blockedByFuturePawn_; }
 
 	inline virtual FVector GetMoveDirection() const override { return moveDirection_; }
 	inline float GetWheelbase() const { return wheelbase_; }

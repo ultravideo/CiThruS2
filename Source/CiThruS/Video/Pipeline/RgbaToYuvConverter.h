@@ -1,15 +1,17 @@
 #pragma once
 
-#if !defined(CITHRUS_SSE41_AVAILABLE) && (defined(__x86_64__) || defined(_M_X64) && !defined(_M_ARM64EC))
+#if (defined(__x86_64__) || defined(_M_X64) && !defined(_M_ARM64EC))
+#ifndef CITHRUS_SSE41_AVAILABLE
 #define CITHRUS_SSE41_AVAILABLE
+#endif // CITHRUS_SSE41_AVAILABLE
 #else
 #pragma message (__FILE__ ": warning: SSE4.1 instructions not available, unsupported CPU")
 #endif // defined(...)
 
-#include "IImageFilter.h"
+#include "PipelineFilter.h"
 
 // Converts RGBA or ABGR images to YUV 4:2:0
-class CITHRUS_API RgbaToYuvConverter : public IImageFilter
+class CITHRUS_API RgbaToYuvConverter : public PipelineFilter<1, 1>
 {
 public:
 	RgbaToYuvConverter(const uint16_t& frameWidth, const uint16_t& frameHeight);
@@ -17,22 +19,12 @@ public:
 
 	virtual void Process() override;
 
-	virtual bool SetInput(const IImageSource* source) override;
-
-	inline virtual uint8_t* const* GetOutput() const override { return &outputFrame_; }
-	inline virtual const uint32_t* GetOutputSize() const override { return &outputSize_; }
-	inline virtual std::string GetOutputFormat() const override { return "yuv420"; }
-
 protected:
-	uint8_t* const* inputFrame_;
-	const uint32_t* inputSize_;
-	std::string inputFormat_;
-
-	uint8_t* outputFrame_;
+	uint8_t* outputData_;
 	uint32_t outputSize_;
 
 	uint16_t outputFrameWidth_;
 	uint16_t outputFrameHeight_;
 
-	void RgbaToYuvSse41(uint8_t* input, uint8_t** output, int width, int height);
+	void RgbaToYuvSse41(const uint8_t* input, uint8_t** output, int width, int height);
 };

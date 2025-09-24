@@ -1,7 +1,7 @@
 #pragma once
 
 #include "RHIResources.h"
-#include "IImageSink.h"
+#include "PipelineSink.h"
 
 #include <vector>
 #include <mutex>
@@ -9,7 +9,7 @@
 class UTexture2D;
 
 // Writes data into RHI render targets in VRAM
-class CITHRUS_API RenderTargetWriter : public IImageSink
+class CITHRUS_API RenderTargetWriter : public PipelineSink<1>
 {
 public:
 	RenderTargetWriter(UTextureRenderTarget2D* texture);
@@ -17,13 +17,7 @@ public:
 
 	virtual void Process() override;
 
-	virtual bool SetInput(const IImageSource* source) override;
-
 protected:
-	uint8_t* const* inputFrame_;
-	const uint32_t* inputSize_;
-	std::string inputFormat_;
-
 	uint8_t* inputBuffer_;
 
 	FRHITexture* texture_;

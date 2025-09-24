@@ -1,10 +1,10 @@
 #include "HevcDecoder.h"
 #include "Misc/Debug.h"
 
-HevcDecoder::HevcDecoder() : outputFrame_(nullptr), outputSize_(0), bufferIndex_(0)
+HevcDecoder::HevcDecoder(const uint8_t& threadCount) : outputData_(nullptr), outputSize_(0), bufferIndex_(0)
 {
 #ifdef CITHRUS_OPENHEVC_AVAILABLE
-    handle_ = libOpenHevcInit(1, 2);
+    handle_ = libOpenHevcInit(threadCount, 2);
 
 	if (libOpenHevcStartDecoder(handle_) == -1)
 	{
@@ -21,6 +21,9 @@ HevcDecoder::HevcDecoder() : outputFrame_(nullptr), outputSize_(0), bufferIndex_
 
     bufferSizes_[0] = 0;
     bufferSizes_[1] = 0;
+
+    GetInputPin<0>().SetAcceptedFormat("hevc");
+    GetOutputPin<0>().SetFormat("yuv420");
 }
 
 HevcDecoder::~HevcDecoder()
@@ -37,23 +40,32 @@ HevcDecoder::~HevcDecoder()
 
     bufferSizes_[0] = 0;
     bufferSizes_[1] = 0;
+
+    outputData_ = nullptr;
+    outputSize_ = 0;
+
+    GetOutputPin<0>().SetData(outputData_);
+    GetOutputPin<0>().SetSize(outputSize_);
 }
 
 void HevcDecoder::Process()
 {
-    if (*inputFrame_ == nullptr || *inputSize_ == 0)
+    const uint8_t* inputData = GetInputPin<0>().GetData();
+    uint32_t inputSize = GetInputPin<0>().GetSize();
+
+    if (!inputData || inputSize == 0)
     {
         return;
     }
 
 #ifdef CITHRUS_OPENHEVC_AVAILABLE
     OpenHevc_Frame ohevc_frame;
-    int decode_status = libOpenHevcDecode(handle_, *inputFrame_, *inputSize_, 0);
+    int decode_status = libOpenHevcDecode(handle_, inputData, inputSize, 0);
     int output_status = libOpenHevcGetOutput(handle_, decode_status, &ohevc_frame);
 
     if (output_status == 0)
     {
-        outputFrame_ = nullptr;
+        outputData_ = nullptr;
         outputSize_ = 0;
 
         return;
@@ -85,19 +97,9 @@ void HevcDecoder::Process()
     }
 #endif // CITHRUS_OPENHEVC_AVAILABLE
 
-    outputFrame_ = buffers_[bufferIndex_];
+    outputData_ = buffers_[bufferIndex_];
     bufferIndex_ = (bufferIndex_ + 1) % 2;
-}
 
-bool HevcDecoder::SetInput(const IImageSource* source)
-{
-	if (source->GetOutputFormat() != "hevc")
-	{
-		return false;
-	}
-
-	inputFrame_ = source->GetOutput();
-	inputSize_ = source->GetOutputSize();
-
-	return true;
+    GetOutputPin<0>().SetData(outputData_);
+    GetOutputPin<0>().SetSize(outputSize_);
 }

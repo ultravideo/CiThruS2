@@ -10,6 +10,9 @@ public:
 	inline virtual float GetLength() const override { return cumulativeLength_[2]; }
 	inline virtual std::shared_ptr<ICurve> Clone() const override { return std::make_shared<SingleCurve>(*this); }
 
+	virtual float GetCurveProgress(float segmentProgress) const override;
+	virtual float GetCurvatureAt(float segmentProgress) const override;
+
 	SingleCurve(
 		const FVector& startPosition, const FVector& endPosition,
 		const FVector& startTangent, const FVector& endTangent,
