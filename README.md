@@ -1,14 +1,32 @@
-# CiThruS2 Simulation Environment
+# CiThruS2 Simulation Framework
 
-CiThruS2 (See-Through Sight 2) is a virtual city environment and framework built in Unreal Engine 5 to aid in testing and developing various traffic-related systems, drone systems and vision-based systems. The environment is based on the real suburb of Hervanta in Tampere, Finland, and it supports features such as simulated cars, pedestrians, cyclists, weather, seasonal effects, a changeable time of day, as well as real-time video streaming, recording, and receiving.
+CiThruS2 (See-Through Sight 2) is a simulation framework and virtual city environment built in Unreal Engine 5 to aid in testing and developing various traffic-related systems, drone systems and vision-based systems. The environment is based on the real suburb of Hervanta in Tampere, Finland, and it supports features such as simulated cars, pedestrians, cyclists, weather, seasonal effects, a changeable time of day, as well as real-time video streaming, recording, and receiving.
 
 ## First-Time Setup Instructions
 
-Currently, the environment is only officially supported on Windows, but Linux support is also planned in the future. Most features are already available on Linux and macOS, but using either of them will require manually setting up the dependencies and content.
+Setting up CiThruS2 involves installing dependencies and running the setup script. The process is similar between platforms.
 
-To use the environment on Windows, you must first make sure PowerShell, Visual Studio 2022, CMake and Unreal Engine 5.5 are installed on your computer. Then, run the `setup.cmd` script, which will automatically set up dependencies and download the CiThruS2 content, which is not included in this repository due to GitHub storage limitations. Please note that the script will download ~7GB of data: make sure your computer has enough storage space.
+### Windows
 
-After successfully running the script, open the `CiThruS.uproject` project file in Unreal Engine. Click "Yes" when it asks whether you want to build the code. After building, the Unreal Engine editor will automatically open the environment. The editor will take several minutes to open and it will build shaders for 2min ~ 30min depending on the hardware used, but subsequent startups will be much faster. If the editor fails to open or the build process fails, please check that the setup script ran successfully and did not generate errors. If there are issues with building the dependencies, the CiThruS2 code can also be built without them, but some features will not be available.
+We recommend running CiThruS2 in Windows 11, but it should also work in 10.
+
+To use the environment on Windows, you must first make sure PowerShell, Visual Studio 2022, CMake and Unreal Engine 5.5 are installed on your computer. Then, run the `setup.cmd` script.
+
+### Linux
+
+We recommend running CiThruS2 in Ubuntu 24.04 LTS, as it is the Linux distribution we have used internally and [Epic Games also recommends Ubuntu](https://dev.epicgames.com/documentation/en-us/unreal-engine/linux-development-quickstart-for-unreal-engine) for Unreal Engine 5.
+
+To use the environment on Linux, you must first make sure clang-18, libc++-18, yasm, CMake and Unreal Engine 5.5 are installed on your computer. Then, run the `setup.sh` script.
+
+### macOS
+
+Currently, we do not officially support macOS, but we have been able to run CiThruS2 on macOS in an informal test setup. It is most likely possible to setup CiThruS2 on macOS by adapting the Linux instructions, but some additional work may be required, and we cannot guarantee that every feature will work as intended.
+
+### Platform-independent steps
+
+The setup script will automatically set up dependencies and download the CiThruS2 content, which is not included in this repository due to GitHub storage limitations. Please note that the script will download ~7 GB of data: make sure your computer has enough storage space.
+
+After successfully running the setup script, open the `CiThruS.uproject` project file in Unreal Engine and let Unreal Engine build the CiThruS2 code. After building, the Unreal Engine editor will automatically open the environment. The editor will take several minutes to open and it will build shaders for 2min ~ 30min depending on the hardware used, but subsequent startups will be much faster. If the editor fails to open or the build process fails, please check that the setup script ran successfully and did not generate errors. If there are issues with building the dependencies, the CiThruS2 code can also be built without them, but some features will not be available.
 
 If you wish to delete CiThruS2, simply delete the directory into which you downloaded this repository: the setup script does not install anything elsewhere on your computer (other than CMake if it was not already installed. This is because the dependencies may install it.)
 
