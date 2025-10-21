@@ -1,7 +1,7 @@
 @echo off
 setlocal
 set AIRSIM_VER=2.1.0
-set DLSS_VER=2025.04.16_UE_5.5_Plugin_4.0.2
+set DLSS_VER=2025.09.16_UE5.5_DLSS4Plugin_v8.3.0
 set FSR_VER=520
 set KVAZAAR_VER=2.3.2
 set YASM_VER=1.3.0

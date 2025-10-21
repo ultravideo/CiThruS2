@@ -1,5 +1,4 @@
 using UnrealBuildTool;
-using System.Collections.Generic;
 
 public class CiThruSTarget : TargetRules
 {
@@ -10,6 +9,13 @@ public class CiThruSTarget : TargetRules
 
         bUseUnityBuild = false;
 
-        ExtraModuleNames.AddRange( new string[] { "CiThruS" } );
-	}
+		ExtraModuleNames.AddRange(new string[] { "CiThruS" });
+
+        if (Platform == UnrealTargetPlatform.Linux)
+        {
+            // These are needed to link static libraries on Linux
+            AdditionalLinkerArguments += " -Wl,-Bsymbolic";
+            bOverrideBuildEnvironment = true;
+        }
+    }
 }
