@@ -25,7 +25,7 @@ public:
 				throw std::invalid_argument("Source cannot be nullptr");
 			}
 
-			PipelineSource<N>::outputPins_[i].SetFormat(sources_[i]->GetOutputPin<0>().GetFormat());
+			PipelineSource<N>::outputPins_[i].SetFormat(sources_[i]->template GetOutputPin<0>().GetFormat());
 		}
 	}
 
@@ -42,8 +42,8 @@ public:
 		for (int i = 0; i < N; i++)
 		{
 			sources_[i]->Process();
-			PipelineSource<N>::outputPins_[i].SetData(sources_[i]->GetOutputPin<0>().GetData());
-			PipelineSource<N>::outputPins_[i].SetSize(sources_[i]->GetOutputPin<0>().GetSize());
+			PipelineSource<N>::outputPins_[i].SetData(sources_[i]->template GetOutputPin<0>().GetData());
+			PipelineSource<N>::outputPins_[i].SetSize(sources_[i]->template GetOutputPin<0>().GetSize());
 		}
 	}
 

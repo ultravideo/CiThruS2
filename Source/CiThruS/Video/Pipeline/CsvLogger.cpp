@@ -39,7 +39,7 @@ void CsvLogger::Process()
 
 	if (data->frameNumber != expectedFrameNumber_)
 	{
-		throw std::exception("Frame dropped");
+		throw std::runtime_error("Frame dropped");
 	}
 
 	expectedFrameNumber_ = data->frameNumber + 1;
@@ -79,10 +79,10 @@ void CsvLogger::Process()
 
 	delete[] outputData_;
 
-	outputSize_ = stream.view().size();
+	outputSize_ = stream.str().size();
 	outputData_ = new uint8_t[outputSize_];
 
-	memcpy(outputData_, stream.view().data(), outputSize_);
+	memcpy(outputData_, stream.str().data(), outputSize_);
 
 	GetOutputPin<0>().SetData(outputData_);
 	GetOutputPin<0>().SetSize(outputSize_);

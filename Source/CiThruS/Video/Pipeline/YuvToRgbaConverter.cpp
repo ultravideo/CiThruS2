@@ -100,7 +100,7 @@ void YuvToRgbaConverter::YuvToRgbaSse41(const uint8_t* input, uint8_t** output, 
     }
     else
     {
-        throw std::exception("Unsupported format");
+        throw std::runtime_error("Unsupported format");
     }
 
     __m128i a_pix = _mm_set_epi8(-1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0, -1, 0, 0, 0);

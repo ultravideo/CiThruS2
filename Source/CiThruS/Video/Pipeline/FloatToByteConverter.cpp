@@ -61,6 +61,6 @@ void FloatToByteConverter::OnInputPinsConnected()
 	}
 	else
 	{
-		throw std::exception("Unsupported format");
+		throw std::runtime_error("Unsupported format");
 	}
 }

@@ -67,6 +67,6 @@ void BgraToRgbaConverter::OnInputPinsConnected()
 	}
 	else
 	{
-		throw std::exception("Invalid format");
+		throw std::runtime_error("Invalid format");
 	}
 }

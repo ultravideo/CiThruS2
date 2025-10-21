@@ -28,7 +28,7 @@ public:
 
 		TemplateUtility::For<N>([&, this]<uint8_t i>()
 		{
-			this->GetInputPin<i>().AcceptAnyFormat();
+			this->template GetInputPin<i>().AcceptAnyFormat();
 		});
 	}
 
@@ -52,7 +52,7 @@ public:
 	{
 		TemplateUtility::For<N>([&, this]<uint8_t i>()
 		{
-			sinks_[i]->GetInputPin<0>().ConnectToOutputPin(this->GetInputPin<i>().GetConnectedPin());
+			sinks_[i]->template GetInputPin<0>().ConnectToOutputPin(this->template GetInputPin<i>().GetConnectedPin());
 			sinks_[i]->OnInputPinsConnected();
 		});
 	}

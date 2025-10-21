@@ -13,6 +13,7 @@ public:
 	virtual float GetCurvatureAt(float step) const { /*UE_LOG(LogTemp, Warning, TEXT("On straight line"));*/ return 0.0f; };
 
 	StraightLineCurve(const FVector& startPosition, const FVector& endPosition);
+	virtual ~StraightLineCurve() { };
 
 protected:
 	FVector startPosition_;

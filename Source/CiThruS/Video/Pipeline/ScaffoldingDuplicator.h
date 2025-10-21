@@ -12,15 +12,15 @@ class ScaffoldingDuplicator : public PipelineFilter<1, N>
 public:
 	ScaffoldingDuplicator()
 	{
-		this->GetInputPin<0>().AcceptAnyFormat();
+		this->template GetInputPin<0>().AcceptAnyFormat();
 	}
 
 	virtual void Process() override
 	{
 		TemplateUtility::For<N>([&, this]<uint8_t i>()
 		{
-			this->GetOutputPin<i>().SetData(this->GetInputPin<0>().GetConnectedPin().GetData());
-			this->GetOutputPin<i>().SetSize(this->GetInputPin<0>().GetConnectedPin().GetSize());
+			this->template GetOutputPin<i>().SetData(this->template GetInputPin<0>().GetConnectedPin().GetData());
+			this->template GetOutputPin<i>().SetSize(this->template GetInputPin<0>().GetConnectedPin().GetSize());
 		});
 	}
 
@@ -28,7 +28,7 @@ public:
 	{
 		TemplateUtility::For<N>([&, this]<uint8_t i>()
 		{
-			this->GetOutputPin<i>().SetFormat(this->GetInputPin<0>().GetConnectedPin().GetFormat());
+			this->template GetOutputPin<i>().SetFormat(this->template GetInputPin<0>().GetConnectedPin().GetFormat());
 		});
 	}
 };

@@ -19,7 +19,7 @@ public:
 
 		TemplateUtility::For<N>([&, this]<uint8_t i>()
 		{
-			this->GetInputPin<i>().SetAcceptedFormat("yuv420");
+			this->template GetInputPin<i>().SetAcceptedFormat("yuv420");
 		});
 
 		PipelineSource<1>::GetOutputPin<0>().SetFormat("yuv420");
@@ -40,8 +40,8 @@ public:
 
 		TemplateUtility::For<N>([&, this]<uint8_t i>()
 		{
-			const uint8_t* inputData = this->GetInputPin<i>().GetData();
-			uint32_t inputSize = this->GetInputPin<i>().GetSize();
+			const uint8_t* inputData = this->template GetInputPin<i>().GetData();
+			uint32_t inputSize = this->template GetInputPin<i>().GetSize();
 
 			if (!inputData || inputSize != frameSize * 3 / 2)
 			{

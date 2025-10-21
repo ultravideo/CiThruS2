@@ -29,7 +29,7 @@ public:
 
 		TemplateUtility::For<N>([&, this]<uint8_t i>()
 		{
-			this->GetInputPin<i>().AcceptAnyFormat();
+			this->template GetInputPin<i>().AcceptAnyFormat();
 		});
 
 		components_.resize(2);
@@ -43,8 +43,8 @@ public:
 			{
 				TemplateUtility::For<M>([&, this]<uint8_t i>()
 				{
-					this->GetOutputPin<i>().SetData(filter->GetOutputPin<i>().GetData());
-					this->GetOutputPin<i>().SetSize(filter->GetOutputPin<i>().GetSize());
+					this->template GetOutputPin<i>().SetData(filter->template GetOutputPin<i>().GetData());
+					this->template GetOutputPin<i>().SetSize(filter->template GetOutputPin<i>().GetSize());
 				});
 			};
 
@@ -52,19 +52,19 @@ public:
 			{
 				TemplateUtility::For<N>([&, this]<uint8_t i>()
 				{
-					filter->GetInputPin<i>().ConnectToOutputPin(this->GetInputPin<i>().GetConnectedPin());
+					filter->template GetInputPin<i>().ConnectToOutputPin(this->template GetInputPin<i>().GetConnectedPin());
 				});
 
 				TemplateUtility::For<O>([&, this]<uint8_t i>()
 				{
-					filter->GetInputPin<i + N>().ConnectToOutputPin(source->GetOutputPin<i>());
+					filter->template GetInputPin<i + N>().ConnectToOutputPin(source->template GetOutputPin<i>());
 				});
 
 				filter->OnInputPinsConnected();
 
 				TemplateUtility::For<M>([&, this]<uint8_t i>()
 				{
-					this->GetOutputPin<i>().SetFormat(filter->GetOutputPin<i>().GetFormat());
+					this->template GetOutputPin<i>().SetFormat(filter->template GetOutputPin<i>().GetFormat());
 				});
 			};
 	}

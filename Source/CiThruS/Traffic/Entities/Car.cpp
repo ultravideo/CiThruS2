@@ -396,7 +396,7 @@ bool ACar::BlockedBy(ITrafficEntity* trafficEntity) const
 				// In certain scenarios both cars might be considered to be in front of the other,
 				// like if the cars are facing each other. Because of this, we should only let the front
 				// car go first if both cars agree that one car is in the front and the other is not.
-				if (bInFrontOfA && !aInFrontOfB || !bInFrontOfA && aInFrontOfB)
+				if ((bInFrontOfA && !aInFrontOfB) || (!bInFrontOfA && aInFrontOfB))
 				{
 					return bInFrontOfA;
 				}

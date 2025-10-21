@@ -17,7 +17,7 @@ void ATrafficLightGroup::Tick(float deltaTime)
 {
 	Super::Tick(deltaTime);
 
-	if (timeRemainingInCurrentState_ <= 0 || intersection_ != nullptr && lightState_ == ETrafficLightState::Red)
+	if (timeRemainingInCurrentState_ <= 0 || (intersection_ != nullptr && lightState_ == ETrafficLightState::Red))
 	{
 		return;
 	}

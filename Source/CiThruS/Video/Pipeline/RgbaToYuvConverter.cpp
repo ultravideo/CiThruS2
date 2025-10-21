@@ -108,7 +108,7 @@ void RgbaToYuvConverter::RgbaToYuvSse41(const uint8_t* input, uint8_t** output, 
     }
     else
     {
-        throw std::exception("Unsupported format");
+        throw std::runtime_error("Unsupported format");
     }
 
     __m128i shufflemask = _mm_set_epi8(-1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, -1, 12, 8, 4, 0);

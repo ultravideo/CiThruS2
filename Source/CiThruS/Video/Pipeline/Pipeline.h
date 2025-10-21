@@ -33,14 +33,14 @@ public:
 
 		TemplateUtility::For<N>([&, this]<uint8_t i>()
 		{
-			filter->GetInputPin<i>().ConnectToOutputPin(source->GetOutputPin<i>());
+			filter->template GetInputPin<i>().ConnectToOutputPin(source->template GetOutputPin<i>());
 		});
 		
 		filter->OnInputPinsConnected();
 
 		TemplateUtility::For<M>([&, this]<uint8_t i>()
 		{
-			sink->GetInputPin<i>().ConnectToOutputPin(filter->GetOutputPin<i>());
+			sink->template GetInputPin<i>().ConnectToOutputPin(filter->template GetOutputPin<i>());
 		});
 
 		sink->OnInputPinsConnected();
@@ -67,7 +67,7 @@ public:
 
 		TemplateUtility::For<N>([&, this]<uint8_t i>()
 		{
-			sink->GetInputPin<i>().ConnectToOutputPin(source->GetOutputPin<i>());
+			sink->template GetInputPin<i>().ConnectToOutputPin(source->template GetOutputPin<i>());
 		});
 
 		sink->OnInputPinsConnected();

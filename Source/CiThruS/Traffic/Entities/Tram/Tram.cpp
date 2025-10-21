@@ -75,7 +75,7 @@ void ATram::Move(const float& deltaTime)
 	{
 		if (moveSpeed_ != targetSpeed_)
 		{
-			if (moveSpeed_ < 300 && moveSpeed_ > 0 || moveSpeed_ > -300 && moveSpeed_ < 0) // accelerate/decelerate faster at slower speeds
+			if ((moveSpeed_ < 300 && moveSpeed_ > 0) || (moveSpeed_ > -300 && moveSpeed_ < 0)) // accelerate/decelerate faster at slower speeds
 			{
 				moveSpeed_ = FMath::Lerp(moveSpeed_, targetSpeed_, 0.97 * deltaTime);
 			}
@@ -250,7 +250,7 @@ bool ATram::BlockedBy(ITrafficEntity* trafficEntity) const
 				// In certain scenarios both cars might be considered to be in front of the other,
 				// like if the cars are facing each other. Because of this, we should only let the front
 				// car go first if both cars agree that one car is in the front and the other is not.
-				if (bInFrontOfA && !aInFrontOfB || !bInFrontOfA && aInFrontOfB)
+				if ((bInFrontOfA && !aInFrontOfB) || (!bInFrontOfA && aInFrontOfB))
 				{
 					return bInFrontOfA;
 				}

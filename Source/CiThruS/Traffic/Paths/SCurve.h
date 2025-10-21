@@ -17,6 +17,7 @@ public:
 		const FVector& startPosition, const FVector& endPosition,
 		const FVector& startTangent, const FVector& endTangent,
 		const FVector& startCurveDirection, const FVector& endCurveDirection);
+	virtual ~SCurve() { };
 
 protected:
 	FVector startPosition_;
