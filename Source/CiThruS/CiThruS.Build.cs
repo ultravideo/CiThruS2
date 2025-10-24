@@ -70,6 +70,102 @@ public class CiThruS : ModuleRules
                 PublicAdditionalLibraries.Add(Path.Combine(fpng_base_path, "Lib/fpng.a"));
             }
         }
+
+        // macOS (arm64): Wire in third-party/static libs and Homebrew ffmpeg/iconv
+        if (Target.Platform == UnrealTargetPlatform.Mac)
+        {
+            // Homebrew prefix detection
+            string HomebrewPrefix = Directory.Exists("/opt/homebrew") ? "/opt/homebrew" : "/usr/local";
+            string BrewInclude = Path.Combine(HomebrewPrefix, "include");
+            string BrewLib = Path.Combine(HomebrewPrefix, "lib");
+
+            if (Directory.Exists(BrewInclude))
+            {
+                PublicIncludePaths.Add(BrewInclude);
+            }
+
+            // ThirdParty FFmpeg optional include
+            string ffmpegBaseA = Path.Combine(ModuleDirectory, "../../ThirdParty/FFmpeg/");
+            string ffmpegBaseB = Path.Combine(ModuleDirectory, "../../ThirdParty/ffmpeg/");
+            string ffmpegIncA = Path.Combine(ffmpegBaseA, "Include");
+            string ffmpegIncB = Path.Combine(ffmpegBaseB, "Include");
+            if (Directory.Exists(ffmpegIncA)) PublicIncludePaths.Add(ffmpegIncA);
+            else if (Directory.Exists(ffmpegIncB)) PublicIncludePaths.Add(ffmpegIncB);
+
+            // Link bundled static libs (uvgRTP, Kvazaar, fpng)
+            if (File.Exists(Path.Combine(uvgrtp_base_path, "Lib/libuvgrtp.a")))
+            {
+                PublicAdditionalLibraries.Add(Path.Combine(uvgrtp_base_path, "Lib/libuvgrtp.a"));
+            }
+            if (File.Exists(Path.Combine(kvazaar_base_path, "Lib/libkvazaar.a")))
+            {
+                PublicAdditionalLibraries.Add(Path.Combine(kvazaar_base_path, "Lib/libkvazaar.a"));
+            }
+            if (File.Exists(Path.Combine(fpng_base_path, "Lib/fpng.a")))
+            {
+                PublicAdditionalLibraries.Add(Path.Combine(fpng_base_path, "Lib/fpng.a"));
+            }
+
+            // Prefer FFmpeg static libs if available (to resolve internal ff_* symbols)
+            string ffmpegLibA = Path.Combine(ffmpegBaseA, "Lib");
+            string ffmpegLibB = Path.Combine(ffmpegBaseB, "Lib");
+            string FfmpegLibDir = Directory.Exists(ffmpegLibA) ? ffmpegLibA : (Directory.Exists(ffmpegLibB) ? ffmpegLibB : null);
+
+            if (!string.IsNullOrEmpty(FfmpegLibDir) && File.Exists(Path.Combine(FfmpegLibDir, "libavcodec.a")))
+            {
+                // Enable OpenHEVC usage and link the wrapper + FFmpeg static deps
+                PublicDefinitions.Add("CITHRUS_OPENHEVC_DISABLED=0");
+
+                // Link the OpenHEVC wrapper only when FFmpeg static libs are present
+                if (File.Exists(Path.Combine(openhevc_base_path, "Lib/libLibOpenHevcWrapper.a")))
+                {
+                    PublicAdditionalLibraries.Add(Path.Combine(openhevc_base_path, "Lib/libLibOpenHevcWrapper.a"));
+                }
+
+                // Order matters for static linking: add FFmpeg static libs after the wrapper
+                PublicAdditionalLibraries.Add(Path.Combine(FfmpegLibDir, "libavcodec.a"));
+                if (File.Exists(Path.Combine(FfmpegLibDir, "libavutil.a")))
+                    PublicAdditionalLibraries.Add(Path.Combine(FfmpegLibDir, "libavutil.a"));
+                if (File.Exists(Path.Combine(FfmpegLibDir, "libswscale.a")))
+                    PublicAdditionalLibraries.Add(Path.Combine(FfmpegLibDir, "libswscale.a"));
+                if (File.Exists(Path.Combine(FfmpegLibDir, "libswresample.a")))
+                    PublicAdditionalLibraries.Add(Path.Combine(FfmpegLibDir, "libswresample.a"));
+                if (File.Exists(Path.Combine(FfmpegLibDir, "libavformat.a")))
+                    PublicAdditionalLibraries.Add(Path.Combine(FfmpegLibDir, "libavformat.a"));
+
+                // System libs commonly required by FFmpeg static builds
+                PublicSystemLibraries.AddRange(new string[] { "z", "bz2", "lzma", "iconv" });
+            }
+            else
+            {
+                // Without static FFmpeg, disable OpenHEVC to avoid unresolved ff_* symbols and do not link the wrapper
+                PublicDefinitions.Add("CITHRUS_OPENHEVC_DISABLED=1");
+
+                // Optional: fall back to dynamic/system libs from Homebrew for other components (not used by OpenHEVC now)
+                string[] dylibs = new[]
+                {
+                    "libavcodec.dylib",
+                    "libavformat.dylib",
+                    "libavutil.dylib",
+                    "libswscale.dylib",
+                    "libswresample.dylib",
+                    "libiconv.dylib"
+                };
+                foreach (var d in dylibs)
+                {
+                    string p = Path.Combine(BrewLib, d);
+                    if (File.Exists(p))
+                    {
+                        PublicAdditionalLibraries.Add(p);
+                    }
+                    else
+                    {
+                        string name = Path.GetFileNameWithoutExtension(d);
+                        PublicSystemLibraries.Add(name.StartsWith("lib") ? name.Substring(3) : name);
+                    }
+                }
+            }
+        }
 		
 		// These are needed to use static libraries
 		PublicDefinitions.Add("KVZ_STATIC_LIB=1");
