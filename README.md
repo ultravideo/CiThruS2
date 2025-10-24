@@ -2,9 +2,24 @@
 
 CiThruS2 (See-Through Sight 2) is a simulation framework and virtual city environment built in Unreal Engine 5 to aid in testing and developing various traffic-related systems, drone systems and vision-based systems. The environment is based on the real suburb of Hervanta in Tampere, Finland, and it supports features such as simulated cars, pedestrians, cyclists, weather, seasonal effects, a changeable time of day, as well as real-time video streaming, recording, and receiving.
 
+<table>
+    <tr>
+        <td><img src="https://ultravideo.fi/img/cithrus/screenshot-0.png"></td>
+        <td><img src="https://ultravideo.fi/img/cithrus/screenshot-1.png"></td>
+    </tr>
+    <tr>
+        <td><img src="https://ultravideo.fi/img/cithrus/screenshot-2.png"></td>
+        <td><img src="https://ultravideo.fi/img/cithrus/screenshot-3.png"></td>
+    </tr>
+</table>
+
+## Discord
+
+Ultra Video Group has a public Discord server where you can ask questions about CiThruS2 (and other UVG projects). You can join the server [here](https://discord.gg/fZpub7BPUA).
+
 ## First-Time Setup Instructions
 
-Setting up CiThruS2 involves installing dependencies and running the setup script. The process is similar between platforms.
+Setting up CiThruS2 involves installing dependencies and running the setup script. The process is similar between platforms. If possible, we recommend setting up the environment on Windows with DirectX 12 as the rendering API, as there are some known Vulkan/Metal-exclusive bugs in Unreal Engine 5.5 which affect the rendering capabilities of the simulation.
 
 ### Windows
 
@@ -16,19 +31,23 @@ To use the environment on Windows, you must first make sure PowerShell, Visual S
 
 We recommend running CiThruS2 in Ubuntu 24.04 LTS, as it is the Linux distribution we have used internally and [Epic Games also recommends Ubuntu](https://dev.epicgames.com/documentation/en-us/unreal-engine/linux-development-quickstart-for-unreal-engine) for Unreal Engine 5.
 
+There are some bugs in Unreal Engine 5.5's Vulkan code which prevent capturing video on Linux. The bugs have been fixed in Unreal Engine 5.6, so we are working on upgrading to 5.6.
+
 To use the environment on Linux, you must first make sure clang-18, libc++-18, yasm, CMake and Unreal Engine 5.5 are installed on your computer. Then, run the `setup.sh` script.
 
 ### macOS
 
-Currently, we do not officially support macOS, but we have been able to run CiThruS2 on macOS in an informal test setup. It is most likely possible to setup CiThruS2 on macOS by adapting the Linux instructions, but some additional work may be required, and we cannot guarantee that every feature will work as intended.
+Currently, we do not officially support macOS, but we have been able to run CiThruS2 on macOS in an informal test setup. It is most likely possible to setup CiThruS2 on macOS by adapting the Linux instructions, but we cannot guarantee that every feature will work as intended. In particular, we suspect that the rendering capabilities of the simulation may be affected by the transition from DirectX on Windows to Metal on macOS.
 
 ### Platform-independent steps
 
 The setup script will automatically set up dependencies and download the CiThruS2 content, which is not included in this repository due to GitHub storage limitations. Please note that the script will download ~7 GB of data: make sure your computer has enough storage space.
 
-After successfully running the setup script, open the `CiThruS.uproject` project file in Unreal Engine and let Unreal Engine build the CiThruS2 code. After building, the Unreal Engine editor will automatically open the environment. The editor will take several minutes to open and it will build shaders for 2min ~ 30min depending on the hardware used, but subsequent startups will be much faster. If the editor fails to open or the build process fails, please check that the setup script ran successfully and did not generate errors. If there are issues with building the dependencies, the CiThruS2 code can also be built without them, but some features will not be available.
+After successfully running the setup script, open the `CiThruS.uproject` project file in Unreal Engine and let Unreal Engine build the CiThruS2 code. After building, the Unreal Engine editor will automatically open the environment. During the first launch, the editor will build shaders and prepare assets for several minutes, but subsequent startups will be much faster. If the editor fails to open or the build process fails, please check that the setup script ran successfully and did not generate errors.
 
-If you wish to delete CiThruS2, simply delete the directory into which you downloaded this repository: the setup script does not install anything elsewhere on your computer (other than CMake if it was not already installed. This is because the dependencies may install it.)
+If there are issues with building the dependencies, the CiThruS2 code can also be built without them, but some features such as video capture will not be available. The dependencies are located at the root of the repository in a folder called ThirdParty, which is generated by the setup script. To build CiThruS2 without dependencies, you can simply delete the generated ThirdParty folder. The next time CiThruS2 is built, it will automatically detect that the dependency files are missing, and they will be excluded from the build. Note that although the dependencies can be excluded, you still have to download the CiThruS2 content through the setup script.
+
+If you wish to delete CiThruS2, simply delete the directory into which you downloaded this repository: the setup script does not install anything elsewhere on your computer (other than CMake if it was not already installed. This is because some of the dependencies may attempt to install it.)
 
 ## Old Unreal Engine Versions
 
