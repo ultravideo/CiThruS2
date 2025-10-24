@@ -13,7 +13,7 @@ HevcEncoder::HevcEncoder(const uint16_t& frameWidth, const uint16_t& frameHeight
 	kvazaarApi_->config_init(kvazaarConfig_);
 	kvazaarApi_->config_parse(kvazaarConfig_, "threads", std::to_string(threadCount).c_str());
 	//kvazaarApi_->config_parse(kvazaarConfig_, "force-level", "4");
-	//kvazaar_api->config_parse(kvazaarConfig_, "intra_period", "16");
+	kvazaarApi_->config_parse(kvazaarConfig_, "intra_period", "16");
 	//kvazaar_api->config_parse(kvazaarConfig_, "period", "64");
 	//kvazaar_api->config_parse(kvazaarConfig_, "tiles", "3x3");
 	//kvazaar_api->config_parse(kvazaarConfig_, "slices", "tiles");
@@ -25,7 +25,8 @@ HevcEncoder::HevcEncoder(const uint16_t& frameWidth, const uint16_t& frameHeight
 	case HevcPresetMinimumLatency:
 		kvazaarApi_->config_parse(kvazaarConfig_, "preset", "ultrafast");
 		kvazaarApi_->config_parse(kvazaarConfig_, "gop", "lp-g8d1t1");
-		kvazaarApi_->config_parse(kvazaarConfig_, "vps-period", "16");
+		kvazaarApi_->config_parse(kvazaarConfig_, "repeat-headers", "1"); // VPS/SPS/PPS before every keyframe
+		kvazaarApi_->config_parse(kvazaarConfig_, "vps-period", "1");
 
 		kvazaarConfig_->qp = qp;
 		kvazaarConfig_->wpp = wpp;
@@ -42,10 +43,10 @@ HevcEncoder::HevcEncoder(const uint16_t& frameWidth, const uint16_t& frameHeight
 	kvazaarConfig_->width = frameWidth;
 	kvazaarConfig_->height = frameHeight;
 	kvazaarConfig_->hash = KVZ_HASH_NONE;
-	/*kvazaarConfig_->framerate_num = 1;
-	kvazaarConfig_->framerate_denom = KVAZAAR_FRAMERATE_DENOM;*/
+	kvazaarConfig_->framerate_num = 60;  //1
+	kvazaarConfig_->framerate_denom = 1; //KVAZAAR_FRAMERATE_DENOM;
 
-	kvazaarConfig_->aud_enable = 0;
+	kvazaarConfig_->aud_enable = 1;
 	kvazaarConfig_->calc_psnr = 0;
 
 	kvazaarEncoder_ = kvazaarApi_->encoder_open(kvazaarConfig_);

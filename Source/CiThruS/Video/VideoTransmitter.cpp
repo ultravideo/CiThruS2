@@ -216,6 +216,7 @@ bool AVideoTransmitter::StartStreams()
 						reader_,
 						new ImageSequentialFilter(
 							{
+								//new BgraToRgbaConverter(),
 								new RgbaToYuvConverter(frameWidth, frameHeight),
 								new HevcEncoder(frameWidth, frameHeight, processingThreadCount_, quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_, saveToFile_ ? HevcPresetLossless : HevcPresetMinimumLatency)
 							}),
