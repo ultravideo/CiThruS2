@@ -22,6 +22,15 @@ FileSink::FileSink(const std::string& filePath)
 			throw std::invalid_argument("Failed to remove existing file: " + error.message());
 		}
 	}
+	else
+	{
+		std::filesystem::path directoryPath = std::filesystem::path(filePath).parent_path();
+
+		if (!std::filesystem::exists(directoryPath))
+		{
+			std::filesystem::create_directories(directoryPath);
+		}
+	}
 
 	fileHandle_ = fopen(filePath.data(), "ab");
 

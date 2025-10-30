@@ -10,7 +10,7 @@ PngRecorder::PngRecorder(const std::string& directory, const uint16_t& imageWidt
 
 	if (!std::filesystem::exists(directory_))
 	{
-		std::filesystem::create_directory(directory_);
+		std::filesystem::create_directories(directory_);
 	}
 	else if (!std::filesystem::is_directory(directory_))
 	{
