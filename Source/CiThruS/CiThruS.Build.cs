@@ -74,6 +74,10 @@ public class CiThruS : ModuleRules
         // macOS (arm64): Wire in third-party/static libs and Homebrew ffmpeg/iconv
         if (Target.Platform == UnrealTargetPlatform.Mac)
         {
+            // Ensure Apple frameworks required for VideoToolbox HEVC path are included
+            PublicFrameworks.AddRange(new string[] { "CoreFoundation", "VideoToolbox", "CoreMedia", "CoreVideo" });
+            PublicDefinitions.Add("CITHRUS_VIDEOTOOLBOX_AVAILABLE=1");
+
             // Homebrew prefix detection
             string HomebrewPrefix = Directory.Exists("/opt/homebrew") ? "/opt/homebrew" : "/usr/local";
             string BrewInclude = Path.Combine(HomebrewPrefix, "include");
@@ -83,7 +87,7 @@ public class CiThruS : ModuleRules
             {
                 PublicIncludePaths.Add(BrewInclude);
             }
-
+            
             // ThirdParty FFmpeg optional include
             string ffmpegBaseA = Path.Combine(ModuleDirectory, "../../ThirdParty/FFmpeg/");
             string ffmpegBaseB = Path.Combine(ModuleDirectory, "../../ThirdParty/ffmpeg/");

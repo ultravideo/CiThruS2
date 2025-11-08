@@ -9,6 +9,15 @@
 #pragma message (__FILE__ ": warning: Kvazaar not found, HEVC encoding is unavailable")
 #endif // __has_include(...)
 
+#if defined(CITHRUS_VIDEOTOOLBOX_AVAILABLE)
+#include <VideoToolbox/VideoToolbox.h>
+#include <CoreMedia/CoreMedia.h>
+#include <CoreVideo/CoreVideo.h>
+#include <vector>
+#include <mutex>
+#include <condition_variable>
+#endif // CITHRUS_VIDEOTOOLBOX_AVAILABLE
+
 #include "PipelineFilter.h"
 #include "CoreMinimal.h"
 
@@ -45,4 +54,29 @@ protected:
 	kvz_encoder* kvazaarEncoder_;
 	kvz_picture* kvazaarTransmitPicture_;
 #endif // CITHRUS_KVAZAAR_AVAILABLE
+
+#ifdef CITHRUS_VIDEOTOOLBOX_AVAILABLE
+	VTCompressionSessionRef compressionSession_;
+	CVPixelBufferPoolRef pixelBufferPool_;
+	bool ownPixelBufferPool_ = false; // true if we created the pool ourselves
+	int64_t frameCounter_;
+	
+	// Synchronization for async encoding
+	std::mutex encodeMutex_;
+	std::condition_variable encodeCv_;
+	bool encodeComplete_;
+	
+	// Output buffer
+	std::vector<uint8_t> encodedData_;
+	
+	static void CompressionCallback(void* outputCallbackRefCon,
+		void* sourceFrameRefCon,
+		OSStatus status,
+		VTEncodeInfoFlags infoFlags,
+		CMSampleBufferRef sampleBuffer);
+	
+	void HandleEncodedFrame(OSStatus status, CMSampleBufferRef sampleBuffer);
+	bool ConvertYUVToPixelBuffer(const uint8_t* yuvData, CVPixelBufferRef pixelBuffer);
+	bool useVideoToolbox_ = false; // true only if VT session created successfully
+#endif // CITHRUS_VIDEOTOOLBOX_AVAILABLE
 };
