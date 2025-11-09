@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# Test script to validate HEVC encoding without RTP
+# This helps isolate whether the issue is in encoding or RTP transmission
+
+echo "========================================="
+echo "HEVC Stream Validation Test"
+echo "========================================="
+echo ""
+echo "Step 1: Capture raw RTP packets from localhost"
+echo "Run this in one terminal:"
+echo "  tcpdump -i lo0 -w /tmp/hevc_rtp.pcap 'udp port 12300'"
+echo ""
+echo "Step 2: Start your Unreal application to send HEVC over RTP"
+echo ""
+echo "Step 3: After capturing ~5 seconds, stop tcpdump (Ctrl+C)"
+echo ""
+echo "Step 4: Extract RTP payload and test with ffplay:"
+echo "  tshark -r /tmp/hevc_rtp.pcap -T fields -e rtp.payload | xxd -r -p > /tmp/hevc_stream.265"
+echo "  ffplay -f hevc /tmp/hevc_stream.265"
+echo ""
+echo "Alternative: If you can modify Unreal to write encoder output directly:"
+echo "  1. Add file output in HevcEncoder::HandleEncodedFrame()"
+echo "  2. Write encodedData_ to /tmp/hevc_direct.265"
+echo "  3. Test: ffplay /tmp/hevc_direct.265"
+echo ""
+echo "Expected results:"
+echo "  - If ffplay shows video correctly: Issue is in RTP transmission/reception"
+echo "  - If ffplay shows gray frames: Issue is in VideoToolbox encoding"
+echo ""

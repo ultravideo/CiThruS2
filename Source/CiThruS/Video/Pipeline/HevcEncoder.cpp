@@ -96,11 +96,39 @@ HevcEncoder::HevcEncoder(const uint16_t& frameWidth, const uint16_t& frameHeight
 
 		if (preset == HevcPresetMinimumLatency)
 		{
-			int32_t gop = 60; // ~1s @60fps
+			// Set keyframe interval - VideoToolbox seems to ignore this sometimes, so we'll also force keyframes manually
+			int32_t gop = 30; // Back to 30 frames (~0.5s @60fps) - more efficient
 			CFNumberRef gopNum = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &gop);
 			propStatus = VTSessionSetProperty(compressionSession_, kVTCompressionPropertyKey_MaxKeyFrameInterval, gopNum);
 			CFRelease(gopNum);
 			if (propStatus != noErr) { UE_LOG(LogTemp, Warning, TEXT("VT: Failed to set MaxKeyFrameInterval: %d"), (int)propStatus); }
+			
+			// Also set MaxKeyFrameIntervalDuration as backup
+			double gopDurationValue = 0.5; // 0.5 seconds
+			CFNumberRef gopDuration = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &gopDurationValue);
+			propStatus = VTSessionSetProperty(compressionSession_, kVTCompressionPropertyKey_MaxKeyFrameIntervalDuration, gopDuration);
+			CFRelease(gopDuration);
+			if (propStatus != noErr) { UE_LOG(LogTemp, Warning, TEXT("VT: Failed to set MaxKeyFrameIntervalDuration: %d"), (int)propStatus); }
+			
+			// CRITICAL: Set a reasonable bitrate to keep frames RTP-friendly
+			// Calculate: target 2 Mbps for streaming (much lower than default)
+			int32_t targetBitrate = 2 * 1024 * 1024; // 2 Mbps
+			CFNumberRef bitrateNum = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &targetBitrate);
+			propStatus = VTSessionSetProperty(compressionSession_, kVTCompressionPropertyKey_AverageBitRate, bitrateNum);
+			CFRelease(bitrateNum);
+			if (propStatus != noErr) { UE_LOG(LogTemp, Warning, TEXT("VT: Failed to set AverageBitRate: %d"), (int)propStatus); }
+			else { UE_LOG(LogTemp, Log, TEXT("VT: Set target bitrate to 2 Mbps for RTP streaming")); }
+			
+			// Also set data rate limits to enforce bitrate
+			int32_t dataRateLimits[2] = { targetBitrate / 8, 1 }; // bytes per second, duration
+			CFNumberRef dataRateNum = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &dataRateLimits[0]);
+			CFNumberRef dataRateDuration = CFNumberCreate(kCFAllocatorDefault, kCFNumberSInt32Type, &dataRateLimits[1]);
+			CFArrayRef dataRateLimitsArray = CFArrayCreate(kCFAllocatorDefault, (const void*[]){dataRateNum, dataRateDuration}, 2, &kCFTypeArrayCallBacks);
+			propStatus = VTSessionSetProperty(compressionSession_, kVTCompressionPropertyKey_DataRateLimits, dataRateLimitsArray);
+			CFRelease(dataRateNum);
+			CFRelease(dataRateDuration);
+			CFRelease(dataRateLimitsArray);
+			if (propStatus != noErr) { UE_LOG(LogTemp, Warning, TEXT("VT: Failed to set DataRateLimits: %d"), (int)propStatus); }
 		}
 		else if (preset == HevcPresetLossless)
 		{
@@ -338,8 +366,24 @@ void HevcEncoder::Process()
 		auto conversionMs = std::chrono::duration<double, std::milli>(conversionEnd - conversionStart).count();
 		
 		// Prepare presentation timestamp
-		CMTime presentationTime = CMTimeMake(frameCounter_++, 60); // 60 fps timebase
+		CMTime presentationTime = CMTimeMake(frameCounter_, 60); // 60 fps timebase
 		CMTime duration = CMTimeMake(1, 60);
+		
+		// Force a keyframe every 30 frames (VideoToolbox sometimes ignores MaxKeyFrameInterval)
+		// Also force first frame to be a keyframe
+		CFDictionaryRef frameProperties = NULL;
+		bool forceKeyframe = (frameCounter_ == 0 || frameCounter_ % 30 == 0);
+		if (forceKeyframe)
+		{
+			CFStringRef keys[] = { kVTEncodeFrameOptionKey_ForceKeyFrame };
+			CFBooleanRef values[] = { kCFBooleanTrue };
+			frameProperties = CFDictionaryCreate(kCFAllocatorDefault, 
+				(const void**)keys, (const void**)values, 1,
+				&kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
+			UE_LOG(LogTemp, Log, TEXT("HevcEncoder: Forcing keyframe at frame %lld"), frameCounter_);
+		}
+		
+		frameCounter_++;
 		
 		// Reset synchronization
 		{
@@ -355,9 +399,14 @@ void HevcEncoder::Process()
 			pixelBuffer,
 			presentationTime,
 			duration,
-			NULL,
+			frameProperties,
 			NULL,
 			NULL);
+		
+		if (frameProperties)
+		{
+			CFRelease(frameProperties);
+		}
 		
 		CVPixelBufferRelease(pixelBuffer);
 		
@@ -482,6 +531,175 @@ void HevcEncoder::Process()
 }
 
 #ifdef CITHRUS_VIDEOTOOLBOX_AVAILABLE
+
+// ============================================================================
+// HEVC NAL Unit Inspection Helpers
+// ============================================================================
+
+// Detect if buffer starts with Annex-B start code (0x000001 or 0x00000001)
+static bool StartsWithAnnexB(const uint8_t* p, size_t n)
+{
+	if (n >= 4 && p[0] == 0x00 && p[1] == 0x00 && p[2] == 0x00 && p[3] == 0x01)
+		return true;
+	if (n >= 3 && p[0] == 0x00 && p[1] == 0x00 && p[2] == 0x01)
+		return true;
+	return false;
+}
+
+// Find next Annex-B start code in buffer, return offset or -1 if not found
+static int FindNextStartCode(const uint8_t* p, int start, int end)
+{
+	for (int i = start; i < end - 2; ++i)
+	{
+		if (p[i] == 0x00 && p[i+1] == 0x00)
+		{
+			if (p[i+2] == 0x01)
+				return i; // 3-byte start code
+			if (i < end - 3 && p[i+2] == 0x00 && p[i+3] == 0x01)
+				return i; // 4-byte start code
+		}
+	}
+	return -1;
+}
+
+// Extract HEVC NAL unit type from NAL header (bits 1-6 of first byte)
+static uint8_t HevcNalType(const uint8_t* nalu, size_t nalu_len)
+{
+	if (nalu_len < 1) return 0xFF;
+	return (nalu[0] & 0x7E) >> 1;
+}
+
+// Get human-readable name for HEVC NAL unit type
+static FString NalTypeName(uint8_t t)
+{
+	switch (t)
+	{
+	case 0: return TEXT("TRAIL_N");
+	case 1: return TEXT("TRAIL_R");
+	case 2: return TEXT("TSA_N");
+	case 3: return TEXT("TSA_R");
+	case 4: return TEXT("STSA_N");
+	case 5: return TEXT("STSA_R");
+	case 6: return TEXT("RADL_N");
+	case 7: return TEXT("RADL_R");
+	case 8: return TEXT("RASL_N");
+	case 9: return TEXT("RASL_R");
+	case 16: return TEXT("BLA_W_LP");
+	case 17: return TEXT("BLA_W_RADL");
+	case 18: return TEXT("BLA_N_LP");
+	case 19: return TEXT("IDR_W_RADL");
+	case 20: return TEXT("IDR_N_LP");
+	case 21: return TEXT("CRA_NUT");
+	case 32: return TEXT("VPS");
+	case 33: return TEXT("SPS");
+	case 34: return TEXT("PPS");
+	case 35: return TEXT("AUD");
+	case 36: return TEXT("EOS_NUT");
+	case 37: return TEXT("EOB_NUT");
+	case 38: return TEXT("FD_NUT");
+	case 39: return TEXT("PREFIX_SEI");
+	case 40: return TEXT("SUFFIX_SEI");
+	default: return FString::Printf(TEXT("TYPE_%d"), t);
+	}
+}
+
+// Parse and log Annex-B access unit details
+static void LogAnnexBAU(const uint8_t* data, size_t size)
+{
+	if (!data || size == 0) return;
+	
+	int nalCount = 0;
+	bool hasVPS = false, hasSPS = false, hasPPS = false, hasIDR = false;
+	int offset = 0;
+	
+	while (offset < (int)size)
+	{
+		// Find start code
+		int scLen = 0;
+		if (offset + 3 <= (int)size && data[offset] == 0x00 && data[offset+1] == 0x00 && data[offset+2] == 0x01)
+			scLen = 3;
+		else if (offset + 4 <= (int)size && data[offset] == 0x00 && data[offset+1] == 0x00 && data[offset+2] == 0x00 && data[offset+3] == 0x01)
+			scLen = 4;
+		else
+			break; // No valid start code
+		
+		int nalStart = offset + scLen;
+		int nextSc = FindNextStartCode(data, nalStart, (int)size);
+		int nalEnd = (nextSc >= 0) ? nextSc : (int)size;
+		int nalSize = nalEnd - nalStart;
+		
+		if (nalSize > 0)
+		{
+			uint8_t nalType = HevcNalType(data + nalStart, nalSize);
+			FString nalName = NalTypeName(nalType);
+			
+			if (nalType == 32) hasVPS = true;
+			else if (nalType == 33) hasSPS = true;
+			else if (nalType == 34) hasPPS = true;
+			else if (nalType == 19 || nalType == 20) hasIDR = true;
+			
+			UE_LOG(LogTemp, Log, TEXT("  NAL #%d: type=%d (%s), size=%d"),
+				nalCount, nalType, *nalName, nalSize);
+			nalCount++;
+		}
+		
+		offset = nalEnd;
+	}
+	
+	UE_LOG(LogTemp, Log, TEXT("HevcEncoder: AU size=%d, keyframe=%d (VPS=%d SPS=%d PPS=%d IDR=%d), NALs=%d"),
+		(int)size, hasIDR ? 1 : 0, hasVPS ? 1 : 0, hasSPS ? 1 : 0, hasPPS ? 1 : 0, hasIDR ? 1 : 0, nalCount);
+}
+
+// Parse and log length-prefixed (HVCC) access unit details
+static void LogHvccAU(const uint8_t* data, size_t size, int naluLengthSize)
+{
+	if (!data || size == 0) return;
+	
+	int nalCount = 0;
+	bool hasVPS = false, hasSPS = false, hasPPS = false, hasIDR = false;
+	size_t offset = 0;
+	
+	while (offset + naluLengthSize <= size)
+	{
+		uint32_t naluLength = 0;
+		if (naluLengthSize == 4)
+		{
+			naluLength = (data[offset] << 24) | (data[offset+1] << 16) |
+						 (data[offset+2] << 8) | data[offset+3];
+		}
+		else if (naluLengthSize == 2)
+		{
+			naluLength = (data[offset] << 8) | data[offset+1];
+		}
+		else if (naluLengthSize == 1)
+		{
+			naluLength = data[offset];
+		}
+		
+		offset += naluLengthSize;
+		
+		if (naluLength == 0 || offset + naluLength > size)
+			break;
+		
+		uint8_t nalType = HevcNalType(data + offset, naluLength);
+		FString nalName = NalTypeName(nalType);
+		
+		if (nalType == 32) hasVPS = true;
+		else if (nalType == 33) hasSPS = true;
+		else if (nalType == 34) hasPPS = true;
+		else if (nalType == 19 || nalType == 20) hasIDR = true;
+		
+		UE_LOG(LogTemp, Log, TEXT("  NAL #%d: type=%d (%s), size=%d"),
+			nalCount, nalType, *nalName, (int)naluLength);
+		nalCount++;
+		
+		offset += naluLength;
+	}
+	
+	UE_LOG(LogTemp, Log, TEXT("HevcEncoder: AU size=%d (HVCC length-prefixed, %d-byte), keyframe=%d (VPS=%d SPS=%d PPS=%d IDR=%d), NALs=%d"),
+		(int)size, naluLengthSize, hasIDR ? 1 : 0, hasVPS ? 1 : 0, hasSPS ? 1 : 0, hasPPS ? 1 : 0, hasIDR ? 1 : 0, nalCount);
+}
+
 void HevcEncoder::CompressionCallback(void* outputCallbackRefCon,
 	void* sourceFrameRefCon,
 	OSStatus status,
@@ -520,23 +738,32 @@ void HevcEncoder::HandleEncodedFrame(OSStatus status, CMSampleBufferRef sampleBu
 				nalu_header_length = 4;
 			}
 			
-			// If this is a keyframe, prepend parameter sets
+			// Determine if this is a keyframe
+			bool isKeyframe = false;
 			CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sampleBuffer, false);
 			if (attachments && CFArrayGetCount(attachments) > 0)
 			{
 				CFDictionaryRef attachment = (CFDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
 				CFBooleanRef dependsOnOthers = (CFBooleanRef)CFDictionaryGetValue(attachment, kCMSampleAttachmentKey_DependsOnOthers);
-				if (dependsOnOthers == kCFBooleanFalse)
+				isKeyframe = (dependsOnOthers == kCFBooleanFalse);
+			}
+			
+			// APPROACH 3 WORKAROUND: Always inject parameter sets on every frame
+			// This is more aggressive than standard practice but works around GStreamer rtph265depay
+			// issues with out-of-band parameter sets. Trade-off: ~71 bytes overhead per frame.
+			if (true) // Was: if (isKeyframe)
+			{
+				for (size_t i = 0; i < parameterSetCount; i++)
 				{
-					for (size_t i = 0; i < parameterSetCount; i++)
+					const uint8_t* parameterSet = nullptr;
+					size_t parameterSetSize = 0;
+					if (CMVideoFormatDescriptionGetHEVCParameterSetAtIndex(formatDesc, i, &parameterSet, &parameterSetSize, nullptr, nullptr) == noErr)
 					{
-						const uint8_t* parameterSet = nullptr;
-						size_t parameterSetSize = 0;
-						if (CMVideoFormatDescriptionGetHEVCParameterSetAtIndex(formatDesc, i, &parameterSet, &parameterSetSize, nullptr, nullptr) == noErr)
-						{
-							encodedData_.insert(encodedData_.end(), {0x00,0x00,0x00,0x01});
-							encodedData_.insert(encodedData_.end(), parameterSet, parameterSet + parameterSetSize);
-						}
+						uint8_t nalType = HevcNalType(parameterSet, parameterSetSize);
+						UE_LOG(LogTemp, Log, TEXT("HevcEncoder: Injecting parameter set NAL type=%d (%s), size=%d"),
+							nalType, *NalTypeName(nalType), (int)parameterSetSize);
+						encodedData_.insert(encodedData_.end(), {0x00,0x00,0x00,0x01});
+						encodedData_.insert(encodedData_.end(), parameterSet, parameterSet + parameterSetSize);
 					}
 				}
 			}
@@ -579,6 +806,39 @@ void HevcEncoder::HandleEncodedFrame(OSStatus status, CMSampleBufferRef sampleBu
 					offset += naluLength;
 				}
 			}
+		}
+		
+		// Log the final Annex-B output with detailed NAL analysis
+		if (!encodedData_.empty())
+		{
+			// Log first 8 bytes in hex for comparison with RTP transmitter
+			if (encodedData_.size() >= 8)
+			{
+				UE_LOG(LogTemp, Log, TEXT("HevcEncoder: Output %d bytes, head=%02X %02X %02X %02X %02X %02X %02X %02X"),
+					(int)encodedData_.size(),
+					encodedData_[0], encodedData_[1], encodedData_[2], encodedData_[3],
+					encodedData_[4], encodedData_[5], encodedData_[6], encodedData_[7]);
+			}
+			// Parse and log the Annex-B access unit
+			LogAnnexBAU(encodedData_.data(), encodedData_.size());
+			
+			// TEMPORARY: Dump to file for validation (comment out after testing)
+			#ifdef CITHRUS_HEVC_FILE_DUMP
+			static FILE* dumpFile = nullptr;
+			if (!dumpFile)
+			{
+				dumpFile = fopen("/tmp/hevc_encoder_output.265", "wb");
+				if (dumpFile)
+				{
+					UE_LOG(LogTemp, Warning, TEXT("HevcEncoder: Dumping output to /tmp/hevc_encoder_output.265"));
+				}
+			}
+			if (dumpFile)
+			{
+				fwrite(encodedData_.data(), 1, encodedData_.size(), dumpFile);
+				fflush(dumpFile);
+			}
+			#endif
 		}
 	}
 	
