@@ -162,7 +162,7 @@ setup_dependencies()
 
         echo "Building Kvazaar..."
 
-        if ! cmake temp/kvazaar-${KVAZAAR_VER} -Btemp/kvazaar-${KVAZAAR_VER}/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_C_COMPILER=/usr/bin/clang-${CLANG_VER}
+        if ! cmake temp/kvazaar-${KVAZAAR_VER} -Btemp/kvazaar-${KVAZAAR_VER}/build -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_C_COMPILER=clang-${CLANG_VER}
         then
             echo "Failed to build Kvazaar!"
             return 1
@@ -211,7 +211,7 @@ setup_dependencies()
 
         echo "Building OpenHEVC..."
 
-        if ! cmake temp/openHEVC-${OPENHEVC_VER} -Btemp/openHEVC-${OPENHEVC_VER}/build -DENABLE_STATIC=True -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_C_COMPILER=/usr/bin/clang-${CLANG_VER}
+        if ! cmake temp/openHEVC-${OPENHEVC_VER} -Btemp/openHEVC-${OPENHEVC_VER}/build -DENABLE_STATIC=True -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_C_COMPILER=clang-${CLANG_VER}
         then
             echo "Failed to build OpenHEVC!"
             return 1
@@ -255,7 +255,7 @@ setup_dependencies()
         echo "Building uvgRTP..."
 
         mkdir temp/uvgRTP-${UVGRTP_VER}/Release
-        if ! cmake temp/uvgRTP-${UVGRTP_VER} -Btemp/uvgRTP-${UVGRTP_VER}/Release -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_COMPILER=/usr/bin/clang++-${CLANG_VER} -DCMAKE_CXX_FLAGS=-stdlib=libc++
+        if ! cmake temp/uvgRTP-${UVGRTP_VER} -Btemp/uvgRTP-${UVGRTP_VER}/Release -DCMAKE_BUILD_TYPE=Release -DCMAKE_POSITION_INDEPENDENT_CODE=ON -DCMAKE_CXX_COMPILER=clang++-${CLANG_VER} -DCMAKE_CXX_FLAGS=-stdlib=libc++
         then
             echo "Failed to build uvgRTP!"
             return 1

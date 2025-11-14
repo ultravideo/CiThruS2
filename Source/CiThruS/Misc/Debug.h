@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "Engine/World.h"
 
+#include <string>
+
 // This namespace is for cleaner usage of Unreal Engine debug functions with shorter syntax and without
 // having to check whether the engine or world pointers are null.
 namespace Debug
