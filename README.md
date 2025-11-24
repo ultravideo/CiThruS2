@@ -19,25 +19,23 @@ Ultra Video Group has a public Discord server where you can ask questions about 
 
 ## First-Time Setup Instructions
 
-Setting up CiThruS2 involves installing dependencies and running the setup script. The process is similar between platforms. If possible, we recommend setting up the environment on Windows with DirectX 12 as the rendering API, as there are some known Vulkan/Metal-exclusive bugs in Unreal Engine 5.5 which affect the rendering capabilities of the simulation.
+Setting up CiThruS2 involves installing dependencies and running the setup script. The process is similar between platforms.
 
 ### Windows
 
 We recommend running CiThruS2 in Windows 11, but it should also work in 10.
 
-To use the environment on Windows, you must first make sure PowerShell, Visual Studio 2022, CMake and Unreal Engine 5.5 are installed on your computer. Then, run the `setup.cmd` script.
+To use the environment on Windows, you must first make sure PowerShell, Visual Studio 2022, CMake and Unreal Engine 5.6 are installed on your computer. Then, run the `setup.cmd` script.
 
 ### Linux
 
 We recommend running CiThruS2 in Ubuntu 24.04 LTS, as it is the Linux distribution we have used internally and [Epic Games also recommends Ubuntu](https://dev.epicgames.com/documentation/en-us/unreal-engine/linux-development-quickstart-for-unreal-engine) for Unreal Engine 5.
 
-There are some bugs in Unreal Engine 5.5's Vulkan code which prevent capturing video on Linux. The bugs have been fixed in Unreal Engine 5.6, so we are working on upgrading to 5.6.
-
 To use the environment on Linux, you must first make sure clang-18, libc++-18, yasm, CMake and Unreal Engine 5.5 are installed on your computer. Then, run the `setup.sh` script.
 
 ### macOS
 
-Currently, we do not officially support macOS, but we have been able to run CiThruS2 on macOS in an informal test setup. It is most likely possible to setup CiThruS2 on macOS by adapting the Linux instructions, but we cannot guarantee that every feature will work as intended. In particular, we suspect that the rendering capabilities of the simulation may be affected by the transition from DirectX on Windows to Metal on macOS.
+Currently, we do not officially support macOS, but we have been able to run CiThruS2 on macOS in an informal test setup. It is most likely possible to setup CiThruS2 on macOS by adapting the Linux instructions, but we cannot guarantee that every feature will work as intended.
 
 ### Platform-independent steps
 

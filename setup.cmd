@@ -1,14 +1,14 @@
 @echo off
 setlocal
 set AIRSIM_VER=2.1.0
-set DLSS_VER=2025.09.16_UE5.5_DLSS4Plugin_v8.3.0
-set FSR_VER=520
+set DLSS_VER=2025.09.16_UE5.6_DLSS4Plugin_v8.3.0
+set FSR_VER=560
 set KVAZAAR_VER=2.3.2
 set YASM_VER=1.3.0
 set UVGRTP_VER=3.1.6
 set OPENHEVC_VER=ffmpeg_update
 set FPNG_VER=1.0.6
-set CITHRUS_CONTENT_VER=23_09_2025
+set CITHRUS_CONTENT_VER=24_11_2025
 
 set ROOT_DIR=%~dp0
 
@@ -45,6 +45,10 @@ mkdir temp
 echo Setting up CiThruS2...
 
 :contentsetup
+
+:: Skip content download when using internal repository
+:: goto :airsimsetup
+
 if exist Content (
 	echo CiThruS content already found at Content, skipping... ^(Please delete the folder manually if you'd like to redownload it.^)
 	goto :airsimsetup
@@ -56,6 +60,17 @@ echo Extracting CiThruS2 content...
 %powershell% -command "Expand-Archive -Path temp\CiThruS2_content.zip -DestinationPath . -Force"
 del temp\CiThruS2_content.zip /q
 
+:: Make editor load regions automatically
+if not exist Saved mkdir Saved
+if not exist Saved\Config mkdir Saved\Config
+if not exist Saved\Config\WindowsEditor mkdir Saved\Config\WindowsEditor
+if not exist Saved\Config\WindowsEditor\EditorPerProjectUserSettings.ini (
+	(
+		echo [/Script/Engine.WorldPartitionEditorPerProjectUserSettings]
+		echo PerWorldEditorSettings=^(^("/Game/HervantaMapTemplate/Maps/HervantaSimulation.HervantaSimulation", ^(LoadedEditorLocationVolumes=^("LocationVolume_UAID_18C04D02B040D07301_1649670207"^)^)^)^)
+	) > Saved\Config\WindowsEditor\EditorPerProjectUserSettings.ini
+)
+
 echo Finished setting up CiThruS2 content.
 goto :airsimsetup
 
@@ -65,7 +80,7 @@ goto :setupfailed
 
 :airsimsetup
 
-:: AirSim is not available for UE 5.5, skip for now
+:: AirSim is not available for UE 5.6, skip for now
 goto :dlsssetup
 
 :: AirSim setup
@@ -138,41 +153,37 @@ echo Failed to download Nvidia DLSS!
 goto :setupfailed
 
 :fsrsetup
-:: TODO update to FSR 4
-goto :impostorbakersetup
-
-if exist Plugins\FSR2 IF EXIST Plugins\FSR2MovieRenderPipeline (
-	echo AMD FSR2 already found at Plugins\FSR2 and Plugins\FSR2MovieRenderPipeline, skipping... ^(Please delete the folders manually if you'd like to reinstall it.^)
+if exist Plugins\FSR4 if exist Plugins\FSR4MovieRenderPipeline (
+	echo AMD FSR4 already found at Plugins\FSR4 and Plugins\FSR4MovieRenderPipeline, skipping... ^(Please delete the folders manually if you'd like to reinstall it.^)
 	goto :impostorbakersetup
 )
 
-echo Downloading AMD FSR 2...
-%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://gpuopen.com/download-Unreal-Engine-FSR2-plugin/', 'temp\FSR.zip')" || goto :fsrdownloadfailed
-echo Extracting AMD FSR 2...
+echo Downloading AMD FSR 4...
+%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://gpuopen.com/download-Unreal-Engine-FSR4-plugin/', 'temp\FSR.zip')" || goto :fsrdownloadfailed
+echo Extracting AMD FSR 4...
 %powershell% -command "Expand-Archive -Path temp\FSR.zip -DestinationPath temp"
 del temp\FSR.zip /q
 
 :: If there are existing plugin files, remove them to avoid conflicts
-if exist Plugins\FSR2 rmdir Plugins\FSR2 /s /q
-if exist Plugins\FSR2MovieRenderPipeline rmdir Plugins\FSR2MovieRenderPipeline /s /q
+if exist Plugins\FSR4 rmdir Plugins\FSR4 /s /q
+if exist Plugins\FSR4MovieRenderPipeline rmdir Plugins\FSR4MovieRenderPipeline /s /q
 
-mkdir Plugins\FSR2
-mkdir Plugins\FSR2MovieRenderPipeline
+mkdir Plugins\FSR4
+mkdir Plugins\FSR4MovieRenderPipeline
 
-for /d %%i in (temp\FSR2*) do set "FIRST_FSR_FOLDER_NAME=%%i"
-for /d %%i in (%FIRST_FSR_FOLDER_NAME%\FSR2*) do set "SECOND_FSR_FOLDER_NAME=%%i"
+for /d %%i in (temp\UE-FSR-*) do set "FSR_FOLDER_NAME=%%i"
 
-robocopy "%SECOND_FSR_FOLDER_NAME%\FSR2-%FSR_VER%\FSR2" Plugins\FSR2 /e
-robocopy "%SECOND_FSR_FOLDER_NAME%\FSR2-%FSR_VER%\FSR2MovieRenderPipeline" Plugins\FSR2MovieRenderPipeline /e
+robocopy "%FSR_FOLDER_NAME%\FSR4-%FSR_VER%\FSR4" Plugins\FSR4 /e
+robocopy "%FSR_FOLDER_NAME%\FSR4-%FSR_VER%\FSR4MovieRenderPipeline" Plugins\FSR4MovieRenderPipeline /e
 
-rmdir %FIRST_FSR_FOLDER_NAME% /s /q
+rmdir %FSR_FOLDER_NAME% /s /q
 
-echo AMD FSR 2 successfully set up.
+echo AMD FSR 4 successfully set up.
 
 goto :impostorbakersetup
 
 :fsrdownloadfailed
-echo Failed to download FSR 2!
+echo Failed to download FSR 4!
 goto :setupfailed
 
 :impostorbakersetup
@@ -220,9 +231,7 @@ if not exist Saved\UnrealBuildTool\BuildConfiguration.xml (
 %powershell% -command "((Get-Content -path Saved/UnrealBuildTool/BuildConfiguration.xml -Raw) -replace '14\.[0-9]+\.[0-9]+','14%COMPILER_VER%') | Set-Content -Path Saved/UnrealBuildTool/BuildConfiguration.xml"
 
 if not exist ThirdParty\Kvazaar goto :yasmsetup
-echo Kvazaar already found at ThirdParty\Kvazaar, skipping... ^(Please delete the folder manually if you'd like to reinstall it.^)
 if not exist ThirdParty\OpenHEVC goto :yasmsetup
-echo OpenHEVC already found at ThirdParty\OpenHEVC, skipping... ^(Please delete the folder manually if you'd like to reinstall it.^)
 
 goto :uvgrtpsetup
 
@@ -298,7 +307,7 @@ del temp\OpenHEVC.zip /q
 
 :: Building OpenHEVC is broken on Windows, needs to be patched
 echo Patching OpenHEVC...
-:: Set correct CMake version and enable C11
+:: Set updated CMake version and enable C11
 %powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt -Raw) -replace 'cmake_minimum_required \(VERSION 2\.8\)',\""cmake_minimum_required (VERSION 3.5)`nset (CMAKE_C_STANDARD 11)\"") | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt"
 :: m library doesn't exist on Windows and isn't needed anyway. Replace with explicitly enabling C11 atomics
 %powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt -Raw) -replace 'target_link_libraries\(LibOpenHevcWrapper m\)',\""if (MSVC)`n`ttarget_compile_options(LibOpenHevcWrapper PRIVATE /experimental:c11atomics)`nendif()\"") | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt"
@@ -354,7 +363,7 @@ goto :setupfailed
 :uvgrtpsetup
 if exist ThirdParty\uvgRTP (
 	echo uvgRTP already found at ThirdParty\uvgRTP, skipping... ^(Please delete the folder manually if you'd like to reinstall it.^)
-	goto :contentsetup
+	goto :fpngsetup
 )
 
 echo Downloading uvgRTP...

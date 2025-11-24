@@ -5,7 +5,7 @@ public class CiThruSEditorTarget : TargetRules
 	public CiThruSEditorTarget(TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Editor;
-		DefaultBuildSettings = BuildSettingsVersion.V5;
+		DefaultBuildSettings = BuildSettingsVersion.Latest;
 
 		bUseUnityBuild = true;
 

@@ -1,6 +1,6 @@
 {
 	"FileVersion": 3,
-	"EngineAssociation": "5.5",
+	"EngineAssociation": "5.6",
 	"Category": "",
 	"Description": "",
 	"Modules": [
@@ -44,22 +44,18 @@
 			"Enabled": true
 		},
 		{
-			"Name": "FSR2",
+			"Name": "FSR4",
 			"Enabled": false,
 			"SupportedTargetPlatforms": [
 				"Win64"
 			]
 		},
 		{
-			"Name": "FSR2MovieRenderPipeline",
+			"Name": "FSR4MovieRenderPipeline",
 			"Enabled": false,
 			"SupportedTargetPlatforms": [
 				"Win64"
 			]
-		},
-		{
-			"Name": "HoudiniEngine",
-			"Enabled": false
 		},
 		{
 			"Name": "PCGGeometryScriptInterop",
@@ -79,7 +75,7 @@
 		},
 		{
 			"Name": "VirtualHeightfieldMesh",
-			"Enabled": true
+			"Enabled": false
 		},
 		{
 			"Name": "RawInput",

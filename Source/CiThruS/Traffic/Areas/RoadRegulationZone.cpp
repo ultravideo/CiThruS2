@@ -8,10 +8,6 @@ ARoadRegulationZone::ARoadRegulationZone()
 {
     PrimaryActorTick.bCanEverTick = false;
 
-#if WITH_EDITOR
-    SetIsSpatiallyLoaded(false);
-#endif
-
     SetActorHiddenInGame(true);
 
     // Create the static mesh component

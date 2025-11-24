@@ -8,9 +8,8 @@
 #include <vector>
 #include <algorithm>
 
-ATrafficStopArea::ATrafficStopArea()
+ATrafficStopArea::ATrafficStopArea() : active_(false)
 {
-#if WITH_EDITOR
 	UStaticMeshComponent* boxMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BoxMesh"));
 	RootComponent = boxMesh;
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> boxAsset(TEXT("/Engine/BasicShapes/Cube.Cube"));
@@ -37,9 +36,6 @@ ATrafficStopArea::ATrafficStopArea()
 
 	arrowMesh->bHiddenInGame = true;
 	arrowMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-
-	SetIsSpatiallyLoaded(false);
-#endif
 }
 
 void ATrafficStopArea::BeginPlay()

@@ -1,6 +1,7 @@
 #include "PlayerVehicleController.h"
 //#include "ChaosVehicleWheel.h"
 //#include "ChaosWheeledVehicleMovementComponent.h"
+#include "GameFramework/MovementComponent.h"
 #include "Misc/Debug.h"
 
 void APlayerVehicleController::OnPossess(APawn* InPawn)
@@ -58,7 +59,7 @@ void APlayerVehicleController::ChangeWheelSetup(TArray<TSubclassOf<UChaosVehicle
 	Debug::Log("Vehicle Setup changed");
 }*/
 
-void APlayerVehicleController::SetVehicleLocationRotation(FVector location, FVector rotation, bool relative)
+void APlayerVehicleController::SetVehicleLocationRotation(FVector location, FRotator rotation, bool relative)
 {
 	APawn* pawn = GetPawn();
 	if (pawn == nullptr)
@@ -68,28 +69,27 @@ void APlayerVehicleController::SetVehicleLocationRotation(FVector location, FVec
 
 	if (relative)
 	{
-		location = location + pawn->GetActorLocation();
-		rotation = rotation + pawn->GetActorRotation().Vector();
+		pawn->TeleportTo(pawn->GetActorLocation() + location, pawn->GetActorRotation() + rotation);
+	}
+	else
+	{
+		pawn->TeleportTo(location, rotation);
 	}
 
-	if (USkeletalMeshComponent* mesh = pawn->FindComponentByClass<USkeletalMeshComponent>())
+	if (UMovementComponent* movementComponent = pawn->FindComponentByClass<UMovementComponent>())
 	{	
-		mesh->SetAllPhysicsPosition(location);
-		// 1. Acts weird when there is movement
-		//mesh->SetAllPhysicsRotation(rotation.ToOrientationQuat());
+		movementComponent->StopMovementImmediately();
 	}
-	// 2. This is needed to avoid weird movement after teleporting
-	// movementComponent_->StopAllMovementImmediately();
 }
 
 void APlayerVehicleController::ResetVehicle(bool toSpawn)
 {
 	if (toSpawn)
 	{
-		SetVehicleLocationRotation(spawn_.first, spawn_.second.ToRotationVector(), false);
+		SetVehicleLocationRotation(spawn_.first, spawn_.second.Rotator(), false);
 	}
 	else
 	{
-		SetVehicleLocationRotation(FVector(100,100,100), FVector(), true);
+		SetVehicleLocationRotation(FVector(100,100,100), FRotator(), true);
 	}
 }

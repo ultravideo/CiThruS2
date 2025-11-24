@@ -23,7 +23,7 @@ public:
 	UFUNCTION(BlueprintCallable)
 	//void ChangeWheelSetup(TArray<TSubclassOf<UChaosVehicleWheel> > wheelClasses);
 
-	void SetVehicleLocationRotation(FVector location, FVector rotation, bool relative);
+	void SetVehicleLocationRotation(FVector location, FRotator rotation, bool relative);
 
 	UFUNCTION(BlueprintCallable)
 	void ResetVehicle(bool toSpawn);

@@ -1,14 +1,14 @@
 #!/bin/bash
 
 AIRSIM_VER="2.1.0"
-DLSS_VER="2025.09.16_UE5.5_DLSS4Plugin_v8.3.0"
-FSR_VER="520"
+DLSS_VER="2025.09.16_UE5.6_DLSS4Plugin_v8.3.0"
+FSR_VER="560"
 KVAZAAR_VER="2.3.2"
 YASM_VER="1.3.0"
 UVGRTP_VER="3.1.6"
 OPENHEVC_VER="ffmpeg_update"
 FPNG_VER="1.0.6"
-CITHRUS_CONTENT_VER="23_09_2025"
+CITHRUS_CONTENT_VER="24_11_2025"
 
 # clang must be used to compile the dependencies because Unreal Engine uses
 # clang and it will not be able to link the standard libraries correctly if we
@@ -32,8 +32,9 @@ setup_dependencies()
     mkdir temp
 
     echo "Setting up CiThruS2..."
-	
+
 	# CiThruS2 content setup
+	# (Skip content download when using internal repository)
 	if dependency_missing Content "CiThruS2 content"
 	then
 		echo "Downloading CiThruS2 content..."
@@ -46,6 +47,14 @@ setup_dependencies()
 		unzip temp/CiThruS2_content.zip -d .
 		
 		rm temp/CiThruS2_content.zip
+
+        # Make editor load regions automatically
+        mkdir -p Saved/Config/LinuxEditor
+        if ! [ -f Saved/Config/LinuxEditor/EditorPerProjectUserSettings.ini ]
+        then
+            echo "[/Script/Engine.WorldPartitionEditorPerProjectUserSettings]" >> Saved/Config/LinuxEditor/EditorPerProjectUserSettings.ini
+            echo "PerWorldEditorSettings=((\"/Game/HervantaMapTemplate/Maps/HervantaSimulation.HervantaSimulation\", (LoadedEditorLocationVolumes=(\"LocationVolume_UAID_18C04D02B040D07301_1649670207\"))))" >> Saved/Config/LinuxEditor/EditorPerProjectUserSettings.ini
+        fi
 
 		echo "Finished setting up CiThruS2 content."
 	fi
@@ -120,12 +129,36 @@ setup_dependencies()
         echo "Nvidia DLSS successfully set up."
     fi
 
-    # FSR 2 setup
-    if false && dependency_missing Plugins/FSR2 "AMD FSR 2"
+    # FSR setup
+    # (The FSR plugin does not actually compile on Linux, so skip it)
+    if false && dependency_missing Plugins/FSR4 "AMD FSR 4"
     then
-        # TODO: FSR 2 is outdated, we have to switch to FSR 4
+        echo "Downloading AMD FSR 4..."
+        if ! wget -O temp/FSR.zip https://gpuopen.com/download-Unreal-Engine-FSR4-plugin/
+        then
+            echo "Failed to download AMD FSR 4!"
+            return 1
+        fi
 
-        echo "AMD FSR 2 successfully set up."
+        echo "Extracting AMD FSR..."
+        mkdir temp/FSR
+        unzip temp/FSR.zip -d temp/FSR
+        rm temp/FSR.zip
+
+        mkdir -p Plugins/
+        
+        FSR_FOLDER=$(find temp/FSR -maxdepth 1 -type d -regex "temp/FSR/UE-FSR-.*")
+        
+        cp -r ${FSR_FOLDER}/FSR4-${FSR_VER}/FSR4 Plugins/
+        cp -r ${FSR_FOLDER}/FSR4-${FSR_VER}/FSR4MovieRenderPipeline Plugins/
+        
+        # Make sure we don't delete anything unexpected if the folder is wrong for whatever reason
+        if [[ $FSR_FOLDER == temp/FSR/UE-FSR-* ]]
+        then
+            rm -rf ${FSR_FOLDER}
+        fi
+        
+        echo "AMD FSR 4 successfully set up."
     fi
 
     # ImpostorBaker setup
@@ -174,7 +207,7 @@ setup_dependencies()
             echo "Failed to build Kvazaar!"
             return 1
         fi
-		cd ../../..
+        cd ../../..
 
         mkdir -p ThirdParty/Kvazaar/Lib
         mkdir -p ThirdParty/Kvazaar/Include
@@ -223,7 +256,7 @@ setup_dependencies()
             echo "Failed to build OpenHEVC!"
             return 1
         fi
-		cd ../../..
+        cd ../../..
 
         mkdir -p ThirdParty/OpenHEVC/Lib
         mkdir -p ThirdParty/OpenHEVC/Include
@@ -261,13 +294,13 @@ setup_dependencies()
             return 1
         fi
 
-		cd temp/uvgRTP-${UVGRTP_VER}/Release
+        cd temp/uvgRTP-${UVGRTP_VER}/Release
         if ! make uvgrtp
         then
             echo "Failed to build uvgRTP!"
             return 1
         fi
-		cd ../../..
+        cd ../../..
 
         mkdir -p ThirdParty/uvgRTP/Lib
         mkdir -p ThirdParty/uvgRTP/Include
@@ -335,4 +368,3 @@ fi
 
 rm -rf temp
 cd ${ROOT_DIR}
-

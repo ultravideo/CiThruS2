@@ -2,10 +2,16 @@
 #include "SingleCurve.h"
 #include "SCurve.h"
 #include "StraightLineCurve.h"
+#include "SingularityCurve.h"
 
 std::shared_ptr<ICurve> CurveFactory::GetCurveFor(/* const UWorld *world, */ const FVector& startPosition, const FVector& endPosition, const FVector& startTangent, const FVector& endTangent, const bool allowSCurve)
 {
 	FVector startToEnd = endPosition - startPosition;
+
+	if (startToEnd.IsNearlyZero(0.001f))
+	{
+		return std::make_shared<SingularityCurve>(startPosition, startTangent);
+	}
 
 	// Calculate the normal of a plane that contains the curve. This doesn't work right if there is no such plane, but the way CurvePathFollower
 	// uses this class the positions and tangents it passes should always have one

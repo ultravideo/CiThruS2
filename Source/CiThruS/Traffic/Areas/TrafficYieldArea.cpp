@@ -12,7 +12,6 @@
 
 ATrafficYieldArea::ATrafficYieldArea()
 {
-#if WITH_EDITOR
 	UStaticMeshComponent* visualMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("VisualMesh"));
 	RootComponent = visualMesh;
 	static ConstructorHelpers::FObjectFinder<UStaticMesh> visualAsset(TEXT("/Engine/BasicShapes/Cube.Cube"));
@@ -25,6 +24,7 @@ ATrafficYieldArea::ATrafficYieldArea()
 	visualMesh->bHiddenInGame = true;
 	visualMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 
+#if WITH_EDITOR
 	SetIsSpatiallyLoaded(false);
 #endif
 }

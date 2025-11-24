@@ -11,9 +11,17 @@ bool ARoadsideParkingSpace::ParkCar(ACar* car)
 		return false;
 	}
 
+	if (parkingController_ == nullptr)
+	{
+		Debug::Log("No ParkingController found. Check that the simulation is running first");
+
+		return false;
+	}
+
 	if (parkingController_->GetTrafficController() == nullptr)
 	{
 		Debug::Log("No TrafficController found. Check that the simulation is running first");
+
 		return false;
 	}
 
