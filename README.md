@@ -57,7 +57,7 @@ Old versions of CiThruS2 for older Unreal Engine versions are available on separ
 
 If you are using CiThruS2 in your research **with a focus on ground vehicles and traffic**, please cite the following paper: 
 
-`E. Gałązka, T. T. Niemirepo, and J. Vanne, “CiThruS2: Open-source photorealistic 3D framework for driving and traffic simulation in real time,” in Proc. IEEE Int. Conf. on Intelligent Transportation Systems, Indianapolis, Indiana, USA, Sept. 2021. `
+`A. Leppäaho, P. Sjövall, G. Gautier, and J. Vanne, “CiThruS2: Open-source simulation framework for vision-based ADAS development,” in Proc. IEEE Int. Automated Vehicle Validation Conf., Baden-Baden, Germany, Sep.—Oct. 2025. `
 
 If you are using CiThruS2 in your research **with a focus on UAVs/drones**, please cite the following paper: 
 
