@@ -31,7 +31,7 @@ To use the environment on Windows, you must first make sure PowerShell, Visual S
 
 We recommend running CiThruS2 in Ubuntu 24.04 LTS, as it is the Linux distribution we have used internally and [Epic Games also recommends Ubuntu](https://dev.epicgames.com/documentation/en-us/unreal-engine/linux-development-quickstart-for-unreal-engine) for Unreal Engine 5.
 
-To use the environment on Linux, you must first make sure clang-18, libc++-18, yasm, CMake and Unreal Engine 5.5 are installed on your computer. Then, run the `setup.sh` script.
+To use the environment on Linux, you must first make sure clang-18, libc++-18, yasm, CMake and Unreal Engine 5.6 are installed on your computer. Then, run the `setup.sh` script.
 
 ### macOS
 
