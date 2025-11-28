@@ -144,8 +144,6 @@ protected:
 
 	TArray<ITrafficArea*> trafficAreas_;
 
-	AParkingController* parkingSystem_;
-
 	bool visualizeCollisions_;
 	bool visualizeViewFrustrum_;
 

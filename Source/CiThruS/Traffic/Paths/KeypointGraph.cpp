@@ -558,7 +558,7 @@ FRotator KeypointGraph::GetKeypointRotation(const int& keypointIndex) const
 		return FRotator();
 	}
 
-	FVector directionVector;
+	FVector directionVector = FVector::ZeroVector;
 
 	for (const int& outboundKeypoint : keypoints_[keypointIndex].outboundKeypoints)
 	{

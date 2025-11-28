@@ -302,15 +302,30 @@ FVector CurvePathFollower::GetTangent(const int& index) const
 
 std::shared_ptr<ICurve> CurvePathFollower::CreateCurveFromPoint(const int& point) const
 {
-	if (PointCount() < 2 || point < 0 || point >= PointCount() - 1)
+	if (PointCount() < 2)
 	{
 		return nullptr;
 	}
 
-	FVector startPosition = GetPosition(point);
-	FVector endPosition = GetPosition(point + 1);
-	FVector startPointTangent = GetTangent(point);
-	FVector endPointTangent = GetTangent(point + 1);
+	int currentPoint = point;
+	int nextPoint = point + 1;
+
+	if (currentPoint < 0)
+	{
+		currentPoint = 0;
+		nextPoint = 1;
+	}
+
+	if (nextPoint > PointCount() - 1)
+	{
+		currentPoint = PointCount() - 2;
+		nextPoint =  PointCount() - 1;
+	}
+
+	FVector startPosition = GetPosition(currentPoint);
+	FVector endPosition = GetPosition(nextPoint);
+	FVector startPointTangent = GetTangent(currentPoint);
+	FVector endPointTangent = GetTangent(nextPoint);
 
 /* 	
 	UWorld *world;

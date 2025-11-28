@@ -1,7 +1,9 @@
 # IDE user specific files
 .vs/
+.vscode/
 .idea/
 .vsconfig
+*.code-workspace
 
 # Compiled Object files
 *.slo
@@ -48,7 +50,7 @@ SourceArt/**/*.png
 SourceArt/**/*.tga
 
 # Binary Files
-Binaries/*
+Binaries/
 Plugins/**/Binaries/*
 
 # Builds
@@ -69,7 +71,7 @@ Build/*/**
 Saved/
 
 # Compiled source files for the engine to use
-Intermediate/*
+Intermediate/
 Plugins/**/Intermediate/*
 
 # Cache files for the editor to use
@@ -87,3 +89,6 @@ DataFiles/
 Plugins/
 ThirdParty/
 enc_temp_folder/
+DataFiles/KeypointToolSaves/
+.ignore
+Makefile

@@ -5,7 +5,7 @@ public class CiThruSTarget : TargetRules
 	public CiThruSTarget(TargetInfo Target) : base(Target)
 	{
 		Type = TargetType.Game;
-		DefaultBuildSettings = BuildSettingsVersion.V5;
+		DefaultBuildSettings = BuildSettingsVersion.Latest;
 
         bUseUnityBuild = false;
 

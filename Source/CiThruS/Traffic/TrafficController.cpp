@@ -22,6 +22,11 @@
 #include <list>
 
 ATrafficController::ATrafficController()
+	: parkingController_(nullptr),
+	entityInFront_(nullptr), entityInFrontDistance_(0.0f),
+	massDeletionInProgress_(false),
+	visualizeCollisions_(false), visualizeViewFrustrum_(false),
+	farDistance_(1.0f)
 {
  	// Set this actor to call Tick() every frame
 	PrimaryActorTick.bCanEverTick = true;
@@ -63,10 +68,6 @@ void ATrafficController::BeginPlay()
 		if (ITrafficArea* trafficArea = Cast <ITrafficArea>(*it))
 		{
 			trafficAreas_.Add(trafficArea);
-		}
-		else if (AParkingController* ps = Cast<AParkingController>(*it))
-		{
-			parkingSystem_ = ps;
 		}
 	}
 
