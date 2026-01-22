@@ -1,12 +1,6 @@
 #pragma once
 
-#if (defined(__x86_64__) || defined(_M_X64) && !defined(_M_ARM64EC))
-#ifndef CITHRUS_SSE41_AVAILABLE
-#define CITHRUS_SSE41_AVAILABLE
-#endif // CITHRUS_SSE41_AVAILABLE
-#else
-#pragma message (__FILE__ ": warning: SSE4.1 instructions not available, unsupported CPU")
-#endif // defined(...)
+#include "Optional/Sse41.h"
 
 #include "PipelineFilter.h"
 

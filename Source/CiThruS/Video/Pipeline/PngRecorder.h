@@ -1,13 +1,6 @@
 #pragma once
 
-#if __has_include("fpng/Include/fpng.h")
-#ifndef CITHRUS_FPNG_AVAILABLE
-#define CITHRUS_FPNG_AVAILABLE
-#endif // CITHRUS_FPNG_AVAILABLE
-#include "fpng/Include/fpng.h"
-#else
-#pragma message (__FILE__ ": warning: fpng not found, writing PNG files is unavailable")
-#endif // __has_include(...)
+#include "Optional/Fpng.h"
 
 #include "CoreMinimal.h"
 #include "PipelineSink.h"
