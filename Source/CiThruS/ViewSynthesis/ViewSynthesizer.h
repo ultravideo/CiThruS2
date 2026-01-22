@@ -14,7 +14,7 @@
 
 class USceneCaptureComponent2D;
 class UTextureRenderTarget2D;
-class RenderTargetReader;
+class RenderTargetReaderWithUserData;
 class RenderTargetWriter;
 class AsyncPipelineRunner;
 
@@ -100,8 +100,8 @@ protected:
 	UPROPERTY()
 	TObjectPtr<UTextureRenderTarget2D> rearRenderTarget_ = nullptr;
 
-	RenderTargetReader* frontReader_;
-	RenderTargetReader* rearReader_;
+	RenderTargetReaderWithUserData* frontReader_;
+	RenderTargetReaderWithUserData* rearReader_;
 
 	RenderTargetWriter* resultWriter_;
 

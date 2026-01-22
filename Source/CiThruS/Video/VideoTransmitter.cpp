@@ -1,16 +1,18 @@
 #include "VideoTransmitter.h"
+
 #include "Pipeline/Pipeline.h"
-#include "Pipeline/HevcEncoder.h"
-#include "Pipeline/RtpTransmitter.h"
-#include "Pipeline/RenderTargetReader.h"
-#include "Pipeline/RgbaToYuvConverter.h"
-#include "Pipeline/Equirectangular360Converter.h"
-#include "Pipeline/SolidColorImageGenerator.h"
-#include "Pipeline/PngRecorder.h"
-#include "Pipeline/BgraToRgbaConverter.h"
-#include "Pipeline/FileSink.h"
-#include "Pipeline/ScaffoldingSequentialFilter.h"
+#include "Pipeline/Components/HevcEncoder.h"
+#include "Pipeline/Components/RtpTransmitter.h"
+#include "Pipeline/Components/RenderTargetReader.h"
+#include "Pipeline/Components/RgbaToYuvConverter.h"
+#include "Pipeline/Components/Equirectangular360Converter.h"
+#include "Pipeline/Components/SolidColorImageGenerator.h"
+#include "Pipeline/Components/PngRecorder.h"
+#include "Pipeline/Components/BgraToRgbaConverter.h"
+#include "Pipeline/Components/FileSink.h"
+#include "Pipeline/Scaffolding/SequentialFilter.h"
 #include "Pipeline/AsyncPipelineRunner.h"
+
 #include "Misc/Debug.h"
 
 #include <string>
@@ -168,24 +170,22 @@ bool AVideoTransmitter::StartStreams()
 				runner_ = new AsyncPipelineRunner(
 					new Pipeline(
 						reader_,
-						new ImageSequentialFilter(
-							{
-								new Equirectangular360Converter(widthAndHeightPerCaptureSide_, widthAndHeightPerCaptureSide_, frameWidth, frameHeight, bilinearFiltering_),
-								new BgraToRgbaConverter(),
-							}),
-							new PngRecorder(TCHAR_TO_UTF8(*saveDirectory_), frameWidth, frameHeight)));
+						new Equirectangular360Converter(widthAndHeightPerCaptureSide_, widthAndHeightPerCaptureSide_,
+							frameWidth, frameHeight, bilinearFiltering_),
+						new BgraToRgbaConverter(),
+						new PngRecorder(TCHAR_TO_UTF8(*saveDirectory_), frameWidth, frameHeight)));
 			}
 			else
 			{
 				runner_ = new AsyncPipelineRunner(
 					new Pipeline(
 						reader_,
-						new ImageSequentialFilter(
-							{
-								new Equirectangular360Converter(widthAndHeightPerCaptureSide_, widthAndHeightPerCaptureSide_, frameWidth, frameHeight, bilinearFiltering_),
-								new RgbaToYuvConverter(frameWidth, frameHeight),
-								new HevcEncoder(frameWidth, frameHeight, processingThreadCount_, quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_, saveToFile_ ? HevcPresetLossless : HevcPresetMinimumLatency)
-							}),
+						new Equirectangular360Converter(widthAndHeightPerCaptureSide_, widthAndHeightPerCaptureSide_,
+							frameWidth, frameHeight, bilinearFiltering_),
+						new RgbaToYuvConverter(frameWidth, frameHeight),
+						new HevcEncoder(frameWidth, frameHeight,
+							processingThreadCount_, quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_,
+							saveToFile_ ? HevcPresetLossless : HevcPresetMinimumLatency),
 						new RtpTransmitter(TCHAR_TO_UTF8(*remoteStreamIp_), remoteVideoDstPort_)));
 			}
 		}
@@ -203,34 +203,24 @@ bool AVideoTransmitter::StartStreams()
 				runner_ = new AsyncPipelineRunner(
 					new Pipeline(
 						reader_,
-						new ImageSequentialFilter(
-							{
-								new BgraToRgbaConverter(),
-							}),
-							new PngRecorder(TCHAR_TO_UTF8(*saveDirectory_), frameWidth, frameHeight)));
+						new BgraToRgbaConverter(),
+						new PngRecorder(TCHAR_TO_UTF8(*saveDirectory_), frameWidth, frameHeight)));
 			}
 			else
 			{
 				runner_ = new AsyncPipelineRunner(
 					new Pipeline(
 						reader_,
-						new ImageSequentialFilter(
-							{
-								new RgbaToYuvConverter(frameWidth, frameHeight),
-								new HevcEncoder(frameWidth, frameHeight, processingThreadCount_, quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_, saveToFile_ ? HevcPresetLossless : HevcPresetMinimumLatency)
-							}),
+						new RgbaToYuvConverter(frameWidth, frameHeight),
+						new HevcEncoder(frameWidth, frameHeight,
+							processingThreadCount_, quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_,
+							saveToFile_ ? HevcPresetLossless : HevcPresetMinimumLatency),
 						new RtpTransmitter(TCHAR_TO_UTF8(*remoteStreamIp_), remoteVideoDstPort_)));
 			}
 		}
 	}
 	catch (const std::exception& exception)
 	{
-		// This leaks memory if some pipeline components are constructed before
-		// the exception is thrown. It should be fine since this only happens
-		// when the user provides invalid parameters to the pipeline. It's
-		// probably not possible to avoid the leak without initializing every
-		// pipeline component manually one at a time, and that would get messy
-
 		Debug::Log("Pipeline construction failed: " + std::string(exception.what()));
 
 		DeleteStreams();

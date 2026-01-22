@@ -32,6 +32,20 @@ namespace TemplateUtility
 	{
 		For(std::make_integer_sequence<decltype(N), N>(), func);
 	}
+
+	// Useful for getting the first parameter of a parameter pack at compile time
+	template <typename T>
+	constexpr auto GetFirstFromVector(const std::vector<T>& vector)
+	{
+		return vector.front();
+	}
+
+	// Useful for getting the last parameter of a parameter pack at compile time
+	template <typename T>
+	constexpr auto GetLastFromVector(const std::vector<T>& vector)
+	{
+		return vector.back();
+	}
 }
 
 // This is useful for simplifying some template function calls so that you

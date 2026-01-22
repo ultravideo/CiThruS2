@@ -1,21 +1,13 @@
 #include "PerformanceMeasurer.h"
-#include "Video/Pipeline/RenderTargetReader.h"
-#include "Video/Pipeline/RenderTargetWriter.h"
-#include "Video/Pipeline/FloatToByteConverter.h"
-#include "Video/Pipeline/RgbaToYuvConverter.h"
-#include "Video/Pipeline/YuvToRgbaConverter.h"
-#include "Video/Pipeline/DepthToYuvConverter.h"
-#include "Video/Pipeline/ImageConcatenator.h"
-#include "Video/Pipeline/HevcEncoder.h"
-#include "Video/Pipeline/HevcDecoder.h"
-#include "Video/Pipeline/Pipeline.h"
-#include "Video/Pipeline/SolidColorImageGenerator.h"
-#include "Video/Pipeline/RtpTransmitter.h"
-#include "Video/Pipeline/RtpReceiver.h"
-#include "Video/Pipeline/ScaffoldingParallelFilter.h"
-#include "Video/Pipeline/ScaffoldingParallelSource.h"
-#include "Video/Pipeline/ScaffoldingSequentialFilter.h"
-#include "Video/Pipeline/AsyncPipelineRunner.h"
+
+#include "Pipeline/Pipeline.h"
+#include "Pipeline/AsyncPipelineRunner.h"
+#include "Pipeline/Components/RenderTargetReader.h"
+#include "Pipeline/Components/RgbaToYuvConverter.h"
+#include "Pipeline/Components/HevcEncoder.h"
+#include "Pipeline/Components/RtpTransmitter.h"
+#include "Pipeline/Scaffolding/SequentialFilter.h"
+
 #include "Misc/Debug.h"
 
 #include "RHI.h"
@@ -143,11 +135,9 @@ void APerformanceMeasurer::StartStreams()
         runners_[i] = new AsyncPipelineRunner(
             new Pipeline(
                 readers_[i],
-                new ImageSequentialFilter(
-                    {
-                        new RgbaToYuvConverter(remoteStreamWidth_, remoteStreamHeight_),
-                        new HevcEncoder(remoteStreamWidth_, remoteStreamHeight_, 16, quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_)
-                    }),
+                new RgbaToYuvConverter(remoteStreamWidth_, remoteStreamHeight_),
+                new HevcEncoder(remoteStreamWidth_, remoteStreamHeight_, 16,
+                    quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_),
                 new RtpTransmitter(TCHAR_TO_UTF8(*remoteStreamIp_), remoteStreamPort_ + i)));
     }
 }

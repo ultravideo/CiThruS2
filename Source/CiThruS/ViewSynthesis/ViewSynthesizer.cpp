@@ -1,33 +1,37 @@
 #include "ViewSynthesizer.h"
-#include "Video/Pipeline/RenderTargetReader.h"
-#include "Video/Pipeline/RenderTargetWriter.h"
-#include "Video/Pipeline/FloatToByteConverter.h"
-#include "Video/Pipeline/RgbaToYuvConverter.h"
-#include "Video/Pipeline/YuvToRgbaConverter.h"
-#include "Video/Pipeline/DepthToYuvConverter.h"
-#include "Video/Pipeline/DepthSeparator.h"
-#include "Video/Pipeline/ImageConcatenator.h"
-#include "Video/Pipeline/SeiEmbedder.h"
-#include "Video/Pipeline/CsvLogger.h"
-#include "Video/Pipeline/HevcEncoder.h"
-#include "Video/Pipeline/HevcDecoder.h"
-#include "Video/Pipeline/Pipeline.h"
-#include "Video/Pipeline/SolidColorImageGenerator.h"
-#include "Video/Pipeline/RtpTransmitter.h"
-#include "Video/Pipeline/RtpReceiver.h"
-#include "Video/Pipeline/BlinkerSource.h"
-#include "Video/Pipeline/BlinkDetector.h"
-#include "Video/Pipeline/PngRecorder.h"
-#include "Video/Pipeline/FileSink.h"
-#include "Video/Pipeline/ScaffoldingAdapter.h"
-#include "Video/Pipeline/ScaffoldingDuplicator.h"
-#include "Video/Pipeline/ScaffoldingSidechainSource.h"
-#include "Video/Pipeline/ScaffoldingSequentialFilter.h"
-#include "Video/Pipeline/ScaffoldingSequentialSink.h"
-#include "Video/Pipeline/ScaffoldingParallelFilter.h"
-#include "Video/Pipeline/ScaffoldingParallelSource.h"
-#include "Video/Pipeline/ScaffoldingParallelSink.h"
-#include "Video/Pipeline/AsyncPipelineRunner.h"
+
+#include "Pipeline/Pipeline.h"
+#include "Pipeline/AsyncPipelineRunner.h"
+
+#include "Pipeline/Components/RenderTargetReaderWithUserData.h"
+#include "Pipeline/Components/RenderTargetWriter.h"
+#include "Pipeline/Components/FloatToByteConverter.h"
+#include "Pipeline/Components/RgbaToYuvConverter.h"
+#include "Pipeline/Components/YuvToRgbaConverter.h"
+#include "Pipeline/Components/DepthToYuvConverter.h"
+#include "Pipeline/Components/DepthSeparator.h"
+#include "Pipeline/Components/ImageConcatenator.h"
+#include "Pipeline/Components/SeiEmbedder.h"
+#include "Pipeline/Components/CsvLogger.h"
+#include "Pipeline/Components/HevcEncoder.h"
+#include "Pipeline/Components/HevcDecoder.h"
+#include "Pipeline/Components/SolidColorImageGenerator.h"
+#include "Pipeline/Components/RtpTransmitter.h"
+#include "Pipeline/Components/RtpReceiver.h"
+#include "Pipeline/Components/BlinkerSource.h"
+#include "Pipeline/Components/BlinkDetector.h"
+#include "Pipeline/Components/PngRecorder.h"
+#include "Pipeline/Components/FileSink.h"
+
+#include "Pipeline/Scaffolding/PassthroughFilter.h"
+#include "Pipeline/Scaffolding/DuplicatorFilter.h"
+#include "Pipeline/Scaffolding/SidechainSource.h"
+#include "Pipeline/Scaffolding/SequentialFilter.h"
+#include "Pipeline/Scaffolding/SequentialSink.h"
+#include "Pipeline/Scaffolding/ParallelFilter.h"
+#include "Pipeline/Scaffolding/ParallelSource.h"
+#include "Pipeline/Scaffolding/ParallelSink.h"
+
 #include "Misc/Debug.h"
 
 #include "RHI.h"
@@ -167,54 +171,42 @@ bool AViewSynthesizer::StartStreams()
         if (saveToFile_)
         {
             frontReader_ = nullptr;
-            rearReader_ = new RenderTargetReader({ rearRenderTarget_ }, true, depthRange_);
+            rearReader_ = new RenderTargetReaderWithUserData({ rearRenderTarget_ }, true, depthRange_);
 
             runners_.push_back(
                 new AsyncPipelineRunner(
                     new Pipeline(
                         rearReader_,
-                        new ScaffoldingParallelSink<2>(
+                        new ParallelSink<2>(
                             {
-                                new ImageSequentialSink(
-                                    {
-                                        new DepthSeparator()
-                                    },
+                                new SequentialSink(
+                                    new DepthSeparator(),
                                     new PngRecorder(TCHAR_TO_UTF8(*saveDirectory_), frameWidth, frameHeight * 2)),
-                                new ImageSequentialSink(
-                                    {
-                                        new CsvLogger()
-                                    },
+                                new SequentialSink(
+                                    new CsvLogger(),
                                     new FileSink(TCHAR_TO_UTF8(*(saveDirectory_ + FString("log.csv")))))
                             }))));
         }
         else
         {
-            frontReader_ = new RenderTargetReader({ frontRenderTarget_ }, true, depthRange_);
-            rearReader_ = new RenderTargetReader({ rearRenderTarget_ }, true, depthRange_);
+            frontReader_ = new RenderTargetReaderWithUserData({ frontRenderTarget_ }, true, depthRange_);
+            rearReader_ = new RenderTargetReaderWithUserData({ rearRenderTarget_ }, true, depthRange_);
 
             runners_.push_back(
                 new AsyncPipelineRunner(
                     new Pipeline(
                         frontReader_,
-                        new ScaffoldingAdapter<2, 1>(
-                            new ScaffoldingParallelFilter<2>(
-                                {
-                                    new ImageSequentialFilter(
-                                    {
-                                        new ScaffoldingAdapter<1, 1>(
-                                            new ScaffoldingDuplicator<2>(),
-                                            new ScaffoldingAdapter<2, 1>(
-                                                new ScaffoldingParallelFilter<2>(
-                                                {
-                                                    new RgbaToYuvConverter(frameWidth, frameHeight),
-                                                    new DepthToYuvConverter()
-                                                }),
-                                                new ImageConcatenator<2>(frameWidth, frameHeight))
-                                        ),
-                                        new HevcEncoder(frameWidth, frameHeight * 2, 16, quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_, HevcPresetMinimumLatency)
-                                    }),
-                                    new ImageSequentialFilter()
-                                }),
+                        new SequentialFilter(
+                            new ParallelFilter(
+                                new SequentialFilter(
+                                    new DuplicatorFilter<2>(),
+                                    new ParallelFilter(
+                                        new RgbaToYuvConverter(frameWidth, frameHeight),
+                                        new DepthToYuvConverter()),
+                                    new ImageConcatenator<2>(frameWidth, frameHeight),
+                                    new HevcEncoder(frameWidth, frameHeight * 2, 28,
+                                        quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_, HevcPresetMinimumLatency)),
+                                new PassthroughFilter<1>()),
                             new SeiEmbedder("CiThruSViewSynth")),
                         new RtpTransmitter(TCHAR_TO_UTF8(*remoteStreamIp_), remoteStreamPort_ + 1))));
 
@@ -222,19 +214,16 @@ bool AViewSynthesizer::StartStreams()
                 new AsyncPipelineRunner(
                     new Pipeline(
                         rearReader_,
-                        new ScaffoldingAdapter<2, 1>(
-                            new ScaffoldingParallelFilter<2>(
-                                {
-                                    new ImageSequentialFilter(
-                                        {
-                                            new RgbaToYuvConverter(frameWidth, frameHeight),
-                                            new ScaffoldingSidechainSource<1, 1>(
-                                                new SolidColorImageGenerator(frameWidth, frameHeight, 0, 128, 128),
-                                                new ImageConcatenator<2>(frameWidth, frameHeight)),
-                                            new HevcEncoder(frameWidth, frameHeight * 2, 16, quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_, HevcPresetMinimumLatency),
-                                        }),
-                                    new ImageSequentialFilter()
-                                }),
+                        new SequentialFilter(
+                            new ParallelFilter(
+                                new SequentialFilter(
+                                    new RgbaToYuvConverter(frameWidth, frameHeight),
+                                    new SidechainSource(
+                                        new SolidColorImageGenerator(frameWidth, frameHeight, 0, 128, 128),
+                                        new ImageConcatenator<2>(frameWidth, frameHeight)),
+                                    new HevcEncoder(frameWidth, frameHeight * 2, 28,
+                                        quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_, HevcPresetMinimumLatency)),
+                                new PassthroughFilter<1>()),
                             new SeiEmbedder("CiThruSViewSynth")),
                         new RtpTransmitter(TCHAR_TO_UTF8(*remoteStreamIp_), remoteStreamPort_))));
 
@@ -242,23 +231,13 @@ bool AViewSynthesizer::StartStreams()
                 new AsyncPipelineRunner(
                     new Pipeline(
                         new RtpReceiver(TCHAR_TO_UTF8(*remoteStreamIp_), remoteStreamPort_ - 1),
-                        new ImageSequentialFilter(
-                            {
-                                new HevcDecoder(16),
-                                new YuvToRgbaConverter(frameWidth, frameHeight, "bgra"),
-                                //new BlinkDetector("stop.txt"),
-                            }),
-                            new RenderTargetWriter(resultRenderTarget_))));
+                        new HevcDecoder(28),
+                        new YuvToRgbaConverter(frameWidth, frameHeight, "bgra"),
+                        new RenderTargetWriter(resultRenderTarget_))));
         }
     }
     catch (const std::exception& exception)
     {
-        // This leaks memory if some pipeline components are constructed before
-        // the exception is thrown. It should be fine since this only happens
-        // when the user provides invalid parameters to the pipeline. It's
-        // probably not possible to avoid the leak without initializing every
-        // pipeline component manually one at a time, and that would get messy
-
         Debug::Log("Pipeline construction failed: " + std::string(exception.what()));
 
         DeleteStreams();
