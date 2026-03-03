@@ -2,7 +2,7 @@
 
 #include "CoreMinimal.h"
 
-class FCiThruSModule : public IModuleInterface
+class FCiThruSModule : public FDefaultGameModuleImpl
 {
 public:
 	virtual void StartupModule() override;

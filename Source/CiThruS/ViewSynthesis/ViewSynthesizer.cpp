@@ -196,35 +196,33 @@ bool AViewSynthesizer::StartStreams()
                 new AsyncPipelineRunner(
                     new Pipeline(
                         frontReader_,
-                        new SequentialFilter(
-                            new ParallelFilter(
-                                new SequentialFilter(
-                                    new DuplicatorFilter<2>(),
-                                    new ParallelFilter(
-                                        new RgbaToYuvConverter(frameWidth, frameHeight),
-                                        new DepthToYuvConverter()),
-                                    new ImageConcatenator<2>(frameWidth, frameHeight),
-                                    new HevcEncoder(frameWidth, frameHeight * 2, 28,
-                                        quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_, HevcPresetMinimumLatency)),
-                                new PassthroughFilter<1>()),
-                            new SeiEmbedder("CiThruSViewSynth")),
+                        new ParallelFilter(
+                            new SequentialFilter(
+                                new DuplicatorFilter<2>(),
+                                new ParallelFilter(
+                                    new RgbaToYuvConverter(frameWidth, frameHeight),
+                                    new DepthToYuvConverter()),
+                                new ImageConcatenator<2>(frameWidth, frameHeight),
+                                new HevcEncoder(frameWidth, frameHeight * 2, 28,
+                                    quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_, HevcPresetMinimumLatency)),
+                            new PassthroughFilter<1>()),
+                        new SeiEmbedder("CiThruSViewSynth"),
                         new RtpTransmitter(TCHAR_TO_UTF8(*remoteStreamIp_), remoteStreamPort_ + 1))));
 
             runners_.push_back(
                 new AsyncPipelineRunner(
                     new Pipeline(
                         rearReader_,
-                        new SequentialFilter(
-                            new ParallelFilter(
-                                new SequentialFilter(
-                                    new RgbaToYuvConverter(frameWidth, frameHeight),
-                                    new SidechainSource(
-                                        new SolidColorImageGenerator(frameWidth, frameHeight, 0, 128, 128),
-                                        new ImageConcatenator<2>(frameWidth, frameHeight)),
-                                    new HevcEncoder(frameWidth, frameHeight * 2, 28,
-                                        quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_, HevcPresetMinimumLatency)),
-                                new PassthroughFilter<1>()),
-                            new SeiEmbedder("CiThruSViewSynth")),
+                        new ParallelFilter(
+                            new SequentialFilter(
+                                new RgbaToYuvConverter(frameWidth, frameHeight),
+                                new SidechainSource(
+                                    new SolidColorImageGenerator(frameWidth, frameHeight, 0, 128, 128),
+                                    new ImageConcatenator<2>(frameWidth, frameHeight)),
+                                new HevcEncoder(frameWidth, frameHeight * 2, 28,
+                                    quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_, HevcPresetMinimumLatency)),
+                            new PassthroughFilter<1>()),
+                        new SeiEmbedder("CiThruSViewSynth"),
                         new RtpTransmitter(TCHAR_TO_UTF8(*remoteStreamIp_), remoteStreamPort_))));
 
             runners_.push_back(

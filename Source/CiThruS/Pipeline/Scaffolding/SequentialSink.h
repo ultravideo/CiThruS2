@@ -102,7 +102,7 @@ protected:
 			};
 	}
 
-	template <class TTuple, int NSinkInputs, std::size_t... I>
+	template <class TTuple, uint8_t NSinkInputs, std::size_t... I>
 	void UnrollComponents(PipelineSink<NSinkInputs>* sink, TTuple&& tuple, std::index_sequence<I...>)
 	{
 		ConstructInternal(sink, (std::get<I>(tuple), ...));

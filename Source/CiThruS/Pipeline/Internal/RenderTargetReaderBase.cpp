@@ -11,7 +11,7 @@
 RenderTargetReaderBase::RenderTargetReaderBase(std::vector<UTextureRenderTarget2D*> textures, const bool& depth, const float& depthRange)
 	: depth_(depth), depthRange_(depthRange),
 	imageFormat_("error"), imageCount_(0),
-	frameDirty_(false), flushNeeded_(false), bufferIndex_(0),
+	frameDirty_(false), bufferIndex_(0), flushNeeded_(false),
 	initialized_(false), destroyed_(false)
 {
 	frameBuffers_[0] = nullptr;
