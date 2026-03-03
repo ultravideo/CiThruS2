@@ -488,7 +488,7 @@ call :kvazaarsetup
 call :openhevcsetup
 call :uvgrtpsetup
 call :fpngsetup
-::call :pahocppsetup
+call :pahocppsetup
 
 if not exist Content (
 	echo %COLOR_FAILURE%Setup failed, CiThruS2 cannot be used without the content!%COLOR_RESET%

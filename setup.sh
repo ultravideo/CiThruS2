@@ -605,7 +605,7 @@ setup_kvazaar
 setup_openhevc
 setup_uvgrtp
 setup_fpng
-# setup_pahocpp
+setup_pahocpp
 
 if [[ ! -d "Content" ]]
 then

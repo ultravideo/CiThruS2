@@ -1,5 +1,5 @@
 #include "PubSubCommunicator.h"
-#include "IPublisher.h"
+#include "MqttPublisher.h"
 #include "Traffic/Entities/Car.h"
 #include "Traffic/Entities/Pedestrian.h"
 #include "Traffic/Entities/Bicycle.h"
@@ -174,12 +174,12 @@ void UPubSubCommunicator::PublishTrafficEntity(FString topic, AActor* actor)
 
 void UPubSubCommunicator::StartMqttClient(FString serverUri, FString username, FString password, int maxMsgsPerSecond)
 {
-	/*publisher_ = TSharedPtr<IPublisher>(
+	publisher_ = TSharedPtr<IPublisher>(
 		new MqttPublisher(
 			TCHAR_TO_UTF8(*serverUri),
 			TCHAR_TO_UTF8(*username),
 			TCHAR_TO_UTF8(*password),
-			maxMsgsPerSecond));*/
+			maxMsgsPerSecond));
 }
 
 void UPubSubCommunicator::StopAllClients()
