@@ -71,6 +71,7 @@ void ATrafficStopArea::UpdateCollisionStatusWithEntity(ITrafficEntity* entity)
 			entity->OnExitedStopArea(this);
 		}
 	}
+
 	// Check if entity will be overlapping this in the near future
 	if (futureIntersecting)
 	{
@@ -90,4 +91,9 @@ void ATrafficStopArea::UpdateCollisionStatusWithEntity(ITrafficEntity* entity)
 			entity->OnExitedFutureStopArea(this);
 		}
 	}
+}
+
+void ATrafficStopArea::Visualize(float duration) const
+{
+	collisionRectangle_.Visualize(GetWorld(), duration, active_ ? FColor::Red : FColor::Green);
 }

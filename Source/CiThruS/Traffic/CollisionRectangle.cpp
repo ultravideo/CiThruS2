@@ -31,25 +31,25 @@ bool CollisionRectangle::IsIntersecting2DTriangle(const FVector2D& corner0, cons
 	return MathUtility::PolygonIntersectingPolygon(corners_, 4, corners, 3);
 }
 
-void CollisionRectangle::Visualize(UWorld* world, const float& deltaTime, FColor color) const
+void CollisionRectangle::Visualize(UWorld* world, const float& duration, FColor color) const
 {
 	// Draw top
-	Debug::DrawTemporaryLine(world, FVector(corners_[0], top_), FVector(corners_[1], top_), color, deltaTime * 1.1f, 2.0f);
-	Debug::DrawTemporaryLine(world, FVector(corners_[1], top_), FVector(corners_[2], top_), color, deltaTime * 1.1f, 2.0f);
-	Debug::DrawTemporaryLine(world, FVector(corners_[2], top_), FVector(corners_[3], top_), color, deltaTime * 1.1f, 2.0f);
-	Debug::DrawTemporaryLine(world, FVector(corners_[3], top_), FVector(corners_[0], top_), color, deltaTime * 1.1f, 2.0f);
+	Debug::DrawTemporaryLine(world, FVector(corners_[0], top_), FVector(corners_[1], top_), color, duration * 1.1f, 2.0f);
+	Debug::DrawTemporaryLine(world, FVector(corners_[1], top_), FVector(corners_[2], top_), color, duration * 1.1f, 2.0f);
+	Debug::DrawTemporaryLine(world, FVector(corners_[2], top_), FVector(corners_[3], top_), color, duration * 1.1f, 2.0f);
+	Debug::DrawTemporaryLine(world, FVector(corners_[3], top_), FVector(corners_[0], top_), color, duration * 1.1f, 2.0f);
 
 	// Draw bottom
-	Debug::DrawTemporaryLine(world, FVector(corners_[0], bottom_), FVector(corners_[1], bottom_), color, deltaTime * 1.1f, 2.0f);
-	Debug::DrawTemporaryLine(world, FVector(corners_[1], bottom_), FVector(corners_[2], bottom_), color, deltaTime * 1.1f, 2.0f);
-	Debug::DrawTemporaryLine(world, FVector(corners_[2], bottom_), FVector(corners_[3], bottom_), color, deltaTime * 1.1f, 2.0f);
-	Debug::DrawTemporaryLine(world, FVector(corners_[3], bottom_), FVector(corners_[0], bottom_), color, deltaTime * 1.1f, 2.0f);
+	Debug::DrawTemporaryLine(world, FVector(corners_[0], bottom_), FVector(corners_[1], bottom_), color, duration * 1.1f, 2.0f);
+	Debug::DrawTemporaryLine(world, FVector(corners_[1], bottom_), FVector(corners_[2], bottom_), color, duration * 1.1f, 2.0f);
+	Debug::DrawTemporaryLine(world, FVector(corners_[2], bottom_), FVector(corners_[3], bottom_), color, duration * 1.1f, 2.0f);
+	Debug::DrawTemporaryLine(world, FVector(corners_[3], bottom_), FVector(corners_[0], bottom_), color, duration * 1.1f, 2.0f);
 
 	// Draw sides
-	Debug::DrawTemporaryLine(world, FVector(corners_[0], top_), FVector(corners_[0], bottom_), color, deltaTime * 1.1f, 2.0f);
-	Debug::DrawTemporaryLine(world, FVector(corners_[1], top_), FVector(corners_[1], bottom_), color, deltaTime * 1.1f, 2.0f);
-	Debug::DrawTemporaryLine(world, FVector(corners_[2], top_), FVector(corners_[2], bottom_), color, deltaTime * 1.1f, 2.0f);
-	Debug::DrawTemporaryLine(world, FVector(corners_[3], top_), FVector(corners_[3], bottom_), color, deltaTime * 1.1f, 2.0f);
+	Debug::DrawTemporaryLine(world, FVector(corners_[0], top_), FVector(corners_[0], bottom_), color, duration * 1.1f, 2.0f);
+	Debug::DrawTemporaryLine(world, FVector(corners_[1], top_), FVector(corners_[1], bottom_), color, duration * 1.1f, 2.0f);
+	Debug::DrawTemporaryLine(world, FVector(corners_[2], top_), FVector(corners_[2], bottom_), color, duration * 1.1f, 2.0f);
+	Debug::DrawTemporaryLine(world, FVector(corners_[3], top_), FVector(corners_[3], bottom_), color, duration * 1.1f, 2.0f);
 }
 
 void CollisionRectangle::SetPosition(const FVector& position)

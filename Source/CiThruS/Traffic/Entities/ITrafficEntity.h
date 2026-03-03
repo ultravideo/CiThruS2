@@ -3,6 +3,7 @@
 #include "CoreMinimal.h"
 #include "UObject/Interface.h"
 #include "Traffic/CollisionRectangle.h"
+#include "Traffic/TrafficController.h"
 #include "ITrafficEntity.generated.h"
 
 class ATrafficStopArea;
@@ -46,6 +47,7 @@ public:
 	virtual bool Blocked() const = 0;
 
 	virtual FVector GetMoveDirection() const = 0;
+	virtual float GetMoveSpeed() const = 0;
 
 	virtual CollisionRectangle GetCollisionRectangle() const = 0;
 	virtual CollisionRectangle GetPredictedFutureCollisionRectangle() const = 0;
@@ -53,7 +55,30 @@ public:
 	virtual FString GetName() const = 0;
 
 	virtual int32 GetKeypointRuleExceptions() const { return 0; }
+	virtual std::pair<int32, int32> GetCurrentZone() const { return currentZone_; }
+
+	virtual void Visualize(float duration) const = 0;
 
 protected:
 	ITrafficEntity() { }
+		
+	std::pair<int32, int32> currentZone_ = std::make_pair(0, 0);
+	std::pair<int32, int32> previousZone_ = std::make_pair(0, 0);
+		
+	virtual void UpdateZone(ATrafficController* controller)
+	{
+		AActor* actor = Cast<AActor>(this);
+		if (actor && controller)
+		{
+			currentZone_ = std::make_pair(static_cast<int>(actor->GetActorLocation().X / 1000.0f), static_cast<int>(actor->GetActorLocation().Z / 1000.0f));
+			if (previousZone_.first != currentZone_.first || previousZone_.second != currentZone_.second)
+			{
+				//UE_LOG(LogTemp, Warning, TEXT("Updating zone for %s from (%d, %d) to (%d, %d)"), *GetName(), previousZone_.first, previousZone_.second, currentZone_.first, currentZone_.second);
+				controller->EntityChangeZone(currentZone_, previousZone_, this);
+				previousZone_ = currentZone_;
+			}
+			//else UE_LOG(LogTemp, Warning, TEXT("Zone for %s is still (%d, %d)"), *GetName(), currentZone_.first, currentZone_.second);
+		}
+		//else UE_LOG(LogTemp, Error, TEXT("ALERT: Casting of entity %s to AActor failed (or traffic controller not set)"), *GetName());
+	}
 };

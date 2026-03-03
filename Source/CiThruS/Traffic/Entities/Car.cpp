@@ -41,6 +41,8 @@ void ACar::Tick(float deltaTime)
 {
 	Super::Tick(deltaTime);
 	frameCounter_++;
+	UpdateZone(GetController());
+
 
 	if (!simulate_)
 	{
@@ -219,6 +221,17 @@ void ACar::SetColliders()
 	futureCollisionRectangle_.SetRotation(tangent.ToOrientationQuat());	
 }
 
+void ACar::Visualize(float duration) const
+{
+	collisionRectangle_.Visualize(GetWorld(), duration);
+	futureCollisionRectangle_.Visualize(GetWorld(), duration, FColor::Blue);
+
+	const FVector rayBegin = collisionRectangle_.GetPosition();
+	const FVector rayEnd = rayBegin + moveDirection_ * 250.0f;
+
+	Debug::DrawTemporaryLine(GetWorld(), rayBegin, rayEnd, FColor::Blue, duration * 1.1f, 5.0f);
+}
+
 float ACar::GetAnimSteeringAngle()
 {
 	// Figure out the rotation of the front wheels
@@ -266,6 +279,15 @@ void ACar::UpdateBlockingCollisionWith(ITrafficEntity* otherEntity)
 	}
 
 	blocked_ = BlockedBy(otherEntity);
+
+	if (blocked_)
+	{
+		blockingEntityName_ = otherEntity->GetName();
+	}
+	else
+	{
+		blockingEntityName_ = FString(TEXT("None"));
+	}
 }
 
 void ACar::UpdateBlockingCollisionWith(FVector position)
@@ -348,7 +370,7 @@ bool ACar::BlockedBy(ITrafficEntity* trafficEntity) const
 
 	FVector dimensionSum = myCollision.GetDimensions() + otherCollision.GetDimensions() + myFutureCollision.GetDimensions() + otherFutureCollision.GetDimensions();
 
-	if (FVector::DistSquared(myCollision.GetPosition(), otherCollision.GetPosition()) > FVector::DotProduct(dimensionSum, dimensionSum) * 0.25f)
+	if (FVector::DistSquared(myCollision.GetPosition(), otherCollision.GetPosition()) > FVector::DotProduct(dimensionSum, dimensionSum) * 0.25f) // (a*b)^2 = a^2 * b^2 => 0.25 is the square root of 0.5...
 	{
 		// If the distance between the collision rectangles is larger than half of the sum of their diagonals, they are too far away to ever intersect no matter their rotation
 		return false;
@@ -403,6 +425,8 @@ bool ACar::BlockedBy(ITrafficEntity* trafficEntity) const
 			}
 		}
 
+
+		// TODO: Always wait if myFutureCollision.IsIntersecting(otherCollision), regardless
 		// If one car is yielding, make that one wait
 		if (trafficEntity->Yielding() && !Yielding())
 		{

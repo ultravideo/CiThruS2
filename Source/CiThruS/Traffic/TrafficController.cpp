@@ -3,6 +3,8 @@
 #include "Entities/Pedestrian.h"
 #include "Entities/Bicycle.h"
 #include "Areas/TrafficStopArea.h"
+#include "Areas/TrafficParkArea.h"
+#include "Areas/TrafficYieldArea.h"
 #include "EngineUtils.h"
 #include "Misc/MathUtility.h"
 #include "Misc/Debug.h"
@@ -12,21 +14,21 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetMathLibrary.h"
 #include "Runtime/Core/Public/Async/ParallelFor.h"
+#include "LodController.h"
 
 #if WITH_EDITOR
 #include "GameFramework/SpectatorPawn.h"
 #include "Editor.h"
 #include "EditorViewportClient.h"
-#endif
+#endif // WITH_EDITOR
 
 #include <list>
 
 ATrafficController::ATrafficController()
 	: parkingController_(nullptr),
-	entityInFront_(nullptr), entityInFrontDistance_(0.0f),
+	lodController_(nullptr),
 	massDeletionInProgress_(false),
-	visualizeCollisions_(false), visualizeViewFrustrum_(false),
-	farDistance_(1.0f)
+	visualizeCollisions_(false)
 {
  	// Set this actor to call Tick() every frame
 	PrimaryActorTick.bCanEverTick = true;
@@ -42,10 +44,6 @@ void ATrafficController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// Configure detail control
-	farDistance_ = distanceFromCameraToEnableLowDetail_;
-	nearestEntities_.reserve(std::max(maxHighDetailVehiclesZeroForUnlimited_, 0));
-
 	// Load keypoints
 	roadGraph_.LoadFromFile(TCHAR_TO_UTF8(*(FPaths::ProjectDir() + "/DataFiles/roadGraph.data")));
 	roadGraph_.AlignWithWorldGround(GetWorld());
@@ -59,7 +57,6 @@ void ATrafficController::BeginPlay()
 	bicycleGraph_.LoadFromFile(TCHAR_TO_UTF8(*(FPaths::ProjectDir() + "/DataFiles/bicycleGraph.data")));
 	bicycleGraph_.AlignWithWorldGround(GetWorld());
 
-
 	// Fetch traffic areas
 	trafficAreas_.Empty();
 
@@ -71,10 +68,16 @@ void ATrafficController::BeginPlay()
 		}
 	}
 
+	if (lowDetailEntitiesOutsideCamera_)
+	{
+		lodController_ = new LodController(this, distanceFromCameraToEnableLowDetail_);
+	}
+
 	// Apply extra rules to car keypoints from VehicleRuleZones, incase they aren't applied manually
 	roadGraph_.ApplyZoneRules(this);
 
-	if (simulateParking_) {
+	if (simulateParking_)
+	{
 		// Get ref to parking controller
 		TArray<AActor*> find;
 		UGameplayStatics::GetAllActorsOfClass(GetWorld(), AParkingController::StaticClass(), find);
@@ -82,371 +85,58 @@ void ATrafficController::BeginPlay()
 		if (find.Num() <= 0)
 		{
 			Debug::Log("No ParkingController placed");
-			return;
 		}
-
-		parkingController_ = Cast<AParkingController>(find[0]);
+		else
+		{
+			parkingController_ = Cast<AParkingController>(find[0]);
+		}
 	}
-	else parkingController_ = nullptr;
+	else
+	{
+		parkingController_ = nullptr;
+	}
 
-	BeginSimulateTraffic();
+	if (simulateTraffic_)
+	{
+		BeginSimulateTraffic();
+	}
+}
+
+void ATrafficController::EndPlay(const EEndPlayReason::Type endPlayReason)
+{
+	Super::EndPlay(endPlayReason);
+
+	delete lodController_;
+	lodController_ = nullptr;
 }
 
 void ATrafficController::Tick(float deltaTime)
 {
 	Super::Tick(deltaTime);
 
-	for (TrafficEntityWrapper& entityWrapper : simulatedEntities_)
-	{
-		for (ITrafficArea* trafficArea : trafficAreas_)
-		{
-			trafficArea->UpdateCollisionStatusWithEntity(entityWrapper.entity);
-		}
+	CheckEntityCollisions();
 
-		if (visualizeCollisions_)
-		{
-			VisualizeCollisionForEntity(entityWrapper.entity, deltaTime);
-		}
+	if (lodController_ != nullptr)
+	{
+		lodController_->UpdateAllLods();
 	}
 
 	if (visualizeCollisions_)
 	{
 		for (ITrafficArea* trafficArea : trafficAreas_)
 		{
-			if (ATrafficStopArea* stopArea = Cast<ATrafficStopArea>(trafficArea)) 
-			{
-				// Visualize either red or green depending on traffic light state
-				stopArea->GetCollisionRectangle().Visualize(GetWorld(), deltaTime, stopArea->Active() ? FColor::Red : FColor::Green);
-			}
-			else if (ARoadRegulationZone* ruleZone = Cast<ARoadRegulationZone>(trafficArea))
-			{
-				ruleZone->GetCollisionRectangle().Visualize(GetWorld(), deltaTime, FColor::Yellow);
-			}
-			else
-			{
-				trafficArea->GetCollisionRectangle().Visualize(GetWorld(), deltaTime, FColor::Blue);
-			}		
+			trafficArea->Visualize(deltaTime);
 		}
 
-		std::list<APawn*> pawns;
-
-		// Collect current pawns in the scene
-		for (TActorIterator<APawn> it = TActorIterator<APawn>(GetWorld()); it; it.operator++())
+		for (ITrafficEntity* entity : simulatedEntities_)
 		{
-			if (*it == nullptr)
-			{
-				continue;
-			}
-
-			pawns.push_back(*it);
+			entity->Visualize(deltaTime);
 		}
-		
-		for (APawn* pawn : pawns)
+
+		for (ITrafficEntity* entity : staticEntities_)
 		{
-			FBox box = pawn->CalculateComponentsBoundingBoxInLocalSpace(false, false);
-			Debug::DrawTemporaryRect(GetWorld(), pawn->GetActorLocation(), pawn->GetActorQuat().Vector(), box.GetSize().X, box.GetSize().Y, box.GetSize().Z, 20.0f, FColor::Orange, deltaTime * 1.1f);
+			entity->Visualize(deltaTime);
 		}
-	}
-
-	CheckEntityCollisions();
-}
-
-void ATrafficController::CheckEntityCollisions()
-{
-	std::list<CollisionRectangle> pawnCollisions;
-
-	if (checkPawnCollisions_)
-	{
-
-		// Collect current pawns in the scene
-		for (TActorIterator<APawn> it = TActorIterator<APawn>(GetWorld()); it; it.operator++())
-		{
-			if (*it == nullptr)
-			{
-				continue;
-			}
-			
-			// Calculate pawns collision bounds
-			FBox box = it->CalculateComponentsBoundingBoxInLocalSpace(false, false);
-			CollisionRectangle pawnCollision = CollisionRectangle(box.GetSize(), it->GetActorLocation(), it->GetActorQuat());
-			pawnCollisions.push_back(pawnCollision);
-		}
-	}
-		
-	FMinimalViewInfo cameraViewInfo;
-	FMatrix cameraViewMatrix = FMatrix::Identity;
-	float cameraTanInverse = 0.0f;
-	float aspectRatioInverse = 0.0f;
-	UWorld* world = GetWorld();
-	
-	FVector cameraLocation = FVector::ZeroVector;
-	FMatrix cameraMatrix = FMatrix::Identity;
-	
-	// Get camera view info
-	if (world != nullptr)
-	{
-		#if WITH_EDITOR
-		if (GEditor && useEditorViewportCamera_)
-		{
-			for (FEditorViewportClient* viewportClient : GEditor->GetAllViewportClients())
-			{
-				if (viewportClient && viewportClient->IsPerspective() && viewportClient->IsLevelEditorClient() && viewportClient->IsRealtime())
-				{
-					cameraViewMatrix = FTransform(viewportClient->GetViewRotation(), viewportClient->GetViewLocation()).Inverse().ToMatrixNoScale();
-					//cameraMatrix = FInverseRotationMatrix(viewportClient->GetViewRotation()) * FTranslationMatrix(-viewportClient->GetViewLocation());
-					cameraMatrix = FTransform(viewportClient->GetViewRotation(), viewportClient->GetViewLocation()).ToMatrixNoScale();
-					aspectRatioInverse = 1.0f / viewportClient->AspectRatio;
-					cameraTanInverse = 1.0f / tan(FMath::DegreesToRadians(viewportClient->FOVAngle / 2.0f));
-					cameraLocation = viewportClient->GetViewLocation();
-					break;
-				}
-			}
-		}
-		if (cameraLocation == FVector::ZeroVector)
-		#endif
-		{
-			cameraViewInfo = world->GetFirstPlayerController()->PlayerCameraManager->GetCameraCacheView();
-			cameraMatrix = FTransform(cameraViewInfo.Rotation, cameraViewInfo.Location).ToMatrixNoScale();
-			cameraViewMatrix = FTransform(cameraViewInfo.Rotation, cameraViewInfo.Location).Inverse().ToMatrixNoScale();
-			aspectRatioInverse = 1.0f / cameraViewInfo.AspectRatio;
-			cameraTanInverse = 1.0f / tan(FMath::DegreesToRadians(cameraViewInfo.FOV / 2.0f));
-			cameraLocation = cameraViewInfo.Location;
-		}
-
-		if (visualizeViewFrustrum_)
-		{
-			float nearPlane = 100.0f;
-			float farPlane = farDistance_;
-
-			Debug::DrawTemporaryLine(world, cameraMatrix.TransformPosition(FVector(nearPlane, nearPlane / cameraTanInverse, (nearPlane * aspectRatioInverse) / cameraTanInverse)), cameraMatrix.TransformPosition(FVector(farPlane, farPlane / cameraTanInverse, (farPlane * aspectRatioInverse) / cameraTanInverse)), FColor::Purple, 0.2f);
-			Debug::DrawTemporaryLine(world, cameraMatrix.TransformPosition(FVector(nearPlane, -nearPlane / cameraTanInverse, (nearPlane * aspectRatioInverse) / cameraTanInverse)), cameraMatrix.TransformPosition(FVector(farPlane, -farPlane / cameraTanInverse, (farPlane * aspectRatioInverse) / cameraTanInverse)), FColor::Purple, 0.2f);
-			Debug::DrawTemporaryLine(world, cameraMatrix.TransformPosition(FVector(nearPlane, -nearPlane / cameraTanInverse, -(nearPlane * aspectRatioInverse) / cameraTanInverse)), cameraMatrix.TransformPosition(FVector(farPlane, -farPlane / cameraTanInverse, -(farPlane * aspectRatioInverse) / cameraTanInverse)), FColor::Purple, 0.2f);
-			Debug::DrawTemporaryLine(world, cameraMatrix.TransformPosition(FVector(nearPlane, nearPlane / cameraTanInverse, -(nearPlane * aspectRatioInverse) / cameraTanInverse)), cameraMatrix.TransformPosition(FVector(farPlane, farPlane / cameraTanInverse, -(farPlane * aspectRatioInverse) / cameraTanInverse)), FColor::Purple, 0.2f);
-
-			Debug::DrawTemporaryLine(world, cameraMatrix.TransformPosition(FVector(farPlane, farPlane / cameraTanInverse, (farPlane * aspectRatioInverse) / cameraTanInverse)), cameraMatrix.TransformPosition(FVector(farPlane, -farPlane / cameraTanInverse, (farPlane * aspectRatioInverse) / cameraTanInverse)), FColor::Purple, 0.2f);
-			Debug::DrawTemporaryLine(world, cameraMatrix.TransformPosition(FVector(farPlane, -farPlane / cameraTanInverse, (farPlane * aspectRatioInverse) / cameraTanInverse)), cameraMatrix.TransformPosition(FVector(farPlane, -farPlane / cameraTanInverse, -(farPlane * aspectRatioInverse) / cameraTanInverse)), FColor::Purple, 0.2f);
-			Debug::DrawTemporaryLine(world, cameraMatrix.TransformPosition(FVector(farPlane, -farPlane / cameraTanInverse, -(farPlane * aspectRatioInverse) / cameraTanInverse)), cameraMatrix.TransformPosition(FVector(farPlane, farPlane / cameraTanInverse, -(farPlane * aspectRatioInverse) / cameraTanInverse)), FColor::Purple, 0.2f);
-			Debug::DrawTemporaryLine(world, cameraMatrix.TransformPosition(FVector(farPlane, farPlane / cameraTanInverse, -(farPlane * aspectRatioInverse) / cameraTanInverse)), cameraMatrix.TransformPosition(FVector(farPlane, farPlane / cameraTanInverse, (farPlane * aspectRatioInverse) / cameraTanInverse)), FColor::Purple, 0.2f);
-		}
-	}
-
-	nearestEntities_.clear();
-	entityInFront_ = nullptr;
-	entityInFrontDistance_ = std::numeric_limits<float>::max();
-
-	// Process every entity
-	ParallelFor(simulatedEntities_.size(), [&](int32 i)
-	{
-		TrafficEntityWrapper& entityWrapper = simulatedEntities_[i];
-
-		// All collisions should be cleared first to avoid the issue that a traffic entity is deleted but
-		// other traffic entities are still referencing it
-		entityWrapper.entity->ClearBlockingCollisions();
-
-		// Check if this vehicle collides with other entities
-		for (int j = 0; j < simulatedEntities_.size(); j++)
-		{
-			// Don't check against self
-			if (i == j)
-			{
-				continue;
-			}
-
-			ITrafficEntity* otherEntity = simulatedEntities_[j].entity;
-
-			entityWrapper.entity->UpdateBlockingCollisionWith(otherEntity);
-		}
-
-		if (checkPawnCollisions_)
-		{
-			// Check if this vehicle collides with pawns
-			for (CollisionRectangle pawnCollision : pawnCollisions)
-			{
-				entityWrapper.entity->UpdatePawnCollision(pawnCollision);
-			}
-			
-			if (!pawnCollisions.empty())
-			{
-				FVector pawnForward = pawnCollisions.front().GetRotation() * FVector::UnitX();
-				FVector entityRelativeToPawn = entityWrapper.entity->GetCollisionRectangle().GetPosition() - pawnCollisions.front().GetPosition();
-				
-				if (FVector::DotProduct(pawnForward, entityRelativeToPawn.GetSafeNormal()) > 0.8f && pawnCollisions.front().GetRotation().AngularDistance(entityWrapper.entity->GetCollisionRectangle().GetRotation()) < UE_PI / 3.0f)
-				{
-					float entityDistance = entityRelativeToPawn.SquaredLength();
-					
-					entityInFrontMutex_.lock();
-					
-					if (entityDistance < entityInFrontDistance_)
-					{
-						entityInFront_ = entityWrapper.entity;
-						entityInFrontDistance_ = entityDistance;
-					}
-					
-					entityInFrontMutex_.unlock();
-				}
-			}
-		}
-			
-		entityWrapper.distanceFromCamera = FVector::Dist(cameraLocation, entityWrapper.entity->GetCollisionRectangle().GetPosition());
-
-		// Check if entity is in camera view
-		std::vector<FVector> corners = entityWrapper.entity->GetCollisionRectangle().GetCorners();
-
-		FVector bboxMin;
-		FVector bboxMax;
-
-		bool bboxInitialized = false;
-
-		// Calculate the bounding box of the object's collision rectangle in the camera view
-		if (lowDetailEntitiesOutsideCamera_)
-		{
-			for (int j = 0; j < 8; j++)
-			{
-				FVector4 posInCameraSpace = cameraViewMatrix.TransformPosition(corners[j]);
-
-				if (posInCameraSpace.X <= 0)
-				{
-					continue;
-				}
-
-				// Calculate the projected position of the object in the camera view
-				FVector posProjected = FVector(
-					posInCameraSpace.Y * cameraTanInverse / std::abs(posInCameraSpace.X),
-					posInCameraSpace.Z * cameraTanInverse / std::abs(posInCameraSpace.X * aspectRatioInverse),
-					posInCameraSpace.X / farDistance_);
-
-				if (!bboxInitialized)
-				{
-					bboxMin = posProjected;
-					bboxMax = posProjected;
-
-					bboxInitialized = true;
-				}
-				else
-				{
-					if (posProjected.X < bboxMin.X)
-					{
-						bboxMin.X = posProjected.X;
-					}
-
-					if (posProjected.Y < bboxMin.Y)
-					{
-						bboxMin.Y = posProjected.Y;
-					}
-
-					if (posProjected.Z < bboxMin.Z)
-					{
-						bboxMin.Z = posProjected.Z;
-					}
-
-					if (posProjected.X > bboxMax.X)
-					{
-						bboxMax.X = posProjected.X;
-					}
-
-					if (posProjected.Y > bboxMax.Y)
-					{
-						bboxMax.Y = posProjected.Y;
-					}
-
-					if (posProjected.Z > bboxMax.Z)
-					{
-						bboxMax.Z = posProjected.Z;
-					}
-				}
-			}
-		}
-		
-
-		if (!lowDetailEntitiesOutsideCamera_
-			|| (bboxInitialized
-				&& bboxMin.X < 1.0f && bboxMin.Y < 1.0f && bboxMin.Z < 1.0f
-				&& bboxMax.X > -1.0f && bboxMax.Y > -1.0f && bboxMax.Z > 0.0f))
-		{
-			// Entity in camera view or LOD disabled
-			if (maxHighDetailVehiclesZeroForUnlimited_ <= 0)
-			{
-				entityWrapper.isNear = true;
-			}
-			else
-			{
-				nearestEntitiesMutex_.lock();
-
-				static auto distanceLessComparer = [](const TrafficEntityWrapper* a, const TrafficEntityWrapper* b) { return a->distanceFromCamera < b->distanceFromCamera; };
-
-				// Gather a heap of the n closest traffic entities. A heap is efficient because we do not need to know the exact distances,
-				// only whether they're smaller than the maximum distance. This avoids extra sorting
-				if (nearestEntities_.size() < maxHighDetailVehiclesZeroForUnlimited_)
-				{
-					nearestEntities_.push_back(&entityWrapper);
-					std::push_heap(nearestEntities_.begin(), nearestEntities_.end(), distanceLessComparer);
-					entityWrapper.isNear = true;
-				}
-				else if (distanceLessComparer(&entityWrapper, nearestEntities_.front()))
-				{
-					std::pop_heap(nearestEntities_.begin(), nearestEntities_.end(), distanceLessComparer);
-					nearestEntities_.back()->isNear = false;
-					nearestEntities_.back() = &entityWrapper;
-					std::push_heap(nearestEntities_.begin(), nearestEntities_.end(), distanceLessComparer);
-					entityWrapper.isNear = true;
-				}
-				else
-				{
-					entityWrapper.isNear = false;
-				}
-
-				nearestEntitiesMutex_.unlock();
-			}
-		}
-		else
-		{
-			// Entity is outside camera view
-			entityWrapper.isNear = false;
-		}
-	});
-
-
-	// Check against static entities
-	ParallelFor(staticEntities_.size(), [&](int32 i)
-	{
-		TrafficEntityWrapper& entityWrapper = staticEntities_[i];
-
-		if (!pawnCollisions.empty())
-		{
-			FVector pawnForward = pawnCollisions.front().GetRotation() * FVector::UnitX();
-			FVector entityRelativeToPawn = entityWrapper.entity->GetCollisionRectangle().GetPosition() - pawnCollisions.front().GetPosition();
-
-			if (FVector::DotProduct(pawnForward, entityRelativeToPawn.GetSafeNormal()) > 0.8f && pawnCollisions.front().GetRotation().AngularDistance(entityWrapper.entity->GetCollisionRectangle().GetRotation()) < UE_PI / 3.0f)
-			{
-				float entityDistance = entityRelativeToPawn.SquaredLength();
-
-				entityInFrontMutex_.lock();
-
-				if (entityDistance < entityInFrontDistance_)
-				{
-					entityInFront_ = entityWrapper.entity;
-					entityInFrontDistance_ = entityDistance;
-				}
-
-				entityInFrontMutex_.unlock();
-			}
-		}
-	});
-
-	// Tell entities if they've changed state
-	// This would be more efficient in a ParallelFor but it crashes for some reason
-	for (int i = 0; i < simulatedEntities_.size(); i++)
-	{
-		if (simulatedEntities_[i].isNear && !simulatedEntities_[i].previousIsNear)
-		{
-			simulatedEntities_[i].entity->OnNear();
-		}
-		else if (!simulatedEntities_[i].isNear && simulatedEntities_[i].previousIsNear)
-		{
-			simulatedEntities_[i].entity->OnFar();
-		}
-
-		simulatedEntities_[i].previousIsNear = simulatedEntities_[i].isNear;
 	}
 }
 
@@ -473,10 +163,11 @@ TArray<AActor*> ATrafficController::GetEntitiesInArea(FVector center3d, FVector 
 
 		pawns.push_back(*it);
 	}
+
 	// Check against cars?
 	for (int i = 0; i < simulatedEntities_.size(); i++)
 	{
-		if (ACar* car = Cast<ACar>(simulatedEntities_[i].entity))
+		if (ACar* car = Cast<ACar>(simulatedEntities_[i]))
 		{
 			if (MathUtility::PointInsideRectangle(FVector2D(car->GetActorLocation()), av, bv, cv, dv))
 			{
@@ -541,13 +232,21 @@ ACar* ATrafficController::SpawnCar(const FVector& position, const FRotator& rota
 
 	if (simulate)
 	{
-		simulatedEntities_.push_back({ car, false });
+		simulatedEntities_.push_back(car);
 		car->SetController(this);
+
+		// This must be called before car->Simulate because Simulate may immediately destroy the car
+		// to respawn it, in which case lodController would get a pointer to an already destroyed car
+		if (lodController_ != nullptr)
+		{
+			lodController_->AddEntity(car);
+		}
+
 		car->Simulate(&roadGraph_);
 	}
 	else
 	{
-		staticEntities_.push_back({ car, false });
+		staticEntities_.push_back(car);
 	}
 
 	return car;
@@ -582,13 +281,19 @@ APedestrian* ATrafficController::SpawnPedestrian(const FVector& position, const 
 
 	if (simulate)
 	{
-		simulatedEntities_.push_back({ pedestrian, false });
+		simulatedEntities_.push_back(pedestrian);
 		pedestrian->SetController(this);
+
+		if (lodController_ != nullptr)
+		{
+			lodController_->AddEntity(pedestrian);
+		}
+
 		pedestrian->Simulate(&sharedUseGraph_);
 	}
 	else
 	{
-		staticEntities_.push_back({ pedestrian, false });
+		staticEntities_.push_back(pedestrian);
 	}
 
 	return pedestrian;
@@ -611,8 +316,6 @@ ABicycle* ATrafficController::SpawnBicycle(const FVector& position, const FRotat
 		position /* + ABicycle::PreferredSpawnPositionOffset()*/, rotation, spawnParams);
 	//UE_LOG(LogTemp, Log, TEXT("Spawning bicycle at: %s"), *position.ToString());
 
-
-
 	if (!bicycle)
 	{
 		Debug::Log("Bicycle spawn failed");
@@ -625,13 +328,19 @@ ABicycle* ATrafficController::SpawnBicycle(const FVector& position, const FRotat
 	
 	if (simulate)
 	{
-		simulatedEntities_.push_back({ bicycle, false });
+		simulatedEntities_.push_back(bicycle);
 		bicycle->SetController(this);
+
+		if (lodController_ != nullptr)
+		{
+			lodController_->AddEntity(bicycle);
+		}
+
 		bicycle->Simulate(&bicycleGraph_);
 	}
 	else
 	{
-		staticEntities_.push_back({ bicycle, false });
+		staticEntities_.push_back(bicycle);
 	}
 
 	return bicycle;
@@ -655,7 +364,7 @@ ATram* ATrafficController::SpawnTram(const FVector& position, const bool& simula
 
 	if (!tram)
 	{
-		Debug::Log("Car spawn failed");
+		Debug::Log("Tram spawn failed");
 		return nullptr;
 	}
 
@@ -665,13 +374,19 @@ ATram* ATrafficController::SpawnTram(const FVector& position, const bool& simula
 	
 	if (simulate)
 	{
-		simulatedEntities_.push_back({ tram, false });
+		simulatedEntities_.push_back(tram);
 		tram->SetController(this);
+
+		if (lodController_ != nullptr)
+		{
+			lodController_->AddEntity(tram);
+		}
+
 		tram->Simulate(&tramwayGraph_);
 	}
 	else
 	{
-		staticEntities_.push_back({ tram, false });
+		staticEntities_.push_back(tram);
 	}
 
 	return tram;
@@ -679,27 +394,53 @@ ATram* ATrafficController::SpawnTram(const FVector& position, const bool& simula
 
 void ATrafficController::RespawnCar(ACar* car)
 {
-	car->Destroy();
+	// Emergency vehicle gets respawned in another location
+	if (car->GetClass() == emergencyVehicleActor_)
+	{			
+		car->Destroy();
 
-	if (parkingController_ && simulateParking_) {
-		// Try to spawn from a parking space 50% of the time
-		if (FMath::RandRange(0.0f, 1.0f) > 0.5f && parkingController_->DepartRandomParkedCar())
+		int32 ruleExceptions = 0;
+		ruleExceptions = emergencyVehicleActor_.GetDefaultObject()->GetKeypointRuleExceptions();
+		int spawnPoint = roadGraph_.GetRandomSpawnPoint();
+
+		SpawnCar(roadGraph_.GetKeypointPosition(spawnPoint), roadGraph_.GetKeypointRotation(spawnPoint), true, emergencyVehicleActor_, -1);
+
+		return;
+	} 
+	else 
+	{
+		// Handle normal car respawn
+		car->Destroy();
+
+		if (parkingController_ && simulateParking_)
 		{
-			return;
+			// Try to spawn from a parking space 50% of the time
+			if (FMath::RandRange(0.0f, 1.0f) > 0.5f && parkingController_->DepartRandomParkedCar())
+			{
+				return;
+			}
 		}
+		
+		SpawnCar();
 	}
-	
-	SpawnCar();
 }
 
 void ATrafficController::InvalidateTrafficEntity(ITrafficEntity* entity)
 {
 	if (entity != nullptr && !massDeletionInProgress_)
 	{
-		auto it = std::find_if(simulatedEntities_.begin(), simulatedEntities_.end(), [entity](TrafficEntityWrapper wrapper) { return wrapper.entity == entity; });
+		// Remove entity from zones
+		EntityZoneDelete(entity->GetCurrentZone(), entity);
+
+		auto it = std::find_if(simulatedEntities_.begin(), simulatedEntities_.end(), [entity](ITrafficEntity* wrapper) { return wrapper == entity; });
 		
 		if (it != simulatedEntities_.end())
 		{
+			if (lodController_ != nullptr)
+			{
+				lodController_->RemoveEntity(entity);
+			}
+
 			simulatedEntities_.erase(it);
 		}
 	}
@@ -734,11 +475,40 @@ void ATrafficController::BeginSimulateTraffic()
 	{
 		int spawnNumber = 0; // Keep a separate counter to avoid spawning twice with the same one
 
+		if (spawnEmergencyVehicle_ && emergencyVehicleActor_)
+		{
+			int32 ruleExceptions = 0;
+			ruleExceptions = emergencyVehicleActor_.GetDefaultObject()->GetKeypointRuleExceptions();
+			int fs = 0;
+
+			while (fs < 50)
+			{
+				int kpIndex = (spawnNumber++ * prime + randomSeed) % keypointsWithMargin.size();
+
+				if (roadGraph_.CompareRules(kpIndex, ruleExceptions))
+				{
+					SpawnCar(roadGraph_.GetKeypointPosition(keypointsWithMargin[0]), roadGraph_.GetKeypointRotation(keypointsWithMargin[0]), true, emergencyVehicleActor_, -1);
+					break;
+				}
+
+				fs++;
+			}	
+
+		}
+
 		for (int i = 0; i < amountOfCarsToSpawn_; i++)
 		{
 			// Spawn car at random keypoint, Enforce spawning by keypoint rules
 			TSubclassOf<ACar> templateCar = templateCars_[FMath::RandRange(0, templateCars_.Num() - 1)];
-			int32 ruleExceptions = templateCar.GetDefaultObject()->GetKeypointRuleExceptions();
+
+			// Adding a null check here to avoid crashing if templateCars_ has an empty entry. 
+			// TODO: Seems like SpawnCar() rolls a new random car rather than using templateCar..?
+			int32 ruleExceptions = 0;
+
+			if (templateCar)
+			{
+				ruleExceptions = templateCar.GetDefaultObject()->GetKeypointRuleExceptions();
+			}
 
 			int fs = 0;
 
@@ -761,9 +531,7 @@ void ATrafficController::BeginSimulateTraffic()
 		Debug::Log("no road keypoints, can't spawn cars!");
 	}
 
-
-
-	 // Create new trams
+	// Create new trams
 
 	if (tramwayGraph_.KeypointCount() > 0)
 	{
@@ -790,8 +558,6 @@ void ATrafficController::BeginSimulateTraffic()
 		Debug::Log("No tramway keypoints, can't spawn trams!");
 	}
 
-
-
 	// Create new pedestrians
 
 	if (sharedUseGraph_.KeypointCount() > 0)
@@ -810,8 +576,6 @@ void ATrafficController::BeginSimulateTraffic()
 		Debug::Log("no shared use keypoints, can't spawn pedestrians!");
 	}
 
-
-
 	// Create new bicycles
 
 	if (bicycleGraph_.KeypointCount() > 0)
@@ -827,9 +591,11 @@ void ATrafficController::BeginSimulateTraffic()
 	}
 	else
 	{
-		Debug::Log("no bicycle keypoints, can't spawn pedestrians!");
+		Debug::Log("no bicycle keypoints, can't spawn bicycles!");
 	}
 
+	UE_LOG(LogTemp, Log, TEXT("Spawned %d cars, %d trams, %d pedestrians and %d bicycles"), amountOfCarsToSpawn_, amountOfTramsToSpawn_, amountOfPedestriansToSpawn_, amountOfBicyclesToSpawn_);
+	std::list<CollisionRectangle> pawns;
 }
 
 template<class T>
@@ -838,9 +604,9 @@ void ATrafficController::DeleteAllEntitiesOfType()
 	massDeletionInProgress_ = true;
 
 	// Remove and destroy all entities that can be cast into the given type
-	auto predicate = [](TrafficEntityWrapper entityWrapper)
+	auto predicate = [](ITrafficEntity* entity)
 	{
-		T* castEntity = Cast<T>(entityWrapper.entity);
+		T* castEntity = Cast<T>(entity);
 
 		if (castEntity != nullptr)
 		{
@@ -858,6 +624,11 @@ void ATrafficController::DeleteAllEntitiesOfType()
 		it != simulatedEntities_.end();
 		it = std::find_if(it, simulatedEntities_.end(), predicate))
 	{
+		if (lodController_ != nullptr)
+		{
+			lodController_->RemoveEntity(*it);
+		}
+
 		it = simulatedEntities_.erase(it);
 	}
 
@@ -869,18 +640,6 @@ void ATrafficController::DeleteAllEntitiesOfType()
 	}
 
 	massDeletionInProgress_ = false;
-}
-
-void ATrafficController::VisualizeCollisionForEntity(ITrafficEntity* entity, const float& deltaTime) const
-{
-	entity->GetCollisionRectangle().Visualize(GetWorld(), deltaTime);
-	entity->GetPredictedFutureCollisionRectangle().Visualize(GetWorld(), deltaTime, FColor::Blue);
-
-	const FVector rayBegin = entity->GetCollisionRectangle().GetPosition();
-
-	const FVector rayEnd = rayBegin + entity->GetMoveDirection() * 250.0f;
-
-	Debug::DrawTemporaryLine(GetWorld(), rayBegin, rayEnd, FColor::Blue, deltaTime * 1.1f, 5.0f);
 }
 
 void ATrafficController::ClearLinkLines()
@@ -896,6 +655,14 @@ void ATrafficController::RedrawLinkLines()
 	VisualizeGraph(&sharedUseGraph_);
 	VisualizeGraph(&tramwayGraph_);
 	VisualizeGraph(&bicycleGraph_);
+}
+
+void ATrafficController::ToggleViewFrustrum()
+{
+	if (lodController_ != nullptr)
+	{
+		lodController_->SetVisualizeViewFrustrum(!lodController_->GetVisualizeViewFrustrum());
+	}
 }
 
 void ATrafficController::VisualizeGraph(KeypointGraph* graph) const

@@ -21,6 +21,8 @@ public:
 
 	inline void SetMoveSpeed(float speed) { targetSpeed_ = speed; }
 
+	inline ATrafficController* GetController() const { return trafficController_; }
+
 	// Called every frame
 	virtual void Tick(float deltaTime) override;
 
@@ -48,9 +50,12 @@ public:
 	inline virtual bool Blocked() const override { return blocked_; }
 
 	inline virtual FVector GetMoveDirection() const override { return moveDirection_; }
+	inline virtual float GetMoveSpeed() const override { return moveSpeed_; }
 
 	inline virtual CollisionRectangle GetCollisionRectangle() const override { return collisionRectangle_; }
 	inline virtual CollisionRectangle GetPredictedFutureCollisionRectangle() const override { return futureCollisionRectangle_; }
+
+	virtual void Visualize(float duration) const override;
 
 	// Animation stuff - not in use currently? Probably not needed either?
 	UFUNCTION(BlueprintCallable)

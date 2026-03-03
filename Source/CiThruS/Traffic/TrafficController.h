@@ -6,7 +6,11 @@
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
 #include <mutex>
+#include <list>
+#include <unordered_map>
+#include <unordered_set>
 #include "TrafficController.generated.h"
+
 
 class ACar;
 class APedestrian;
@@ -15,6 +19,18 @@ class ABicycle;
 class ITrafficArea;
 class ITrafficEntity;
 class AParkingController;
+class LodController;
+
+UENUM()
+enum CollisionCheckingEnum
+{
+	CITHRUS_COLLISIONS_NAIVE					UMETA(DisplayName = "Naive O(n^2) checks"),
+	CITHRUS_COLLISIONS_NAIVE_PAR				UMETA(DisplayName = "Parallel O(n^2) checks"),
+	CITHRUS_COLLISION_ZONES						UMETA(DisplayName = "Zone-based (check only nearby)"),
+	CITHRUS_COLLISION_ZONES_PAR					UMETA(DisplayName = "Parallel zone-based"),
+	CITHRUS_COLLISION_DISABLED					UMETA(DisplayName = "Collision checking disabled")
+};
+
 
 // Spawns all traffic entities and simulates them. Static parked cars are not traffic entities and are handled by ParkingController instead
 // There should be only one of these in the environment at a time
@@ -41,7 +57,7 @@ public:
 	ABicycle* SpawnBicycle(const FVector& position, const FRotator& rotation, const bool& simulate);
 	ATram* SpawnTram(const FVector& position, const bool& simulate);
 
-	void RespawnCar(ACar* car); // Used to re-spawn cars after start of simulation
+	void RespawnCar(ACar* car); // Used to respawn cars after start of simulation
 
 	inline void DeleteAllCars() { DeleteAllEntitiesOfType<ACar>(); }
 	inline void DeleteAllTrams() { DeleteAllEntitiesOfType<ATram>(); }
@@ -53,30 +69,37 @@ public:
 
 	inline const KeypointGraph& GetRoadGraph() const { return roadGraph_; }
 	inline const KeypointGraph& GetSharedUseGraph() const { return sharedUseGraph_; }
+	inline const KeypointGraph& GetBicycleGraph() const { return bicycleGraph_; }
 	inline const KeypointGraph& GetTramwayGraph() const { return tramwayGraph_; }
 
 	TArray<AActor*> GetEntitiesInArea(FVector center3d, FVector forward3d, float length, float width);
 
 	TArray<TSubclassOf<ACar>> GetTemplateCars() const { return templateCars_; }
 
-	ITrafficEntity* GetEntityInFrontOfPlayer() const { return entityInFront_; }
+	void EntityChangeZone(std::pair<int, int> currentZone, std::pair<int, int> previousZone, ITrafficEntity* entity);
+
+	inline int32 GetKeypointRegulationRulesAtPoint(FVector point) { return GetApplyingRegulationRulesAtPoint(point).rules; }
+	inline float GetRegulatedSpeedAtPoint(FVector point) { return GetApplyingRegulationRulesAtPoint(point).speedLimit; }
+
+	// Used when regulation zone collisions are needed inside editor (sim not running)
+	void EDITOR_InitRegulationCollisions();
+
+	inline LodController* GetLodController() const { return lodController_; }
+
+	inline bool UseEditorViewportCameraForLods() const { return useEditorViewportCamera_; }
 
 protected:
-	struct TrafficEntityWrapper
-	{
-		ITrafficEntity* entity;
-		bool isNear = false;
-		bool previousIsNear = false;
-		float distanceFromCamera;
-	};
+	std::unordered_map<int64, std::unordered_set<ITrafficEntity*>> entitiesByZone_;
+
+	void EntityZoneDelete(std::pair<int32, int32> currentZone, ITrafficEntity* entity);
+
+	/* Enable disable traffic simulation. */
+	UPROPERTY(EditAnywhere, Category = "Traffic System|Vehicle Simulation")
+	bool simulateTraffic_ = true;
 
 	/* Enable/disable parking */
 	UPROPERTY(EditAnywhere, Category = "Traffic System|Vehicle Simulation")
 	bool simulateParking_ = true;
-
-	/* TODO: Pawn collisions check traffic entities against the player vehicle, but also mean superfluous checks against e.g. pedestrians */
-	UPROPERTY(EditAnywhere, Category = "Traffic System|Vehicle Simulation")
-	bool checkPawnCollisions_ = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Traffic System|Vehicle Simulation")
 	TArray<TSubclassOf<ACar>> templateCars_;
@@ -102,15 +125,22 @@ protected:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Traffic System|Vehicle Simulation")
 	int amountOfTramsToSpawn_ = 8;
 
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Traffic System|Vehicle Simulation")
+	bool spawnEmergencyVehicle_ = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Traffic System|Vehicle Simulation")
+	TSubclassOf<ACar> emergencyVehicleActor_;
+
+	/* The type of collision checking to do between Traffic System entities*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Traffic System|Vehicle Collision Checking")
+	TEnumAsByte<CollisionCheckingEnum> collisionCheckingType_ = CollisionCheckingEnum::CITHRUS_COLLISIONS_NAIVE_PAR;
+
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Traffic System|Vehicle Detail Control")
 	float distanceFromCameraToEnableLowDetail_ = 5000.0f;
 
-	/* Enable LOD system on traffic entitites.  */
+	/* Enable LOD system on traffic entities. */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Traffic System|Vehicle Detail Control")
 	bool lowDetailEntitiesOutsideCamera_ = true;
-
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Traffic System|Vehicle Detail Control")
-	int maxHighDetailVehiclesZeroForUnlimited_ = 10;
 
 	/* Use editor viewport camera rather than player vehicle for LOD calculation */
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Traffic System|Vehicle Detail Control")
@@ -122,18 +152,14 @@ protected:
 	*/
 
 	AParkingController* parkingController_;
+
+	LodController* lodController_;
 	
-	std::vector<TrafficEntityWrapper> simulatedEntities_;
+	// Stores all simulated (moving) traffic entities
+	std::vector<ITrafficEntity*> simulatedEntities_;
 
 	// Used for static entities that are not simulated (spawned with simulate = false)
-	std::vector<TrafficEntityWrapper> staticEntities_;
-
-	std::vector<TrafficEntityWrapper*> nearestEntities_;
-	std::mutex nearestEntitiesMutex_;
-
-	ITrafficEntity* entityInFront_;
-	float entityInFrontDistance_;
-	std::mutex entityInFrontMutex_;
+	std::vector<ITrafficEntity*> staticEntities_;
 
 	bool massDeletionInProgress_;
 
@@ -145,9 +171,6 @@ protected:
 	TArray<ITrafficArea*> trafficAreas_;
 
 	bool visualizeCollisions_;
-	bool visualizeViewFrustrum_;
-
-	float farDistance_;
  
 	UFUNCTION(BlueprintCallable)
 	void BeginSimulateTraffic();
@@ -156,12 +179,12 @@ protected:
 	void ToggleCollisionBoxes() { visualizeCollisions_ = !visualizeCollisions_; }
 
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Traffic System")
-	void ToggleViewFrustrum() { visualizeViewFrustrum_ = !visualizeViewFrustrum_; }
+	void ToggleViewFrustrum();
 
-	void VisualizeCollisionForEntity(ITrafficEntity* entity, const float& deltaTime) const;
 	void VisualizeGraph(KeypointGraph* graph) const;
 
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type endPlayReason) override;
 
 	void CheckEntityCollisions();
 
@@ -187,12 +210,4 @@ protected:
 	/* Hide RoadRegulationZone actors? */
 	UPROPERTY(EditAnywhere, Category = "Traffic System|Road Regulation Zones")
 	FZoneRules defaultRegulationZone_;
-
-public:
-
-	inline int32 GetKeypointRegulationRulesAtPoint(FVector point) { return GetApplyingRegulationRulesAtPoint(point).rules; }
-	inline float GetRegulatedSpeedAtPoint(FVector point) { return GetApplyingRegulationRulesAtPoint(point).speedLimit; }
-
-	// Used when regulation zone collisions are needed inside editor (sim not running)
-	void EDITOR_InitRegulationCollisions();	
 };

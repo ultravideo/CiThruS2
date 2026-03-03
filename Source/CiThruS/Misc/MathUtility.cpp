@@ -1,9 +1,37 @@
 #include "MathUtility.h"
 #include "Debug.h"
 
-#ifndef RAD2DEG
-#define RAD2DEG 57.2957795131
-#endif
+namespace MathUtility
+{
+	const static double RAD_2_DEG = 57.2957795131;
+
+	// This was calculated using OpenCV's getPerspectiveTransform with 4 matching points on a map and inside CiThruS
+	// The altitude is not accurate inside CiThruS, so here it's just a rough estimate calculated separately
+	const static FMatrix44d UE_TO_WGS_CONVERSION_MATRIX = FMatrix44d(
+		FPlane(-5.58315305e-07, -2.91959870e-08,        0.0, -9.08600256e-09),
+		FPlane(-6.32518473e-07, -2.10895676e-07,        0.0, -8.83018673e-09),
+		FPlane(            0.0,             0.0,       0.01,             0.0),
+		FPlane(     61.4442210,      23.8565214, 125.039604,             1.0));
+
+	// This is just the inverse of UE_TO_WGS_CONVERSION_MATRIX
+	const static FMatrix44d WGS_TO_UE_CONVERSION_MATRIX = FMatrix44d(
+		FPlane(  -2124300,    294079, -1.67043, 0.0),
+		FPlane(   6371100,  -5623700, 0.822967, 0.0),
+		FPlane(       0.0,       0.0,    100.0, 0.0),
+		FPlane(-2.1468e07, 1.1609e08,   -12421, 1.0));
+
+	const static FQuat UE_TO_REAL_ROTATION_QUAT = FMatrix44d(
+		FPlane(-0.1371279649,  0.9905533409, 0.0, 0.0),
+		FPlane(-0.9905533409, -0.1371279649, 0.0, 0.0),
+		FPlane(          0.0,           0.0, 1.0, 0.0),
+		FPlane(          0.0,           0.0, 0.0, 1.0)).ToQuat();
+
+	const static FQuat REAL_TO_UE_ROTATION_QUAT = FMatrix44d(
+		FPlane(-0.1371279649, -0.9905533409, 0.0, 0.0),
+		FPlane( 0.9905533409, -0.1371279649, 0.0, 0.0),
+		FPlane(          0.0,           0.0, 1.0, 0.0),
+		FPlane(          0.0,           0.0, 0.0, 1.0)).ToQuat();
+}
 
 bool MathUtility::PointInsideTriangle(const FVector2D& point, const FVector2D& a, const FVector2D& b, const FVector2D& c)
 {
@@ -120,14 +148,14 @@ float MathUtility::SignedAngleCW(const FVector2D& a, const FVector2D& b)
 
 	if (angle > PI)
 	{
-		return (angle - 2 * PI) * RAD2DEG;
+		return (angle - 2 * PI) * RAD_2_DEG;
 	}
 	else if (angle <= -PI)
 	{
-		return (angle + 2 * PI) * RAD2DEG;
+		return (angle + 2 * PI) * RAD_2_DEG;
 	}
 
-	return angle * RAD2DEG;
+	return angle * RAD_2_DEG;
 }
 
 std::pair<FVector, FVector> MathUtility::SamplePointBezier2DPlane3Point(const FVector& p0, const FVector& p1, const FVector& p2, const float& t)
@@ -220,4 +248,42 @@ float MathUtility::BezierCurveLength(const FVector& p0, const FVector& p1, const
 	}
 
 	return 0.5f * length;*/
+}
+
+FVector MathUtility::UnrealEngineCoordsToWgs84AndAltitude(FVector coords)
+{
+	// The random 1.0 is there because the conversion requires homogeneous coordinates
+	FVector4d projected = UE_TO_WGS_CONVERSION_MATRIX.TransformFVector4(FVector4d(coords, 1.0));
+
+	// Division by W to return from homogeneous coordinates to Cartesian coordinates
+	return FVector(projected / projected.W);
+}
+
+FVector MathUtility::Wgs84AndAltitudeToUnrealEngineCoords(FVector coords)
+{
+	// The random 1.0 is there because the conversion requires homogeneous coordinates
+	FVector4d projected = WGS_TO_UE_CONVERSION_MATRIX.TransformFVector4(FVector4d(coords, 1.0));
+
+	// Division by W to return from homogeneous coordinates to Cartesian coordinates
+	return FVector(projected / projected.W);
+}
+
+FQuat MathUtility::UnrealEngineRotationToRealLifeRotation(FQuat rotation)
+{
+	return UE_TO_REAL_ROTATION_QUAT * rotation;
+}
+
+FQuat MathUtility::RealLifeRotationToUnrealEngineRotation(FQuat rotation)
+{
+	return REAL_TO_UE_ROTATION_QUAT * rotation;
+}
+
+FVector MathUtility::UnrealEngineDirectionToRealLifeDirection(FVector direction)
+{
+	return UE_TO_REAL_ROTATION_QUAT.RotateVector(direction);
+}
+
+FVector MathUtility::RealLifeDirectionToUnrealEngineDirection(FVector direction)
+{
+	return REAL_TO_UE_ROTATION_QUAT.RotateVector(direction);
 }

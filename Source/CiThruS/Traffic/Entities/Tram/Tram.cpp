@@ -37,6 +37,7 @@ void ATram::Destroyed()
 void ATram::Tick(float deltaTime)
 {
 	Super::Tick(deltaTime);
+	UpdateZone(GetController());
 
 	if (!simulate_)
 	{
@@ -137,6 +138,17 @@ void ATram::SetColliders()
 
 	futureCollisionRectangle_.SetPosition((futureFrontAxlePosition + futureRearAxlePosition) * 0.5f + FVector::UpVector * collisionDimensions_.Z * 0.5f);
 	futureCollisionRectangle_.SetRotation(futureRotation);
+}
+
+void ATram::Visualize(float duration) const
+{
+	collisionRectangle_.Visualize(GetWorld(), duration);
+	futureCollisionRectangle_.Visualize(GetWorld(), duration, FColor::Blue);
+
+	const FVector rayBegin = collisionRectangle_.GetPosition();
+	const FVector rayEnd = rayBegin + moveDirection_ * 250.0f;
+
+	Debug::DrawTemporaryLine(GetWorld(), rayBegin, rayEnd, FColor::Blue, duration * 1.1f, 5.0f);
 }
 
 float ATram::GetAnimSteeringAngle()

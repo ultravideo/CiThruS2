@@ -35,6 +35,11 @@ void AParkingController::BeginPlay()
 
 	for (TSubclassOf<ACar> templateCar : trafficController_->GetTemplateCars())
 	{
+		if (templateCar == nullptr)
+		{
+			Debug::Log("Template car is null, skipping");
+			continue;
+		}
 		TArray<FCarVisualVariant> parkedVariants = Cast<ACar>(templateCar->GetDefaultObject(true))->GetParkedVariants();
 
 		for (FCarVisualVariant variant : parkedVariants)

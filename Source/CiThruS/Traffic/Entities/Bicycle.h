@@ -54,8 +54,11 @@ public:
 	virtual void OnNear() override;
 
 	inline virtual FVector GetMoveDirection() const override { return moveDirection_; }
+	inline float GetMoveSpeed() const override { return moveSpeed_; }
 	inline virtual CollisionRectangle GetCollisionRectangle() const override { return collisionRectangle_; }
 	inline virtual CollisionRectangle GetPredictedFutureCollisionRectangle() const override { return futureCollisionRectangle_; }
+
+	virtual void Visualize(float duration) const override;
 
 	ATrafficController* GetController() const { return trafficController_; }
 

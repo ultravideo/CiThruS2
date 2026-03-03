@@ -72,10 +72,11 @@ public:
 
     virtual void UpdateCollisionStatusWithEntity(ITrafficEntity* entity);
     inline virtual CollisionRectangle GetCollisionRectangle() const { return collisionRectangle_; }
+    virtual void Visualize(float duration) const override;
     inline float GetSpeedLimit() const { return zoneRules.speedLimit; }
     inline FZoneRules GetAllRules() const { return zoneRules; }
 
-    UFUNCTION(CallInEditor, Category="Zone Settings")
+    UFUNCTION(CallInEditor, Category = "Zone Settings")
     void ApplySettings();
 
 protected:

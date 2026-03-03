@@ -2,6 +2,7 @@
 //#include "ChaosVehicleWheel.h"
 //#include "ChaosWheeledVehicleMovementComponent.h"
 #include "GameFramework/MovementComponent.h"
+#include "ViewSynthesis/PubSubCommunicator.h"
 #include "Misc/Debug.h"
 
 void APlayerVehicleController::OnPossess(APawn* InPawn)
@@ -23,6 +24,17 @@ void APlayerVehicleController::BeginPlay()
 {
 	Super::BeginPlay();
 }
+
+void APlayerVehicleController::Tick(float deltaTime)
+{
+	TObjectPtr<APawn> pawn = GetPawn();
+
+	if (pawn != nullptr)
+	{
+		UPubSubCommunicator::PublishTrafficEntity("traffic", pawn);
+	}
+}
+
 /*
 void APlayerVehicleController::ChangeWheelSetup(TArray<TSubclassOf<UChaosVehicleWheel>> wheelClasses)
 {

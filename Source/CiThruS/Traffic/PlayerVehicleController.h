@@ -20,8 +20,10 @@ public:
 
 	virtual void BeginPlay() override;
 
+	virtual void Tick(float deltaTime) override;
+
 	UFUNCTION(BlueprintCallable)
-	//void ChangeWheelSetup(TArray<TSubclassOf<UChaosVehicleWheel> > wheelClasses);
+	//void ChangeWheelSetup(TArray<TSubclassOf<UChaosVehicleWheel>> wheelClasses);
 
 	void SetVehicleLocationRotation(FVector location, FRotator rotation, bool relative);
 

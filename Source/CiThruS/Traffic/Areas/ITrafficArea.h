@@ -21,6 +21,7 @@ class CITHRUS_API ITrafficArea
 public:
 	virtual void UpdateCollisionStatusWithEntity(ITrafficEntity* entity) = 0;
 	virtual CollisionRectangle GetCollisionRectangle() const = 0;
+	virtual void Visualize(float duration) const = 0;
 
 protected:
 	ITrafficArea() { };

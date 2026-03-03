@@ -1,6 +1,7 @@
 #include "TrafficSnapViewSynthesizer.h"
 #include "Traffic/TrafficController.h"
 #include "Traffic/Entities/ITrafficEntity.h"
+#include "Traffic/LodController.h"
 #include "Components/SceneCaptureComponent2D.h"
 #include <Kismet/GameplayStatics.h>
 #include "EngineUtils.h"
@@ -25,7 +26,13 @@ void ATrafficSnapViewSynthesizer::Tick(float deltaTime)
 {
 	if (trafficController_)
 	{
-		ITrafficEntity* entityInFrontOfPlayer = trafficController_->GetEntityInFrontOfPlayer();
+		ITrafficEntity* entityInFrontOfPlayer = nullptr;
+		LodController* lodController = trafficController_->GetLodController();
+
+		if (lodController)
+		{
+			entityInFrontOfPlayer = lodController->GetClosestEntityInFrontOfPlayer();
+		}
 
 		if (entityInFrontOfPlayer)
 		{

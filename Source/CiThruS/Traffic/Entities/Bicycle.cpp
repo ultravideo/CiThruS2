@@ -58,6 +58,7 @@ void ABicycle::Tick(float deltaTime)
 {
 	Super::Tick(deltaTime);
 
+	UpdateZone(GetController());
 	if (!simulate_)
 	{
 		return;
@@ -137,6 +138,16 @@ void ABicycle::SetColliders()
 	futureCollisionRectangle_.SetRotation(tangent.ToOrientationQuat());
 }
 
+void ABicycle::Visualize(float duration) const
+{
+	collisionRectangle_.Visualize(GetWorld(), duration);
+	futureCollisionRectangle_.Visualize(GetWorld(), duration, FColor::Blue);
+
+	const FVector rayBegin = collisionRectangle_.GetPosition();
+	const FVector rayEnd = rayBegin + moveDirection_ * 250.0f;
+
+	Debug::DrawTemporaryLine(GetWorld(), rayBegin, rayEnd, FColor::Blue, duration * 1.1f, 5.0f);
+}
 
 void ABicycle::UpdateBlockingCollisionWith(ITrafficEntity* otherEntity)
 {
@@ -312,6 +323,8 @@ void ABicycle::OnExitedStopArea(ATrafficStopArea* stopArea)
 
 void ABicycle::OnEnteredYieldArea(ATrafficYieldArea* yieldArea)
 {
+	// bicycles ignore yield areas
+	/* 
 	bool isAlreadyInSet = false;
 
 	overlappedYieldAreas_.Add(yieldArea, &isAlreadyInSet);
@@ -320,16 +333,20 @@ void ABicycle::OnEnteredYieldArea(ATrafficYieldArea* yieldArea)
 	{
 		shouldYield_ = true;
 	}
+ */
 }
 
 void ABicycle::OnExitedYieldArea(ATrafficYieldArea* yieldArea)
 {
+	// bicycles ignore yield areas
+/* 
 	overlappedYieldAreas_.Remove(yieldArea);
 
 	if (overlappedYieldAreas_.Num() == 0)
 	{
 		shouldYield_ = false;
 	}
+ */
 }
 
 void ABicycle::OnFar()

@@ -70,7 +70,7 @@ public:
 	inline void SetMoveSpeed(float speed) { targetSpeed_ = FMath::Clamp(speed, -driverCharacteristics_.maxSpeed, driverCharacteristics_.maxSpeed); }
 	inline void SetInstantSpeed(float speed) { moveSpeed_ = speed; }
 	inline void ResetMoveSpeed() { SetMoveSpeed(trafficController_->GetRegulatedSpeedAtPoint(pathFollower_.GetLocation()) * driverCharacteristics_.normalSpeedMultiplier); }
-	inline float GetMoveSpeed() const { return moveSpeed_; }
+	inline float GetMoveSpeed() const override { return moveSpeed_; }
 	inline float GetTargetSpeed() const { return targetSpeed_; }
 	inline DriverCharacteristics GetDriverCharacteristics() const { return driverCharacteristics_; }
 
@@ -120,6 +120,8 @@ public:
 	inline virtual CollisionRectangle GetCollisionRectangle() const override { return collisionRectangle_; }
 	inline virtual CollisionRectangle GetPredictedFutureCollisionRectangle() const override { return futureCollisionRectangle_; }
 
+	virtual void Visualize(float duration) const override;
+
 	inline virtual bool ShouldTickIfViewportsOnly() const override { return useEditorTick_; }
 
 	// Animation stuff
@@ -129,7 +131,7 @@ public:
 	float GetAnimSteeringAngle();
 	UFUNCTION(BlueprintCallable)
 	float GetAccelerationSpeed() { return animAcceleration_; }
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Vehicle Animations")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Traffic System|Vehicle Animations")
 	bool enableAnimation = true;
 
 	// Parking controls
@@ -147,21 +149,21 @@ public:
 	TArray<FVector> DEBUG_GetPath();
 
 protected:
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "NPC vehicle properties")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Traffic System|Vehicle Properties")
 	float targetSpeed_ = 500.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "NPC vehicle properties")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Traffic System|Vehicle properties")
 	float moveSpeed_ = 500.0f;
 
 	DriverCharacteristics driverCharacteristics_;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "NPC vehicle properties")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Traffic System|Vehicle properties")
 	float wheelbase_ = 250.0f;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "NPC vehicle properties")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Traffic System|Vehicle properties")
 	FVector collisionDimensions_ = FVector(500.0f, 200.0f, 150.0f);
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Bitmask, BitmaskEnum = "/Script/CiThruS.EKeypointRules"), Category = "NPC vehicle properties")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Bitmask, BitmaskEnum = "/Script/CiThruS.EKeypointRules"), Category = "Traffic System|Vehicle properties")
 	int32 keypointRuleExceptions_;
 
 	bool simulate_ = false;
@@ -171,11 +173,19 @@ protected:
 	CollisionRectangle collisionRectangle_;
 	CollisionRectangle futureCollisionRectangle_;
 
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Vehicle Status")
 	bool shouldYield_;
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Vehicle Status")
 	bool inActiveStopArea_;
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Vehicle Status")
 	bool inActiveFutureStopArea_;
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Vehicle Status")
 	bool blocked_;
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Vehicle Status")
 	bool blockedByFuturePawn_;
+	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Vehicle Status")
+	FString blockingEntityName_ = FString(TEXT("None"));
+
 
 	TSet<ATrafficStopArea*> overlappedStopAreas_;
 	TSet<ATrafficYieldArea*> overlappedYieldAreas_;

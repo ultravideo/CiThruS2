@@ -66,6 +66,7 @@ void APedestrian::Simulate(const KeypointGraph* graph)
 void APedestrian::Tick(float deltaTime)
 {
 	Super::Tick(deltaTime);
+	UpdateZone(GetController());
 
 	if (!simulate_)
 	{
@@ -129,11 +130,8 @@ void APedestrian::Tick(float deltaTime)
 	controllerGoal_ = aiController->GetTargetLocation();
 	distanceToControllerGoal_ = FVector::Dist2D(controllerGoal_, GetActorLocation());
 
-	if (pathFollowResult == EPathFollowingRequestResult::AlreadyAtGoal)
-		atGoal_ = true; else atGoal_ = false;
-
-	if (aiController->GetPathFollowingComponent()->GetStatus() == EPathFollowingStatus::Moving)
-		moving_ = true; else moving_ = false;
+	atGoal_ = pathFollowResult == EPathFollowingRequestResult::AlreadyAtGoal;
+	moving_ = aiController->GetPathFollowingComponent()->GetStatus() == EPathFollowingStatus::Moving;
 	
 	lastTarget_ = pathFollower_.IsLastTarget();
 
@@ -194,4 +192,14 @@ CollisionRectangle APedestrian::GetPredictedFutureCollisionRectangle() const
 	// Predict where this pedestrian will be in the future
 	return CollisionRectangle(collisionRectangle_.GetDimensions(),
 		GetActorLocation() + moveDirection_ * (collisionDimensions_.X + collisionDimensions_.Y) * 0.5f, GetActorRotation().Quaternion());
+}
+
+void APedestrian::Visualize(float duration) const
+{
+	collisionRectangle_.Visualize(GetWorld(), duration);
+
+	const FVector rayBegin = collisionRectangle_.GetPosition();
+	const FVector rayEnd = rayBegin + moveDirection_ * 250.0f;
+
+	Debug::DrawTemporaryLine(GetWorld(), rayBegin, rayEnd, FColor::Blue, duration * 1.1f, 5.0f);
 }

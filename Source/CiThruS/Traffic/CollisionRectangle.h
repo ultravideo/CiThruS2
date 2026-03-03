@@ -17,7 +17,7 @@ public:
 	bool IsIntersecting(const FVector2D& point) const;
 	bool IsIntersecting2DTriangle(const FVector2D& corner0, const FVector2D& corner1, const FVector2D& corner2) const;
 
-	void Visualize(UWorld* world, const float& deltaTime, FColor color = FColor::Red) const;
+	void Visualize(UWorld* world, const float& duration, FColor color = FColor::Red) const;
 
 	void SetPosition(const FVector& position);
 	void SetRotation(const FQuat& rotation);

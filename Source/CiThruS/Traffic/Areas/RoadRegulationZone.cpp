@@ -81,6 +81,11 @@ void ARoadRegulationZone::UpdateCollisionStatusWithEntity(ITrafficEntity* entity
     }
 }
 
+void ARoadRegulationZone::Visualize(float duration) const
+{
+    collisionRectangle_.Visualize(GetWorld(), duration, FColor::Yellow);
+}
+
 void ARoadRegulationZone::ApplySettings()
 {
     SetMeshColor();

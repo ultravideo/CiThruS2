@@ -52,8 +52,11 @@ public:
 	virtual void OnNear() override;
 
 	inline virtual FVector GetMoveDirection() const override { return moveDirection_; }
+	inline float GetMoveSpeed() const override { return moving_ ? moveSpeed_ : 0.0f; }
 	inline virtual CollisionRectangle GetCollisionRectangle() const override { return collisionRectangle_; }
 	virtual CollisionRectangle GetPredictedFutureCollisionRectangle() const override;
+
+	virtual void Visualize(float duration) const override;
 
 	ATrafficController* GetController() const { return trafficController_; }
 
@@ -69,7 +72,6 @@ protected:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Traffic System|Pedestrian")
 	float moveSpeed_ = 200.0f;
-
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
 	FVector pathFollowerGoal_ = FVector::ZeroVector;

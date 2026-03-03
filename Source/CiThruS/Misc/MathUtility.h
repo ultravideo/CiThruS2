@@ -23,4 +23,14 @@ namespace MathUtility
 	FVector SamplePointBezier2DPlane4Point(const FVector& p0, const FVector& p1, const FVector& p2, const FVector& p3, const float& t);
 
 	float BezierCurveLength(const FVector& p0, const FVector& p1, const FVector& p2);
+
+	FVector UnrealEngineCoordsToWgs84AndAltitude(FVector coords);
+	FVector Wgs84AndAltitudeToUnrealEngineCoords(FVector coords);
+
+	// "Real life rotation/direction" = north is forward, east is right, up is the same
+	FQuat UnrealEngineRotationToRealLifeRotation(FQuat rotation);
+	FQuat RealLifeRotationToUnrealEngineRotation(FQuat rotation);
+
+	FVector UnrealEngineDirectionToRealLifeDirection(FVector direction);
+	FVector RealLifeDirectionToUnrealEngineDirection(FVector direction);
 }

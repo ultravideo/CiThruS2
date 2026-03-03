@@ -37,3 +37,8 @@ void ATrafficParkArea::UpdateCollisionStatusWithEntity(ITrafficEntity* entity)
 		}
 	}
 }
+
+void ATrafficParkArea::Visualize(float duration) const
+{
+	collisionRectangle_.Visualize(GetWorld(), duration, FColor::Cyan);
+}

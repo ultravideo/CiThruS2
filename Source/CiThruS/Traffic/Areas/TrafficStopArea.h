@@ -17,6 +17,7 @@ public:
 	
 	virtual void UpdateCollisionStatusWithEntity(ITrafficEntity* entity) override;
 	virtual CollisionRectangle GetCollisionRectangle() const override { return collisionRectangle_; }
+	virtual void Visualize(float duration) const override;
 
 	inline void Activate() { active_ = true; }
 	inline void Deactivate() { active_ = false; }
