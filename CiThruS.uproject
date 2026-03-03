@@ -44,14 +44,14 @@
 			"Enabled": true
 		},
 		{
-			"Name": "FSR4",
+			"Name": "FSR",
 			"Enabled": false,
 			"SupportedTargetPlatforms": [
 				"Win64"
 			]
 		},
 		{
-			"Name": "FSR4MovieRenderPipeline",
+			"Name": "FSRMovieRenderPipeline",
 			"Enabled": false,
 			"SupportedTargetPlatforms": [
 				"Win64"
