@@ -442,19 +442,22 @@ ren temp\paho.mqtt.cpp-%PAHO_CPP_VER%\externals\paho.mqtt.c-%PAHO_C_VER% paho-mq
 echo Building Eclipse Paho...
 
 mkdir temp\paho.mqtt.cpp-%PAHO_CPP_VER%\build
-cmake temp\paho.mqtt.cpp-%PAHO_CPP_VER% -Btemp\paho.mqtt.cpp-%PAHO_CPP_VER%\build -DPAHO_WITH_MQTT_C=ON -DPAHO_BUILD_STATIC=ON -DPAHO_WITH_SSL=ON || call :buildfailed "Eclipse Paho" && exit /b 1
+cmake temp\paho.mqtt.cpp-%PAHO_CPP_VER% -Btemp\paho.mqtt.cpp-%PAHO_CPP_VER%\build -DPAHO_WITH_MQTT_C=ON -DPAHO_BUILD_STATIC=ON -DPAHO_BUILD_SHARED=OFF -DPAHO_WITH_SSL=ON || call :buildfailed "Eclipse Paho" && exit /b 1
 
 msbuild temp\paho.mqtt.cpp-%PAHO_CPP_VER%\build\PahoMqttCpp.sln /p:Configuration="Release" /p:Platform=x64 /p:PlatformToolset=v143 /p:WindowsTargetPlatformVersion=10.0 || call :buildfailed "Eclipse Paho" && exit /b 1
 
 :: Copy results
+mkdir ThirdParty\PahoCpp\Bin
 mkdir ThirdParty\PahoCpp\Lib
 mkdir ThirdParty\PahoCpp\Include
 
 robocopy temp\paho.mqtt.cpp-%PAHO_CPP_VER% ThirdParty\PahoCpp LICENSE
 robocopy temp\paho.mqtt.cpp-%PAHO_CPP_VER%\build\src\Release ThirdParty\PahoCpp\Lib paho-mqttpp3-static.lib
 robocopy temp\paho.mqtt.cpp-%PAHO_CPP_VER%\build\externals\paho-mqtt-c\src\Release ThirdParty\PahoCpp\Lib paho-mqtt3as-static.lib
-robocopy temp\OpenSSL\x64\lib ThirdParty\PahoCpp\Lib libcrypto.lib
+robocopy temp\OpenSSL\x64\bin ThirdParty\PahoCpp\Bin libssl-3-x64.dll
+robocopy temp\OpenSSL\x64\bin ThirdParty\PahoCpp\Bin libcrypto-3-x64.dll
 robocopy temp\OpenSSL\x64\lib ThirdParty\PahoCpp\Lib libssl.lib
+robocopy temp\OpenSSL\x64\lib ThirdParty\PahoCpp\Lib libcrypto.lib
 robocopy temp\paho.mqtt.cpp-%PAHO_CPP_VER%\include ThirdParty\PahoCpp\Include /e
 robocopy temp\paho.mqtt.cpp-%PAHO_CPP_VER%\externals\paho-mqtt-c\src ThirdParty\PahoCpp\Include *.h
 

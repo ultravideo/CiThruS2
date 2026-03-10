@@ -39,6 +39,8 @@ public class CiThruS : ModuleRules
 			AddStaticLibraryIfExists(Path.Combine(pahocpp_base_path, "Lib/paho-mqtt3as-static.lib"));
             AddStaticLibraryIfExists(Path.Combine(pahocpp_base_path, "Lib/libssl.lib"));
             AddStaticLibraryIfExists(Path.Combine(pahocpp_base_path, "Lib/libcrypto.lib"));
+            AddSharedLibraryIfExists(Path.Combine(pahocpp_base_path, "Bin/libssl-3-x64.dll"));
+            AddSharedLibraryIfExists(Path.Combine(pahocpp_base_path, "Bin/libcrypto-3-x64.dll"));
         }
 
         if (Target.Platform == UnrealTargetPlatform.Linux)
@@ -81,7 +83,7 @@ public class CiThruS : ModuleRules
 	{
 		if (File.Exists(libraryPath))
 		{
-			string filePath = libraryPath;
+			/*string filePath = libraryPath;
 
 			if (filePath.Contains(".so"))
 			{
@@ -91,7 +93,7 @@ public class CiThruS : ModuleRules
 				filePath = filePath.Substring(0, filePath.IndexOf(".so") + 3);
 			}
 
-			PublicAdditionalLibraries.Add(filePath);
+			PublicAdditionalLibraries.Add(filePath);*/
 			RuntimeDependencies.Add(Path.Combine("$(BinaryOutputDir)/", Path.GetFileName(libraryPath)), libraryPath);
 		}
 	}
