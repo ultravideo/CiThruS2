@@ -31,7 +31,7 @@ void APlayerVehicleController::Tick(float deltaTime)
 
 	if (pawn != nullptr)
 	{
-		UPubSubCommunicator::PublishTrafficEntity("traffic", pawn);
+		UPubSubCommunicator::PublishTrafficEntity("Vehicle", pawn);
 	}
 }
 

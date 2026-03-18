@@ -63,7 +63,22 @@ public class CiThruS : ModuleRules
 		
 		PublicIncludePaths.Add(Path.Combine(pahocpp_base_path, "Include/"));
 
-		PublicDependencyModuleNames.AddRange(new string[] { "Core", "CoreUObject", "Engine", "InputCore", "RHI", "RenderCore", "AIModule", "Landscape", "ChaosVehicles", "Niagara", "NiagaraCore" });
+		PublicDependencyModuleNames.AddRange(
+			new string[]
+			{
+				"Core",
+				"CoreUObject",
+				"Engine",
+				"InputCore",
+				"RHI",
+				"RenderCore",
+				"AIModule",
+				"Landscape",
+				"ChaosVehicles",
+				"Niagara",
+				"NiagaraCore",
+				"GeoReferencing"
+			});
 		
 		if (Target.bBuildEditor)
 		{

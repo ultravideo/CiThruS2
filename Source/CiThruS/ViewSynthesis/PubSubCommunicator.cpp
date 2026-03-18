@@ -3,9 +3,10 @@
 #include "Traffic/Entities/Car.h"
 #include "Traffic/Entities/Pedestrian.h"
 #include "Traffic/Entities/Bicycle.h"
-#include "Misc/MathUtility.h"
+#include "Traffic/Parking/ParkingSpace.h"
+#include "Misc/GeoUtility.h"
+#include "GeoReferencingSystem.h"
 #include <format>
-#include <cmath>
 
 void UPubSubCommunicator::PublishBool(FString topic, bool value)
 {
@@ -58,116 +59,234 @@ void UPubSubCommunicator::Publish4DVector(FString topic, FVector4 value)
 
 void UPubSubCommunicator::PublishTrafficEntity(FString topic, AActor* actor)
 {
-	if (actor == nullptr)
+	if (!IsValid(actor))
 	{
 		return;
 	}
 
-	std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+	APawn* pawn = Cast<APawn>(actor);
 
-	std::string timestamp = std::format("{:%FT%TZ}", now);
-	std::string uniqueId = std::to_string(reinterpret_cast<std::uintptr_t>(actor));
-	std::string type = "unknown";
-
-	if (actor->IsA(ACar::StaticClass()))
+	if (pawn == nullptr || !pawn->IsPlayerControlled() || !publishEgoVehicleData_)
 	{
-		type = "car";
-
-		if (!publishCarData_)
-		{
-			return;
-		}
-	}
-	else if (actor->IsA(APedestrian::StaticClass()))
-	{
-		type = "pedestrian";
-
-		if (!publishPedestrianData_)
-		{
-			return;
-		}
-	}
-	else if (actor->IsA(ABicycle::StaticClass()))
-	{
-		type = "bicycle";
-
-		if (!publishCyclistData_)
-		{
-			return;
-		}
-	}
-	else if (actor->IsA(APawn::StaticClass()) && Cast<APawn>(actor)->IsPlayerControlled())
-	{
-		type = "self";
-
-		if (!publishEgoVehicleData_)
-		{
-			return;
-		}
+		return;
 	}
 
-	FVector position = MathUtility::UnrealEngineCoordsToWgs84AndAltitude(actor->GetActorLocation());
-	FRotator rotation = MathUtility::UnrealEngineRotationToRealLifeRotation(actor->GetActorRotation().Quaternion()).Rotator();
-	FVector velocity = FVector::ZeroVector;
-	FVector direction = FVector::ZeroVector;
-	float speed = 0.0f;
-	FVector acceleration = FVector::ZeroVector;
-	FRotator angularVelocity = FRotator::ZeroRotator;
-	FVector heading = MathUtility::UnrealEngineDirectionToRealLifeDirection(actor->GetActorForwardVector());
+	const std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
 
-	ITrafficEntity* trafficEntity = dynamic_cast<ITrafficEntity*>(actor);
+	const FVector worldLocation = actor->GetActorLocation();
+	const FVector unrealLinearVelocity = actor->GetVelocity();
 
-	if (trafficEntity != nullptr)
+	//TODO: Bind the gear to EgoCar data
+	int selectedGear = 1;
+
+	GeoData geoData;
+
+	if (!GetGeoData(actor, worldLocation, unrealLinearVelocity, actor->GetActorQuat(), now, geoData))
 	{
-		direction = trafficEntity->GetMoveDirection();
-		speed = trafficEntity->GetMoveSpeed() / 100;
-		velocity = direction * speed;
+		return;
 	}
-	else
-	{
-		velocity = MathUtility::UnrealEngineDirectionToRealLifeDirection(actor->GetVelocity()) / 100;
-		direction = velocity.GetSafeNormal();
-		speed = velocity.Length();
-	}
-
-	auto lastPublishedData = lastPublishedTrafficEntityData_.find(actor);
-
-	// UE doesn't track acceleration or angular velocity so have to track them ourselves
-	if (lastPublishedData != lastPublishedTrafficEntityData_.end())
-	{
-		double deltaTimeInverse = 1.0 / std::chrono::duration<double, std::ratio<1, 1>>(now - lastPublishedData->second.timestamp).count();
-
-		acceleration = (velocity - lastPublishedData->second.velocity) * deltaTimeInverse;
-		angularVelocity = (rotation - lastPublishedData->second.rotation) * deltaTimeInverse;
-	}
-
-	bool fixStatus = true;
-	FVector antennaPosition = FVector::ZeroVector; // TODO not sure how this should be specified
-
-	float horizontalAccuracy = 1.0e-6; // TODO not sure if this is how this was meant to work
-	float verticalAccuracy = 1.0e-6; // TODO not sure if this is how this was meant to work
-
-	float angularSpeed = std::sqrt(angularVelocity.Pitch * angularVelocity.Pitch + angularVelocity.Yaw * angularVelocity.Yaw + angularVelocity.Roll * angularVelocity.Roll);
 
 	std::string valueAsString
 		= "{\n"
-		  "\t\"timestamp\": \"" + timestamp + "\",\n"
-		  "\t\"id\": " + uniqueId + ",\n"
-		  "\t\"type\": \"" + type + "\",\n"
-		  "\t\"position\": [" + std::to_string(position.X) + ", " + std::to_string(position.Y) + ", " + std::to_string(position.Z) + "],\n"
-		  "\t\"direction\": [" + std::to_string(direction.X) + ", " + std::to_string(direction.Y) + ", " + std::to_string(direction.Z) + ", " + std::to_string(speed) + "],\n"
-		  "\t\"acceleration\": [" + std::to_string(acceleration.X) + ", " + std::to_string(acceleration.Y) + ", " + std::to_string(acceleration.Z) + "],\n"
-		  "\t\"angularVelocity\": [" + std::to_string(angularVelocity.Roll) + ", " + std::to_string(angularVelocity.Pitch) + ", " + std::to_string(angularVelocity.Yaw) + "],\n"
-		  "\t\"heading\": [" + std::to_string(heading.X) + ", " + std::to_string(heading.Y) + ", " + std::to_string(heading.Z) + "],\n"
-		  "\t\"angularSpeed\": " + std::to_string(angularSpeed) + ",\n"
-		  "\t\"fixStatus\": " + (fixStatus ? "true" : "false") + ",\n"
-		  "\t\"antennaPosition\": [" + std::to_string(antennaPosition.X) + ", " + std::to_string(antennaPosition.Y) + ", " + std::to_string(antennaPosition.Z) + "],\n"
-		  "\t\"altitude\": " + std::to_string(position.Z) + ",\n"
-		  "\t\"horizontalAccuracy\": " + std::to_string(horizontalAccuracy) + ",\n"
-		  "\t\"verticalAccuracy\": " + std::to_string(verticalAccuracy) + "\n"
-		  "}";
+		"\t\"Timestamp\": \"" + std::format("{:%FT%TZ}", now) + "\",\n"
+		"\t\"Vehicle\": {\n"
+		"\t\t\"Powertrain\": {\n"
+		"\t\t\t\"Transmission\": {\n"
+		"\t\t\t\t\"SelectedGear\": " + std::to_string(selectedGear) + "\n"
+		"\t\t\t}\n"
+		"\t\t},\n"
+		"\t\t\"CurrentLocation\": {\n"
+		"\t\t\t\"Latitude\": " + std::format("{:.8f}", geoData.geographicCoordinates.Latitude) + ",\n"
+		"\t\t\t\"Longitude\": " + std::format("{:.8f}", geoData.geographicCoordinates.Longitude) + ",\n"
+		"\t\t\t\"Altitude\": " + std::format("{:.8f}", geoData.geographicCoordinates.Altitude) + "\n"
+		"\t\t},\n"
+		"\t\t\"CurrentRotation\": {\n"
+		"\t\t\t\"Roll\": " + std::format("{:.8f}", geoData.tangentRotation.Roll) + ",\n"
+		"\t\t\t\"Pitch\": " + std::format("{:.8f}", geoData.tangentRotation.Pitch) + ",\n"
+		"\t\t\t\"Yaw\": " + std::format("{:.8f}", geoData.tangentRotation.Yaw) + "\n"
+		"\t\t},\n"
+		"\t\t\"LinearVelocity\": {\n"
+		"\t\t\t\"Lateral\": " + std::format("{:.8f}", geoData.linearVelocityEnuMps.X) + ",\n"
+		"\t\t\t\"Longitudinal\": " + std::format("{:.8f}", geoData.linearVelocityEnuMps.Y) + ",\n"
+		"\t\t\t\"Vertical\": " + std::format("{:.8f}", geoData.linearVelocityEnuMps.Z) + "\n"
+		"\t\t},\n"
+		"\t\t\"AngularVelocity\": {\n"
+		"\t\t\t\"Roll\": " + std::format("{:.8f}", geoData.tangentAngularVelocity.Roll) + ",\n"
+		"\t\t\t\"Pitch\": " + std::format("{:.8f}", geoData.tangentAngularVelocity.Pitch) + ",\n"
+		"\t\t\t\"Yaw\": " + std::format("{:.8f}", geoData.tangentAngularVelocity.Yaw) + "\n"
+		"\t\t}\n"
+		"\t}\n"
+		"}";
 
-	lastPublishedTrafficEntityData_[actor] = { now, velocity, rotation };
+	lastPublishedEgoActor_ = actor;
+
+	PublishInternal(topic, reinterpret_cast<uint8_t*>(valueAsString.data()), valueAsString.size());
+}
+
+void UPubSubCommunicator::PublishTrafficArray(FString topic, const TArray<AActor*>& trafficEntities)
+{
+	const std::chrono::system_clock::time_point now = std::chrono::system_clock::now();
+	TSet<AActor*> sentTrafficActors;
+
+	std::string trafficItems;
+	bool firstTrafficItem = true;
+
+	for (AActor* actor : trafficEntities)
+	{
+		if (!IsValid(actor))
+		{
+			continue;
+		}
+
+		std::string type = "Unknown";
+
+		auto existingId = trafficEntityIds_.find(actor);
+
+		if (existingId == trafficEntityIds_.end())
+		{
+			std::string newId = std::to_string(lastUsedTrafficEntityId_);
+
+			lastUsedTrafficEntityId_++;
+
+			existingId = trafficEntityIds_.insert({ actor, newId }).first;
+		}
+
+		const std::string& uniqueId = existingId->second;
+
+		bool isParkedCar = false;
+
+		FVector worldLocation = FVector::ZeroVector;
+		FQuat worldQuat = FQuat::Identity;
+		FVector unrealLinearVelocity = FVector::ZeroVector;
+
+		if (AParkingSpace* parkingSpace = Cast<AParkingSpace>(actor))
+		{
+			if (!publishParkedCarData_ || !parkingSpace->HasParkedCar())
+			{
+				continue;
+			}
+
+			type = "Car";
+			isParkedCar = true;
+
+			const FTransform parkedTransform = parkingSpace->GetPublishTransform();
+
+			worldLocation = parkedTransform.GetLocation();
+			worldQuat = parkedTransform.GetRotation();
+			unrealLinearVelocity = FVector::ZeroVector;
+		}
+		else if (actor->IsA(ACar::StaticClass()))
+		{
+			if (!publishCarData_)
+			{
+				continue;
+			}
+
+			type = "Car";
+		}
+		else if (actor->IsA(APedestrian::StaticClass()))
+		{
+			if (!publishPedestrianData_)
+			{
+				continue;
+			}
+
+			type = "Pedestrian";
+		}
+		else if (actor->IsA(ABicycle::StaticClass()))
+		{
+			if (!publishCyclistData_)
+			{
+				continue;
+			}
+
+			type = "Bicycle";
+		}
+		else
+		{
+			continue;
+		}
+
+		if (!isParkedCar)
+		{
+			worldLocation = actor->GetActorLocation();
+			worldQuat = actor->GetActorQuat();
+			unrealLinearVelocity = actor->GetVelocity();
+		}
+
+		GeoData geoData;
+
+		if (!GetGeoData(actor, worldLocation, unrealLinearVelocity, worldQuat, now, geoData))
+		{
+			continue;
+		}
+
+		std::string trafficItem
+			= "\t\t{\n"
+			"\t\t\t\"Id\": " + uniqueId + ",\n"
+			"\t\t\t\"Type\": \"" + type + "\",\n"
+			"\t\t\t\"CurrentLocation\": {\n"
+			"\t\t\t\t\"Latitude\": " + std::format("{:.8f}", geoData.geographicCoordinates.Latitude) + ",\n"
+			"\t\t\t\t\"Longitude\": " + std::format("{:.8f}", geoData.geographicCoordinates.Longitude) + ",\n"
+			"\t\t\t\t\"Altitude\": " + std::format("{:.8f}", geoData.geographicCoordinates.Altitude) + "\n"
+			"\t\t\t},\n"
+			"\t\t\t\"CurrentRotation\": {\n"
+			"\t\t\t\t\"Roll\": " + std::format("{:.8f}", geoData.tangentRotation.Roll) + ",\n"
+			"\t\t\t\t\"Pitch\": " + std::format("{:.8f}", geoData.tangentRotation.Pitch) + ",\n"
+			"\t\t\t\t\"Yaw\": " + std::format("{:.8f}", geoData.tangentRotation.Yaw) + "\n"
+			"\t\t\t},\n"
+			"\t\t\t\"LinearVelocity\": {\n"
+			"\t\t\t\t\"Lateral\": " + std::format("{:.8f}", geoData.linearVelocityEnuMps.X) + ",\n"
+			"\t\t\t\t\"Longitudinal\": " + std::format("{:.8f}", geoData.linearVelocityEnuMps.Y) + ",\n"
+			"\t\t\t\t\"Vertical\": " + std::format("{:.8f}", geoData.linearVelocityEnuMps.Z) + "\n"
+			"\t\t\t},\n"
+			"\t\t\t\"AngularVelocity\": {\n"
+			"\t\t\t\t\"Roll\": " + std::format("{:.8f}", geoData.tangentAngularVelocity.Roll) + ",\n"
+			"\t\t\t\t\"Pitch\": " + std::format("{:.8f}", geoData.tangentAngularVelocity.Pitch) + ",\n"
+			"\t\t\t\t\"Yaw\": " + std::format("{:.8f}", geoData.tangentAngularVelocity.Yaw) + "\n"
+			"\t\t\t}\n"
+			"\t\t}";
+
+		if (!firstTrafficItem)
+		{
+			trafficItems += ",\n";
+		}
+
+		firstTrafficItem = false;
+		trafficItems += trafficItem;
+		sentTrafficActors.Add(actor);
+	}
+
+	// Drop stale traffic entries so actors that disappear/reappear don't accumulate stale angular-rate state.
+	for (auto it = lastPublishedTrafficEntityData_.begin(); it != lastPublishedTrafficEntityData_.end();)
+	{
+		AActor* cachedActor = it->first;
+		const bool isCurrentTrafficActor = sentTrafficActors.Contains(cachedActor);
+		const bool isTrackedEgoActor = cachedActor != nullptr && cachedActor == lastPublishedEgoActor_;
+
+		if (!isCurrentTrafficActor && !isTrackedEgoActor)
+		{
+			it = lastPublishedTrafficEntityData_.erase(it);
+			trafficEntityIds_.erase(cachedActor);
+			continue;
+		}
+
+		++it;
+	}
+
+	std::string valueAsString
+		= "{\n"
+		"\t\"Timestamp\": \"" + std::format("{:%FT%TZ}", now) + "\",\n"
+		"\t\"Traffic\": [";
+
+	if (!trafficItems.empty())
+	{
+		valueAsString += "\n";
+		valueAsString += trafficItems;
+		valueAsString += "\n\t";
+	}
+
+	valueAsString += "]\n}";
 
 	PublishInternal(topic, reinterpret_cast<uint8_t*>(valueAsString.data()), valueAsString.size());
 }
@@ -202,6 +321,11 @@ void UPubSubCommunicator::SetPublishCarData(bool value)
 	publishCarData_ = value;
 }
 
+void UPubSubCommunicator::SetPublishParkedCarData(bool value)
+{
+	publishParkedCarData_ = value;
+}
+
 void UPubSubCommunicator::SetPublishPedestrianData(bool value)
 {
 	publishPedestrianData_ = value;
@@ -210,6 +334,51 @@ void UPubSubCommunicator::SetPublishPedestrianData(bool value)
 void UPubSubCommunicator::SetPublishCyclistData(bool value)
 {
 	publishCyclistData_ = value;
+}
+
+bool UPubSubCommunicator::GetGeoData(
+	AActor* actor,
+	const FVector& ueLocation,
+	const FVector& ueVelocity,
+	const FQuat& ueRotation,
+	const std::chrono::system_clock::time_point& now,
+	GeoData& geoData)
+{
+	AGeoReferencingSystem* geoRef = nullptr;
+
+	if (!GeoUtility::TryGetGeoReferencingSystem(actor, geoRef))
+	{
+		return false;
+	}
+
+	if (!GeoUtility::TryWorldToGeographic(geoRef, ueLocation, geoData.geographicCoordinates))
+	{
+		return false;
+	}
+
+	FVector east = FVector::ZeroVector;
+	FVector north = FVector::ZeroVector;
+	FVector up = FVector::ZeroVector;
+
+	if (!GeoUtility::TryGetEnuBasisAtWorldLocation(geoRef, ueLocation, east, north, up))
+	{
+		return false;
+	}
+
+	geoData.linearVelocityEnuMps = GeoUtility::WorldVelocityCmpsToEnuMps(ueVelocity, east, north, up);
+	geoData.tangentRotation = GeoUtility::WorldQuatToTangentRotatorYawNorth(ueRotation, east, north, up);
+
+	geoData.tangentAngularVelocity = FRotator::ZeroRotator;
+	auto lastPublishedData = lastPublishedTrafficEntityData_.find(actor);
+	if (lastPublishedData != lastPublishedTrafficEntityData_.end())
+	{
+		const double deltaSeconds = std::chrono::duration<double, std::ratio<1, 1>>(now - lastPublishedData->second.timestamp).count();
+		geoData.tangentAngularVelocity = GeoUtility::ComputeAngularVelocityDegPerSec(lastPublishedData->second.geoData.tangentRotation, geoData.tangentRotation, deltaSeconds);
+	}
+
+	lastPublishedTrafficEntityData_[actor] = { now, geoData };
+
+	return true;
 }
 
 void UPubSubCommunicator::PublishInternal(FString topic, uint8_t* data, const size_t& size)

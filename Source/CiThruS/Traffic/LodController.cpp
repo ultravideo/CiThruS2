@@ -2,6 +2,8 @@
 #include "Traffic/Entities/ITrafficEntity.h"
 #include "TrafficController.h"
 #include "ViewSynthesis/PubSubCommunicator.h"
+#include "Parking/ParkingController.h"
+#include "Parking/ParkingSpace.h"
 #include "Misc/CameraUtility.h"
 #include "Misc/Debug.h"
 
@@ -22,7 +24,7 @@ void LodController::AddEntity(ITrafficEntity* entity)
 	// Should always be inserted to avoid sync issues/dangling pointers
 	if (!entityLodInfo_.insert({ entity, EntityLodInfo{ entity, false, false, std::numeric_limits<float>::max() } }).second)
 	{
-		throw new std::runtime_error("LOD controller state is invalid!");
+		throw std::runtime_error("LOD controller state is invalid!");
 	}
 }
 
@@ -31,12 +33,14 @@ void LodController::RemoveEntity(ITrafficEntity* entity)
 	// Should always be erased to avoid sync issues/dangling pointers
 	if (entityLodInfo_.erase(entity) != 1)
 	{
-		throw new std::runtime_error("LOD controller state is invalid!");
+		throw std::runtime_error("LOD controller state is invalid!");
 	}
 }
 
 void LodController::UpdateAllLods()
 {
+	TArray<AActor*> publishableActors;
+
 	FVector cameraLocation = FVector::ZeroVector;
 	FMatrix cameraViewMatrix = FMatrix::Identity;
 	float cameraTanInverse = 0.0f;
@@ -45,6 +49,7 @@ void LodController::UpdateAllLods()
 	GetCameraViewProperties(cameraLocation, cameraViewMatrix, cameraTanInverse, aspectRatioInverse);
 
 	APawn* playerPawn = trafficController_->GetWorld()->GetFirstPlayerController()->GetPawn();
+	const float farDistanceSquared = farDistance_ * farDistance_;
 
 	entityInFront_ = nullptr;
 	entityInFrontDistance_ = std::numeric_limits<float>::max();
@@ -54,7 +59,7 @@ void LodController::UpdateAllLods()
 		EntityLodInfo& entityWrapper = it->second;
 
 		// Comparing squared lengths is a tiny bit faster, same result as with normal lengths
-		if ((entityWrapper.entity->GetCollisionRectangle().GetPosition() - cameraLocation).SquaredLength() > farDistance_ * farDistance_)
+		if ((entityWrapper.entity->GetCollisionRectangle().GetPosition() - cameraLocation).SquaredLength() > farDistanceSquared)
 		{
 			// Entity is too far away
 			entityWrapper.isNear = false;
@@ -67,7 +72,7 @@ void LodController::UpdateAllLods()
 
 		if (entityAsActor != nullptr)
 		{
-			UPubSubCommunicator::PublishTrafficEntity("traffic", entityAsActor);
+			publishableActors.Add(entityAsActor);
 		}
 
 		if (!EntityInCameraView(entityWrapper.entity, cameraLocation, cameraViewMatrix, cameraTanInverse, aspectRatioInverse))
@@ -103,6 +108,25 @@ void LodController::UpdateAllLods()
 		}
 	}
 
+	AParkingController* parkingController = trafficController_ != nullptr ? trafficController_->GetParkingController() : nullptr;
+
+	if (parkingController != nullptr)
+	{
+		const TArray<AParkingSpace*>& parkingSpaces = parkingController->GetParkingSpaces();
+
+		for (AParkingSpace* parkingSpace : parkingSpaces)
+		{
+			if (!IsValid(parkingSpace)
+				|| !parkingSpace->HasParkedCar()
+				|| (parkingSpace->GetPublishTransform().GetLocation() - cameraLocation).SquaredLength() > farDistanceSquared)
+			{
+				continue;
+			}
+
+			publishableActors.Add(parkingSpace);
+		}
+	}
+
 	for (auto it = entityLodInfo_.begin(); it != entityLodInfo_.end(); it++)
 	{
 		EntityLodInfo& entityWrapper = it->second;
@@ -119,6 +143,8 @@ void LodController::UpdateAllLods()
 
 		entityWrapper.previousIsNear = entityWrapper.isNear;
 	}
+
+	UPubSubCommunicator::PublishTrafficArray("Traffic", publishableActors);
 }
 
 void LodController::GetCameraViewProperties(FVector& cameraLocation, FMatrix& cameraViewMatrix, float& cameraTanInverse, float& aspectRatioInverse)

@@ -85,6 +85,7 @@ public:
 	void EDITOR_InitRegulationCollisions();
 
 	inline LodController* GetLodController() const { return lodController_; }
+	inline AParkingController* GetParkingController() const { return parkingController_; }
 
 	inline bool UseEditorViewportCameraForLods() const { return useEditorViewportCamera_; }
 

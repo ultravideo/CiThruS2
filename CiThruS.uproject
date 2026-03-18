@@ -80,6 +80,10 @@
 		{
 			"Name": "RawInput",
 			"Enabled": true
+		},
+		{
+			"Name": "GeoReferencing",
+			"Enabled": true
 		}
 	]
 }

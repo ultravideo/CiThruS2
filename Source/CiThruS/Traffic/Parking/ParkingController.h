@@ -33,6 +33,7 @@ public:
 	bool DepartRandomParkedCar();
 
 	ATrafficController* GetTrafficController() { return trafficController_; }
+	const TArray<AParkingSpace*>& GetParkingSpaces() const { return parkingSpaces_; }
 
 protected:
 	struct InstanceData
