@@ -10,8 +10,6 @@
 #include "Navigation/PathFollowingComponent.h"
 #include "Engine/World.h"
 
-const float HEIGHT_CM = 180.0f;
-
 APedestrian::APedestrian()
 {
 	GetCapsuleComponent()->AddLocalOffset(FVector::UpVector * HEIGHT_CM * 0.5f);

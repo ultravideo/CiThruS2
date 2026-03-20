@@ -21,6 +21,8 @@ class CITHRUS_API APedestrian : public ACharacter, public ITrafficEntity
 	GENERATED_BODY()
 
 public:
+	const static inline float HEIGHT_CM = 180.0f;
+
 	virtual FString GetName() const override { return ACharacter::GetName(); }
 	
 	static FVector PreferredSpawnPositionOffset();

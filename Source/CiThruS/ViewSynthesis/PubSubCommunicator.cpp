@@ -4,6 +4,7 @@
 #include "Traffic/Entities/Car.h"
 #include "Traffic/Entities/Pedestrian.h"
 #include "Traffic/Entities/Bicycle.h"
+#include "Traffic/Entities/ITrafficEntity.h"
 #include "Traffic/Parking/ParkingSpace.h"
 #include "Misc/GeoUtility.h"
 #include "GeoReferencingSystem.h"
@@ -140,6 +141,7 @@ void UPubSubCommunicator::PublishTrafficArray(FString topic, const TArray<AActor
 		}
 
 		std::string type = "Unknown";
+		const ITrafficEntity* trafficEntity = nullptr;
 
 		auto existingId = trafficEntityIds_.find(actor);
 
@@ -184,6 +186,7 @@ void UPubSubCommunicator::PublishTrafficArray(FString topic, const TArray<AActor
 			}
 
 			type = "Car";
+			trafficEntity = Cast<ACar>(actor);
 		}
 		else if (actor->IsA(APedestrian::StaticClass()))
 		{
@@ -193,6 +196,7 @@ void UPubSubCommunicator::PublishTrafficArray(FString topic, const TArray<AActor
 			}
 
 			type = "Pedestrian";
+			trafficEntity = Cast<APedestrian>(actor);
 		}
 		else if (actor->IsA(ABicycle::StaticClass()))
 		{
@@ -202,6 +206,7 @@ void UPubSubCommunicator::PublishTrafficArray(FString topic, const TArray<AActor
 			}
 
 			type = "Bicycle";
+			trafficEntity = Cast<ABicycle>(actor);
 		}
 		else
 		{
@@ -211,8 +216,32 @@ void UPubSubCommunicator::PublishTrafficArray(FString topic, const TArray<AActor
 		if (!isParkedCar)
 		{
 			worldLocation = actor->GetActorLocation();
+			if (type == "Pedestrian")
+			{
+				// Pedestrian actor Z location is in the middle of the actor, so move it down to the ground
+				worldLocation.Z -= APedestrian::HEIGHT_CM * 0.5f;
+			}
 			worldQuat = actor->GetActorQuat();
-			unrealLinearVelocity = actor->GetVelocity();
+
+			const bool useInterfaceVelocity = (type == "Car" || type == "Bicycle");
+
+			if (useInterfaceVelocity && trafficEntity != nullptr)
+			{
+				if (trafficEntity->Stopped())
+				{
+					unrealLinearVelocity = FVector::ZeroVector;
+				}
+				else
+				{
+					const FVector direction = trafficEntity->GetMoveDirection().GetSafeNormal();
+					const float speed = trafficEntity->GetMoveSpeed();
+					unrealLinearVelocity = direction * speed;
+				}
+			}
+			else
+			{
+				unrealLinearVelocity = actor->GetVelocity();
+			}
 		}
 
 		GeoData geoData;

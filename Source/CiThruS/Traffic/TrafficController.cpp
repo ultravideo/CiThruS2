@@ -68,11 +68,6 @@ void ATrafficController::BeginPlay()
 		}
 	}
 
-	if (lowDetailEntitiesOutsideCamera_)
-	{
-		lodController_ = new LodController(this, distanceFromCameraToEnableLowDetail_);
-	}
-
 	// Apply extra rules to car keypoints from VehicleRuleZones, incase they aren't applied manually
 	roadGraph_.ApplyZoneRules(this);
 
@@ -449,6 +444,17 @@ void ATrafficController::InvalidateTrafficEntity(ITrafficEntity* entity)
 void ATrafficController::BeginSimulateTraffic()
 {
 	DeleteAllEntities();
+
+	if (lodController_ != nullptr)
+	{
+		delete lodController_;
+	}
+
+	// Create this here in case the LOD distance is changed during simulation
+	if (lowDetailEntitiesOutsideCamera_)
+	{
+		lodController_ = new LodController(this, distanceFromCameraToEnableLowDetail_);
+	}
 
 	// Create new cars
 	
