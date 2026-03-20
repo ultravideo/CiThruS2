@@ -49,6 +49,9 @@ public:
 	static void StartMqttClient(FString serverUri, FString username, FString password, int maxMsgsPerSecond);
 
 	UFUNCTION(BlueprintCallable)
+	static void StartFileSaveClient(FString directoryPath, int maxMsgsPerSecond);
+
+	UFUNCTION(BlueprintCallable)
 	static void StopAllClients();
 
 	UFUNCTION(BlueprintCallable)
@@ -68,6 +71,9 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	static void SetPublishCyclistData(bool value);
+
+	UFUNCTION(BlueprintCallable)
+	static FString GetDefaultSaveDirectory() { return FString(FPlatformProcess::UserDir()) + "CiThruS2/Published/"; }
 
 private:
 	struct GeoData

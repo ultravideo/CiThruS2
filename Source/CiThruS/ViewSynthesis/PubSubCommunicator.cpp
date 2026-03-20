@@ -1,5 +1,6 @@
 #include "PubSubCommunicator.h"
 #include "MqttPublisher.h"
+#include "FilePublisher.h"
 #include "Traffic/Entities/Car.h"
 #include "Traffic/Entities/Pedestrian.h"
 #include "Traffic/Entities/Bicycle.h"
@@ -298,6 +299,14 @@ void UPubSubCommunicator::StartMqttClient(FString serverUri, FString username, F
 			TCHAR_TO_UTF8(*serverUri),
 			TCHAR_TO_UTF8(*username),
 			TCHAR_TO_UTF8(*password),
+			maxMsgsPerSecond));
+}
+
+void UPubSubCommunicator::StartFileSaveClient(FString directoryPath, int maxMsgsPerSecond)
+{
+	publisher_ = TSharedPtr<IPublisher>(
+		new FilePublisher(
+			TCHAR_TO_UTF8(*directoryPath),
 			maxMsgsPerSecond));
 }
 
