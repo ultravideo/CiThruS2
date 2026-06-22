@@ -1,6 +1,5 @@
 @echo off
 setlocal
-setlocal EnableDelayedExpansion
 
 set AIRSIM_VER=2.1.0
 set DLSS_VER=DLSS-4.5/2026.02.10_UE5.6_DLSS4.5Plugin_v8.5.0
@@ -46,8 +45,45 @@ if exist %~1 (
 	
 exit /b 1
 
+:downloadfile
+if "%~1"=="" exit /b 1
+if "%~2"=="" exit /b 1
+
+%POWERSHELL% -command "(New-Object Net.WebClient).DownloadFile(\""%~1\"", \""%~2\"")" && exit /b 0
+
+exit /b 1
+
+:unzip
+if "%~1"=="" exit /b 1
+if "%~2"=="" exit /b 1
+
+%POWERSHELL% -command "Expand-Archive -Path \""%~1\"" -DestinationPath \""%~2\"" -Force" && exit /b 0
+
+exit /b 1
+
+:findandreplace
+if "%~1"=="" exit /b 1
+if "%~2"=="" exit /b 1
+
+:: Make sure any quotation marks, dollar signs and carets in the strings are handled correctly
+set "FIND_STR=%~2"
+set "FIND_STR=%FIND_STR:"=`\"%"
+set "FIND_STR=%FIND_STR:$=`$%"
+set "FIND_STR=%FIND_STR:^^=%"
+
+set "REPLACE_STR=%~3"
+:: This replacement syntax fails if the string is empty
+if not "%~3" == "" set "REPLACE_STR=%REPLACE_STR:"=`\"%"
+if not "%~3" == "" set "REPLACE_STR=%REPLACE_STR:$=`$%"
+if not "%~3" == "" set "REPLACE_STR=%REPLACE_STR:^^=%"
+
+:: This uses PowerShell so that we have access to RegEx
+%POWERSHELL% -command "((Get-Content -path \""%~1\"" -Raw) -replace \""%FIND_STR%\"",\""%REPLACE_STR%\"") | Set-Content -Path \""%~1\""" && exit /b 0
+
+exit /b 1
+
 :powershellsetup
-set powershell=powershell
+set POWERSHELL=powershell
 where powershell > nul 2>&1
 if errorlevel 1 (
 	echo %COLOR_FAILURE%PowerShell is required by this script; please install it.%COLOR_RESET%
@@ -58,24 +94,20 @@ if errorlevel 1 (
 exit /b 0
 
 :visualstudiosetup
-set VS_EDITIONS=Enterprise Professional Community Preview
-
 :: Get VS Command Prompt
 if "%VisualStudioVersion%" == "" (
-	echo Starting x64 Native Tools Command Prompt for Visual Studio 2022 or 2026...
+	echo Starting x64 Native Tools Command Prompt for Visual Studio...
 	
-	REM Try the default installation locations.
-	REM Although previous VS versions were in directories named after the year, i.e. 2019, 2022, for VS 2026 it was changed to 18 instead?
-	REM So let's just check every subdirectory in case Microsoft decides to change the naming scheme or version again
+	:: Try the default installation locations. Microsoft keeps changing the naming schemes for these directories so let's just check all we can find in case they do that again
 	for /d %%i in ("%ProgramW6432%\Microsoft Visual Studio\*") do (
-		for %%a in (%VS_EDITIONS%) do (
-			call "%%i\%%a\VC\Auxiliary\Build\vcvars64.bat" 2>nul
+		for /d %%j in ("%%i\*") do (
+			call "%%j\VC\Auxiliary\Build\vcvars64.bat" 2>nul
 
-			if !errorlevel! == 0 exit /b 0
+			if errorlevel 0 exit /b 0
 		)
 	)
 	
-	echo %COLOR_FAILURE%Could not find x64 Native Tools Command Prompt for Visual Studio 2022 or 2026 automatically. Please open it manually and run this script in it.%COLOR_RESET%
+	echo %COLOR_FAILURE%Could not find x64 Native Tools Command Prompt for Visual Studio automatically. Please open it manually and run this script in it.%COLOR_RESET%
 	set ANY_FAILED=1
 	
 	exit /b 1
@@ -90,9 +122,9 @@ if exist temp\Yasm (
 
 :: Yasm is needed to build Kvazaar and OpenHEVC
 echo Downloading Yasm...
-%powershell% -command "(New-Object Net.WebClient).DownloadFile('http://www.tortall.net/projects/yasm/releases/vsyasm-%YASM_VER%-win64.zip', 'temp\Yasm.zip')" || call :downloadfailed yasm && exit /b 1
+call :downloadfile "http://www.tortall.net/projects/yasm/releases/vsyasm-%YASM_VER%-win64.zip" "temp\Yasm.zip" || call :downloadfailed yasm && exit /b 1
 echo Extracting Yasm...
-%powershell% -command "Expand-Archive -Path temp\Yasm.zip -DestinationPath temp\Yasm -Force"
+call :unzip "temp\Yasm.zip" "temp\Yasm"
 del temp\Yasm.zip /q
 
 :: Kvazaar finds Yasm through the PATH environment variable
@@ -107,9 +139,9 @@ if exist temp\OpenSSL (
 
 :: OpenSSL is needed to build Eclipse Paho
 echo Downloading OpenSSL...
-%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://download.firedaemon.com/FireDaemon-OpenSSL/openssl-%OPENSSL_VER%.zip', 'temp\OpenSSL.zip')" || call :downloadfailed OpenSSL && exit /b 1
+call :downloadfile "https://download.firedaemon.com/FireDaemon-OpenSSL/openssl-%OPENSSL_VER%.zip" "temp\OpenSSL.zip" || call :downloadfailed OpenSSL && exit /b 1
 echo Extracting OpenSSL...
-%powershell% -command "Expand-Archive -Path temp\OpenSSL.zip -DestinationPath temp\OpenSSL -Force"
+call :unzip "temp\OpenSSL.zip" "temp\OpenSSL"
 del temp\OpenSSL.zip /q
 
 :: CMake finds OpenSSL through this environment variable
@@ -122,9 +154,9 @@ call :dependencymissing Content "CiThruS2 content" && exit /b 0
 
 :: Download
 echo Downloading CiThruS2 content...
-%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://ultravideo.fi/sim_env/cithrus2_sim_env_content_%CITHRUS_CONTENT_VER%.zip', 'temp\CiThruS2_content.zip')" || call :downloadfailed "CiThruS2 content" && exit /b 1
+call :downloadfile "https://ultravideo.fi/sim_env/cithrus2_sim_env_content_%CITHRUS_CONTENT_VER%.zip" "temp\CiThruS2_content.zip" || call :downloadfailed "CiThruS2 content" && exit /b 1
 echo Extracting CiThruS2 content...
-%powershell% -command "Expand-Archive -Path temp\CiThruS2_content.zip -DestinationPath . -Force"
+call :unzip "temp\CiThruS2_content.zip" "."
 del temp\CiThruS2_content.zip /q
 
 :: Make editor load regions automatically
@@ -165,7 +197,7 @@ if not exist Plugins mkdir Plugins
 robocopy temp\Colosseum\Unreal\Plugins Plugins /e
 
 :: Tiny patch to prevent AirSim from changing the Unreal Engine world origin, which would break CiThruS traffic systems
-%powershell% -command "((Get-Content -path Plugins\AirSim\Source\SimMode\SimModeBase.cpp -Raw) -replace [regex]::Escape('    this->GetWorld()->SetNewWorldOrigin(FIntVector(player_loc) + this->GetWorld()->OriginLocation);'),'    //this->GetWorld()->SetNewWorldOrigin(FIntVector(player_loc) + this->GetWorld()->OriginLocation);') | Set-Content -Path Plugins\AirSim\Source\SimMode\SimModeBase.cpp"
+call :findandreplace "Plugins\AirSim\Source\SimMode\SimModeBase.cpp" "    this->GetWorld()->SetNewWorldOrigin(FIntVector(player_loc) + this->GetWorld()->OriginLocation);" "    //this->GetWorld()->SetNewWorldOrigin(FIntVector(player_loc) + this->GetWorld()->OriginLocation);"
 
 :: Another patch to remove an unused folder which was accidentally included in the Colosseum release and prevents it from compiling
 if exist Plugins\AirSim\Source\AssetCode rmdir Plugins\AirSim\Source\AssetCode /s /q
@@ -183,10 +215,10 @@ call :dependencymissing Plugins\DLSS "NVIDIA DLSS" && exit /b 0
 
 :: Download
 echo Downloading NVIDIA DLSS...
-%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://developer.nvidia.com/downloads/assets/gameworks/downloads/secure/dlss/%DLSS_VER%.zip', 'temp\DLSS.zip')" || call :downloadfailed "NVIDIA DLSS" && exit /b 1
+call :downloadfile "https://developer.nvidia.com/downloads/assets/gameworks/downloads/secure/dlss/%DLSS_VER%.zip" "temp\DLSS.zip" || call :downloadfailed "NVIDIA DLSS" && exit /b 1
 echo Extracting NVIDIA DLSS...
 mkdir temp\DLSS
-%powershell% -command "Expand-Archive -Path temp\DLSS.zip -DestinationPath temp\DLSS"
+call :unzip "temp\DLSS.zip" "temp\DLSS"
 del temp\DLSS.zip /q
 
 :: Copy the plugin files
@@ -208,9 +240,9 @@ call :dependencymissing Plugins\FSR "AMD FSR 4" && exit /b 0
 
 :: Download
 echo Downloading AMD FSR 4...
-%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://gpuopen.com/download-Unreal-Engine-FSR4-plugin/', 'temp\FSR.zip')" || call :downloadfailed "AMD FSR 4" && exit /b 1
+call :downloadfile "https://gpuopen.com/download-Unreal-Engine-FSR4-plugin/" "temp\FSR.zip" || call :downloadfailed "AMD FSR 4" && exit /b 1
 echo Extracting AMD FSR 4...
-%powershell% -command "Expand-Archive -Path temp\FSR.zip -DestinationPath temp"
+call :unzip "temp\FSR.zip" "temp"
 del temp\FSR.zip /q
 
 :: If there are existing plugin files, remove them to avoid conflicts
@@ -243,19 +275,19 @@ call :yasmsetup || exit /b 1
 
 :: Download
 echo Downloading Kvazaar...
-%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://github.com/ultravideo/kvazaar/archive/v%KVAZAAR_VER%.zip', 'temp\Kvazaar.zip')" || call :downloadfailed Kvazaar && exit /b 1
+call :downloadfile "https://github.com/ultravideo/kvazaar/archive/v%KVAZAAR_VER%.zip" "temp\Kvazaar.zip" || call :downloadfailed Kvazaar && exit /b 1
 echo Extracting Kvazaar...
-%powershell% -command "Expand-Archive -Path temp\Kvazaar.zip -DestinationPath temp -Force"
+call :unzip "temp\Kvazaar.zip" "temp"
 del temp\Kvazaar.zip /q
 
 :: Build
 echo Building Kvazaar...
 
 :: Change the build configuration of Kvazaar to disable assembly output: otherwise Kvazaar doesn't work with CiThruS
-%powershell% -command "((Get-Content -path temp\kvazaar-%KVAZAAR_VER%\build\C_Properties.props -Raw) -replace 'AssemblyAndSourceCode','NoListing') | Set-Content -Path temp\kvazaar-%KVAZAAR_VER%\build\C_Properties.props"
+call :findandreplace "temp\kvazaar-%KVAZAAR_VER%\build\C_Properties.props" "AssemblyAndSourceCode" "NoListing"
 
 :: Change the build configuration of Kvazaar to disable whole program optimization. It keeps causing this issue whenever people use different VS versions https://developercommunity.visualstudio.com/t/cannot-build-after-vs-update-link-error/1348830
-%powershell% -command "((Get-Content -path temp\kvazaar-%KVAZAAR_VER%\build\Release_Optimizations.props -Raw) -replace '<WholeProgramOptimization>true</WholeProgramOptimization>','<WholeProgramOptimization>false</WholeProgramOptimization>') | Set-Content -Path temp\kvazaar-%KVAZAAR_VER%\build\Release_Optimizations.props"
+call :findandreplace "temp\kvazaar-%KVAZAAR_VER%\build\Release_Optimizations.props" "<WholeProgramOptimization>true</WholeProgramOptimization>" "<WholeProgramOptimization>false</WholeProgramOptimization>"
 
 msbuild temp\kvazaar-%KVAZAAR_VER%\build\kvazaar_VS2015.sln /p:Configuration=Release /p:Platform=x64 /p:PlatformToolset=v143 /p:WindowsTargetPlatformVersion=10.0 || call :buildfailed Kvazaar && exit /b 1
 
@@ -284,38 +316,38 @@ call :yasmsetup || exit /b 1
 
 :: Download
 echo Downloading OpenHEVC...
-%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://github.com/OpenHEVC/openHEVC/archive/refs/heads/%OPENHEVC_VER%.zip', 'temp\OpenHEVC.zip')" || call :downloadfailed OpenHEVC && exit /b 1
+call :downloadfile "https://github.com/OpenHEVC/openHEVC/archive/refs/heads/%OPENHEVC_VER%.zip" "temp\OpenHEVC.zip" || call :downloadfailed OpenHEVC && exit /b 1
 echo Extracting OpenHEVC...
-%powershell% -command "Expand-Archive -Path temp\OpenHEVC.zip -DestinationPath temp -Force"
+call :unzip "temp\OpenHEVC.zip" "temp"
 del temp\OpenHEVC.zip /q
 
 :: Building OpenHEVC is broken on Windows, needs to be patched
 echo Patching OpenHEVC...
 :: Set updated CMake version and enable C11
-%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt -Raw) -replace 'cmake_minimum_required \(VERSION 2\.8\)',\""cmake_minimum_required (VERSION 3.10)`nset (CMAKE_C_STANDARD 11)\"") | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt"
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt" "cmake_minimum_required \(VERSION 2\.8\)" "cmake_minimum_required (VERSION 3.10)`nset (CMAKE_C_STANDARD 11)"
 :: m library doesn't exist on Windows and isn't needed anyway. Replace with explicitly enabling C11 atomics
-%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt -Raw) -replace 'target_link_libraries\(LibOpenHevcWrapper m\)',\""if (MSVC)`n`ttarget_compile_options(LibOpenHevcWrapper PRIVATE /experimental:c11atomics)`nendif()\"") | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt"
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt" "target_link_libraries\(LibOpenHevcWrapper m\)" "if (MSVC)`n`ttarget_compile_options(LibOpenHevcWrapper PRIVATE /experimental:c11atomics)`nendif()"
 :: These definitions break MSVC and aren't needed anyway
-%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt -Raw) -replace 'if\(WIN32\)\s*add_definitions\([\s\S]*?\)\s*endif\(\)','') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt"
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt" "if\(WIN32\)\s*add_definitions\([\s\S]*?\)\s*endif\(\)" ""
 :: Yasm output file extension is incorrect
-%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt -Raw) -replace 'set\(YASM_OBJ \""\${CMAKE_CURRENT_BINARY_DIR}\/\${BASENAME}.o\""\)','set(YASM_OBJ \""${CMAKE_CURRENT_BINARY_DIR}/${BASENAME}.obj\"")') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt"
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt" "set\(YASM_OBJ ^"\${CMAKE_CURRENT_BINARY_DIR}\/\${BASENAME}.o^"\)" "set(YASM_OBJ ^"${CMAKE_CURRENT_BINARY_DIR}/${BASENAME}.obj^")"
 :: Inline assembly is not supported on Windows, clear this file to disable it
-%powershell% -command "'' | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\libavutil\x86\intreadwrite.h"
+%POWERSHELL% -command "'' | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\libavutil\x86\intreadwrite.h"
 :: Many parts of config.h have been written incorrectly for Windows and the configure script that generates it doesn't work either
-%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_W32THREADS 0\s*#define HAVE_OS2THREADS 0\s*#endif\s*#define HAVE_ATOMICS_GCC 1\s*#define HAVE_ATOMICS_SUNCC 0\s*#define HAVE_ATOMICS_WIN32 0',\""#define HAVE_W32THREADS 0`n#define HAVE_OS2THREADS 0`n#define HAVE_ATOMICS_GCC 1`n#define HAVE_ATOMICS_SUNCC 0`n#define HAVE_ATOMICS_WIN32 0`n#endif\"") | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
-%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_FCNTL @FCNTL_H_FOUND@','#define HAVE_FCNTL 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
-%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_LSTAT 1','#define HAVE_LSTAT 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
-%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_SYS_PARAM_H 1','#define HAVE_SYS_PARAM_H 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
-%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_SYSCTL 1','#define HAVE_SYSCTL 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
-%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_MMAP 1','#define HAVE_MMAP 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
-%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_DIRENT_H 1','#define HAVE_DIRENT_H 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
-%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_NANOSLEEP 1','#define HAVE_NANOSLEEP 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
-%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_POSIX_MEMALIGN 1','#define HAVE_POSIX_MEMALIGN 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
-%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in -Raw) -replace '#define HAVE_MEMALIGN 1','#define HAVE_MEMALIGN 0') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in"
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in" "#define HAVE_W32THREADS 0\s*#define HAVE_OS2THREADS 0\s*#endif\s*#define HAVE_ATOMICS_GCC 1\s*#define HAVE_ATOMICS_SUNCC 0\s*#define HAVE_ATOMICS_WIN32 0" "#define HAVE_W32THREADS 0`n#define HAVE_OS2THREADS 0`n#define HAVE_ATOMICS_GCC 1`n#define HAVE_ATOMICS_SUNCC 0`n#define HAVE_ATOMICS_WIN32 0`n#endif"
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in" "#define HAVE_FCNTL @FCNTL_H_FOUND@" "#define HAVE_FCNTL 0"
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in" "#define HAVE_LSTAT 1" "#define HAVE_LSTAT 0"
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in" "#define HAVE_SYS_PARAM_H 1" "#define HAVE_SYS_PARAM_H 0"
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in" "#define HAVE_SYSCTL 1" "#define HAVE_SYSCTL 0"
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in" "#define HAVE_MMAP 1" "#define HAVE_MMAP 0"
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in" "#define HAVE_DIRENT_H 1" "#define HAVE_DIRENT_H 0"
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in" "#define HAVE_NANOSLEEP 1" "#define HAVE_NANOSLEEP 0"
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in" "#define HAVE_POSIX_MEMALIGN 1" "#define HAVE_POSIX_MEMALIGN 0"
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in" "#define HAVE_MEMALIGN 1" "#define HAVE_MEMALIGN 0"
 :: POSIX threads don't exist on Windows but there's a wrapper for them in the files
-%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\gpac\modules\openhevc_dec\openHevcWrapper.c -Raw) -replace '#include \""pthread.h\""','#include \""compat/w32pthreads.h\""') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\gpac\modules\openhevc_dec\openHevcWrapper.c"
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\gpac\modules\openhevc_dec\openHevcWrapper.c" "#include ^"pthread.h^"" "#include ^"compat/w32pthreads.h^""
 :: ATOMIC_VAR_INIT is deprecated
-%powershell% -command "((Get-Content -path temp\openHEVC-%OPENHEVC_VER%\libavutil\cpu.c -Raw) -replace 'static atomic_int cpu_flags = ATOMIC_VAR_INIT\(-1\);','static atomic_int cpu_flags = -1;') | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\libavutil\cpu.c"
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\libavutil\cpu.c" "static atomic_int cpu_flags = ATOMIC_VAR_INIT\(-1\);" "static atomic_int cpu_flags = -1;"
 
 :: Build
 echo Building OpenHEVC...
@@ -351,9 +383,9 @@ call :visualstudiosetup || exit /b 1
 
 :: Download
 echo Downloading uvgRTP...
-%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://github.com/ultravideo/uvgRTP/archive/v%UVGRTP_VER%.zip', 'temp\uvgRTP.zip')" || call :downloadfailed uvgRTP && exit /b 1
+call :downloadfile "https://github.com/ultravideo/uvgRTP/archive/v%UVGRTP_VER%.zip" "temp\uvgRTP.zip" || call :downloadfailed uvgRTP && exit /b 1
 echo Extracting uvgRTP...
-%powershell% -command "Expand-Archive -Path temp\uvgRTP.zip -DestinationPath temp -Force"
+call :unzip "temp\uvgRTP.zip" "temp"
 del temp\uvgRTP.zip /q
 
 :: Build
@@ -391,9 +423,9 @@ call :visualstudiosetup || exit /b 1
 
 :: Download
 echo Downloading fpng...
-%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://github.com/richgel999/fpng/archive/refs/tags/v%FPNG_VER%.zip', 'temp\fpng.zip')" || call :downloadfailed fpng && exit /b 1
+call :downloadfile "https://github.com/richgel999/fpng/archive/refs/tags/v%FPNG_VER%.zip" "temp\fpng.zip" || call :downloadfailed fpng && exit /b 1
 echo Extracting fpng...
-%powershell% -command "Expand-Archive -Path temp\fpng.zip -DestinationPath temp -Force"
+call :unzip "temp\fpng.zip" "temp"
 del temp\fpng.zip /q
 
 :: Build
@@ -427,15 +459,15 @@ call :opensslsetup || exit /b 1
 
 :: Download
 echo Downloading Eclipse Paho C++ library...
-%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://github.com/eclipse-paho/paho.mqtt.cpp/archive/refs/tags/v%PAHO_CPP_VER%.zip', 'temp\pahocpp.zip')" || call :downloadfailed "Eclipse Paho C++ library" && exit /b 1
+call :downloadfile "https://github.com/eclipse-paho/paho.mqtt.cpp/archive/refs/tags/v%PAHO_CPP_VER%.zip" "temp\pahocpp.zip" || call :downloadfailed "Eclipse Paho C++ library" && exit /b 1
 echo Extracting Eclipse Paho C++ library...
-%powershell% -command "Expand-Archive -Path temp\pahocpp.zip -DestinationPath temp -Force"
+call :unzip "temp\pahocpp.zip" "temp"
 del temp\pahocpp.zip /q
 
 echo Downloading Eclipse Paho C library...
-%powershell% -command "(New-Object Net.WebClient).DownloadFile('https://github.com/eclipse-paho/paho.mqtt.c/archive/refs/tags/v%PAHO_C_VER%.zip', 'temp\pahoc.zip')" || call :downloadfailed "Eclipse Paho C library" && exit /b 1
+call :downloadfile "https://github.com/eclipse-paho/paho.mqtt.c/archive/refs/tags/v%PAHO_C_VER%.zip" "temp\pahoc.zip" || call :downloadfailed "Eclipse Paho C library" && exit /b 1
 echo Extracting Eclipse Paho C library...
-%powershell% -command "Expand-Archive -Path temp\pahoc.zip -DestinationPath temp\paho.mqtt.cpp-%PAHO_CPP_VER%\externals -Force"
+call :unzip "temp\pahoc.zip" "temp\paho.mqtt.cpp-%PAHO_CPP_VER%\externals"
 del temp\pahoc.zip /q
 
 rmdir temp\paho.mqtt.cpp-%PAHO_CPP_VER%\externals\paho-mqtt-c /s /q
