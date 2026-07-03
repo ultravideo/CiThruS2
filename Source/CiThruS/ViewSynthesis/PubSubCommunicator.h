@@ -12,6 +12,7 @@
 
 class IPublisher;
 class USceneCaptureComponent2D;
+class UCameraComponent;
 
 UCLASS()
 class CITHRUS_API UPubSubCommunicator : public UObject
@@ -94,6 +95,13 @@ private:
 		GeoData geoData;
 	};
 
+	struct FTrafficCollisionResult
+	{
+		bool bWillCollide = false;
+		double TimeToImpact = 0.0f;
+		double ClosestDistance = 0.0f;
+	};
+
 	UPubSubCommunicator() { }
 
 	inline static TSharedPtr<IPublisher> publisher_ = nullptr;
@@ -124,7 +132,151 @@ private:
 
 	static bool IsActorVisible(AActor* actor);
 
+	static bool CheckCollisionRisk(
+		const FVector& EgoPos,
+		const FVector& EgoVel,
+		float EgoRadius,
+		const FVector& OtherPos,
+		const FVector& OtherVel,
+		float OtherRadius,
+		float MaxPredictionTime,
+		FTrafficCollisionResult& OutResult);
+
 	static void PublishInternal(FString topic, uint8_t* data, const size_t& size);
 
 	static void ApplyCommandLineParameters();
+};
+
+USTRUCT()
+struct FTrafficLocation
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	double Latitude = 0.0;
+
+	UPROPERTY()
+	double Longitude = 0.0;
+
+	UPROPERTY()
+	double Altitude = 0.0;
+};
+
+USTRUCT()
+struct FTrafficRotation
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	double Roll = 0.0;
+
+	UPROPERTY()
+	double Pitch = 0.0;
+
+	UPROPERTY()
+	double Yaw = 0.0;
+};
+
+USTRUCT()
+struct FTrafficVelocity
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	double Lateral = 0.0;
+
+	UPROPERTY()
+	double Longitudinal = 0.0;
+
+	UPROPERTY()
+	double Vertical = 0.0;
+};
+
+USTRUCT()
+struct FTrafficWarnings
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	bool BlindSpotAlert = false;
+
+	UPROPERTY()
+	bool CollisionAlert = false;
+
+	UPROPERTY()
+	double TimeToImpact = 0.0;
+};
+
+USTRUCT()
+struct FEgoVehicle
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FTrafficLocation CurrentLocation;
+
+	UPROPERTY()
+	FTrafficRotation CurrentRotation;
+
+	UPROPERTY()
+	FTrafficVelocity LinearVelocity;
+
+	UPROPERTY()
+	FTrafficRotation AngularVelocity;
+};
+
+USTRUCT()
+struct FEgoMessage
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Timestamp;
+
+	UPROPERTY()
+	FEgoVehicle Vehicle;
+};
+
+USTRUCT()
+struct FTrafficItemMessage
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Id;
+
+	UPROPERTY()
+	FString Type;
+
+	UPROPERTY()
+	int32 VehicleType = 0;
+
+	UPROPERTY()
+	bool Parked = false;
+
+	UPROPERTY()
+	FTrafficLocation CurrentLocation;
+
+	UPROPERTY()
+	FTrafficRotation CurrentRotation;
+
+	UPROPERTY()
+	FTrafficVelocity LinearVelocity;
+
+	UPROPERTY()
+	FTrafficRotation AngularVelocity;
+
+	UPROPERTY()
+	FTrafficWarnings Warnings;
+};
+
+USTRUCT()
+struct FTrafficArrayMessage
+{
+	GENERATED_BODY()
+
+	UPROPERTY()
+	FString Timestamp;
+	UPROPERTY()
+	TArray<FTrafficItemMessage> Traffic;
 };
