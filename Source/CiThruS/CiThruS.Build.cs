@@ -28,6 +28,7 @@ public class CiThruS : ModuleRules
 		var openhevc_base_path = Path.Combine(thirdparty_directory, "OpenHEVC/");
 		var fpng_base_path = Path.Combine(thirdparty_directory, "fpng/");
 		var pahocpp_base_path = Path.Combine(thirdparty_directory, "PahoCpp/");
+		var nvenc_base_path = Path.Combine(thirdparty_directory, "NVENC/");
 		
         if (Target.Platform == UnrealTargetPlatform.Win64)
         {
@@ -41,6 +42,9 @@ public class CiThruS : ModuleRules
             AddStaticLibraryIfExists(Path.Combine(pahocpp_base_path, "Lib/libcrypto.lib"));
             AddSharedLibraryIfExists(Path.Combine(pahocpp_base_path, "Bin/libssl-3-x64.dll"));
             AddSharedLibraryIfExists(Path.Combine(pahocpp_base_path, "Bin/libcrypto-3-x64.dll"));
+			AddStaticLibraryIfExists(Path.Combine(nvenc_base_path, "Lib/nvencodeapi.lib"));
+            PublicSystemLibraries.Add("d3d12.lib");
+            PublicSystemLibraries.Add("dxgi.lib");
         }
 
         if (Target.Platform == UnrealTargetPlatform.Linux)
@@ -72,12 +76,15 @@ public class CiThruS : ModuleRules
 				"InputCore",
 				"RHI",
 				"RenderCore",
+				"Slate",
+				"SlateCore",
 				"AIModule",
 				"Landscape",
 				"ChaosVehicles",
 				"Niagara",
 				"NiagaraCore",
-				"GeoReferencing"
+				"GeoReferencing",
+				"JsonUtilities"
 			});
 		
 		if (Target.bBuildEditor)

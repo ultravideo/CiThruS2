@@ -2,7 +2,9 @@
 
 #ifdef _WIN32
 
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
+#endif
 
 // uvgRTP includes winsock2.h on Windows which defines the macros min and max which break
 // std::min and std::max. This prevents those macros from being defined

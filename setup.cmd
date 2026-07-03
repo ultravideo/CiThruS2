@@ -507,6 +507,51 @@ echo %COLOR_SUCCESS%Eclipse Paho successfully set up.%COLOR_RESET%
 
 exit /b 0
 
+:nvencsetup
+call :dependencymissing ThirdParty\NVENC "NVENC" && exit /b 0
+
+:: Set up dependencies
+call :visualstudiosetup || exit /b 1
+
+:: Download
+mkdir temp\NVENC
+
+echo Downloading NVENC...
+:: NVIDIA doesn't officially provide these files without logging in which is impossible to automate, so download them from FFmpeg's public repository instead
+call :downloadfile "https://raw.githubusercontent.com/FFmpeg/nv-codec-headers/refs/heads/master/include/ffnvcodec/nvEncodeAPI.h" "temp\NVENC\nvEncodeAPI.h" || call :downloadfailed NVENC && exit /b 1
+
+:: Build
+echo Building NVENC...
+
+:: This assumes that nvEncodeAPI64.dll already exists on the computer somewhere, which should be the case if it has NVIDIA drivers
+(
+	echo LIBRARY nvEncodeAPI64.dll
+	echo EXPORTS
+	echo.    NvEncodeAPICreateInstance
+	echo.    NvEncodeAPIGetMaxSupportedVersion
+) > temp\NVENC\nvencodeapi.def
+
+lib /DEF:temp\NVENC\nvencodeapi.def /MACHINE:x64 /OUT:temp\NVENC\nvencodeapi.lib || call :buildfailed NVENC && exit /b 0
+
+:: Copy results
+mkdir ThirdParty\NVENC\Lib
+mkdir ThirdParty\NVENC\Include
+
+(
+	echo https://developer.nvidia.com/nvidia-video-codec-sdk-license-agreement
+) > ThirdParty\NVENC\LICENSE
+
+robocopy temp\NVENC ThirdParty\NVENC\Lib nvencodeapi.lib
+robocopy temp\NVENC ThirdParty\NVENC\Include nvEncodeAPI.h
+
+:: Finish
+echo Cleaning up NVENC files...
+rmdir temp\NVENC /s /q
+
+echo %COLOR_SUCCESS%NVENC successfully set up.%COLOR_RESET%
+
+exit /b 0
+
 :setupstart
 set ROOT_DIR=%~dp0
 set ANY_FAILED=0
@@ -529,6 +574,7 @@ call :openhevcsetup
 call :uvgrtpsetup
 call :fpngsetup
 call :pahocppsetup
+call :nvencsetup
 
 if not exist Content (
 	echo %COLOR_FAILURE%Setup failed, CiThruS2 cannot be used without the content!%COLOR_RESET%
