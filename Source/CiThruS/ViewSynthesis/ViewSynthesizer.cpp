@@ -151,9 +151,9 @@ bool AViewSynthesizer::StartStreams()
     uint16_t frameHeight = std::max(remoteStreamHeight_, 16);
 
     // Width and height must be divisible by eight (HEVC limitation)
-    // This rounds up to the nearest integers divisible by eight
-    frameWidth += (8 - (frameWidth % 8)) % 8;
-    frameHeight += (8 - (frameHeight % 8)) % 8;
+    // This rounds down to the nearest integers divisible by eight
+    frameWidth -= (frameWidth % 8);
+    frameHeight -= (frameHeight % 8);
 
     wantsStop_ = false;
     frameNumber_ = 0;
@@ -171,7 +171,7 @@ bool AViewSynthesizer::StartStreams()
         if (saveToFile_)
         {
             frontReader_ = nullptr;
-            rearReader_ = new RenderTargetReaderWithUserData({ rearRenderTarget_ }, true, depthRange_);
+            rearReader_ = new RenderTargetReaderWithUserData({ rearRenderTarget_ }, "binary", true, depthRange_);
 
             runners_.push_back(
                 new AsyncPipelineRunner(
@@ -189,8 +189,8 @@ bool AViewSynthesizer::StartStreams()
         }
         else
         {
-            frontReader_ = new RenderTargetReaderWithUserData({ frontRenderTarget_ }, true, depthRange_);
-            rearReader_ = new RenderTargetReaderWithUserData({ rearRenderTarget_ }, true, depthRange_);
+            frontReader_ = new RenderTargetReaderWithUserData({ frontRenderTarget_ }, "binary", true, depthRange_);
+            rearReader_ = new RenderTargetReaderWithUserData({ rearRenderTarget_ }, "binary", true, depthRange_);
 
             runners_.push_back(
                 new AsyncPipelineRunner(

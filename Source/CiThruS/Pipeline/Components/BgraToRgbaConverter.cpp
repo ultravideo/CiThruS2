@@ -46,7 +46,7 @@ void BgraToRgbaConverter::Process()
 		reinterpret_cast<std::array<uint8_t, 4>*>(outputData_),
 		[&](const std::array<uint8_t, 4>& input)
 		{
-			return std::array<uint8_t, 4> { input[2], input[1], input[0], 255 };
+			return std::array<uint8_t, 4> { input[2], input[1], input[0], input[3] };
 		});
 
 	GetOutputPin<0>().SetData(outputData_);

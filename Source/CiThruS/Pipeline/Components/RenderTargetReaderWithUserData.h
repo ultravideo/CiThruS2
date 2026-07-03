@@ -11,7 +11,7 @@
 class CITHRUS_API RenderTargetReaderWithUserData : public PipelineSource<2>, protected RenderTargetReaderBase
 {
 public:
-	RenderTargetReaderWithUserData(std::vector<UTextureRenderTarget2D*> textures, const bool& depth = false, const float& depthRange = 150.0f);
+	RenderTargetReaderWithUserData(std::vector<UTextureRenderTarget2D*> textures, const std::string& userDataFormatName, const bool& depth = false, const float& depthRange = 150.0f);
 	virtual ~RenderTargetReaderWithUserData();
 
 	virtual void Process() override;

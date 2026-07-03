@@ -84,7 +84,7 @@ RenderTargetReaderBase::RenderTargetReaderBase(std::vector<UTextureRenderTarget2
 
 			if (depth_)
 			{
-				FRHITextureDesc depthTextureDesc(ETextureDimension::Texture2D, ETextureCreateFlags::RenderTargetable, PF_R8G8B8A8, FClearValueBinding::Black, FIntPoint(textures_.size() * frameWidth_, frameHeight_), 1, 1, 1, 1, 0);
+				FRHITextureDesc depthTextureDesc(ETextureDimension::Texture2D, ETextureCreateFlags::RenderTargetable, PF_R8G8B8A8, FClearValueBinding::BlackMaxAlpha, FIntPoint(textures_.size() * frameWidth_, frameHeight_), 1, 1, 1, 1, 0);
 				FRHITextureCreateDesc depthCreateDesc(depthTextureDesc, ERHIAccess::RTV, TEXT("Render Target Reader Depth Conversion Texture"));
 
 				depthBuffer_ = RHICmdList.CreateTexture(depthCreateDesc);
@@ -94,13 +94,13 @@ RenderTargetReaderBase::RenderTargetReaderBase(std::vector<UTextureRenderTarget2
 			// buffer is needed for concatenating the 360 cubemap sides on the GPU. In DX11/12 it is supported, so this can be skipped
 			if (textures.size() != 1 && FString(GDynamicRHI->GetName()) == TEXT("Vulkan"))
 			{
-				FRHITextureDesc concatTextureDesc(ETextureDimension::Texture2D, ETextureCreateFlags::None, pixelFormat, FClearValueBinding::Black, FIntPoint(textures_.size() * frameWidth_, frameHeight_), 1, 1, 1, 1, 0);
+				FRHITextureDesc concatTextureDesc(ETextureDimension::Texture2D, ETextureCreateFlags::None, pixelFormat, FClearValueBinding::BlackMaxAlpha, FIntPoint(textures_.size() * frameWidth_, frameHeight_), 1, 1, 1, 1, 0);
 				FRHITextureCreateDesc concatCreateDesc(concatTextureDesc, ERHIAccess::DSVRead | ERHIAccess::DSVWrite, TEXT("Render Target Reader Concatenation Texture"));
 
 				concatBuffer_ = RHICmdList.CreateTexture(concatCreateDesc);
 			}
 
-			FRHITextureDesc stagingTextureDesc(ETextureDimension::Texture2D, ETextureCreateFlags::CPUReadback, depth_ ? PF_R8G8B8A8 : pixelFormat, FClearValueBinding::Black, FIntPoint(textures_.size() * frameWidth_, frameHeight_), 1, 1, 1, 1, 0);
+			FRHITextureDesc stagingTextureDesc(ETextureDimension::Texture2D, ETextureCreateFlags::CPUReadback, depth_ ? PF_R8G8B8A8 : pixelFormat, FClearValueBinding::BlackMaxAlpha, FIntPoint(textures_.size() * frameWidth_, frameHeight_), 1, 1, 1, 1, 0);
 			FRHITextureCreateDesc stagingCreateDesc(stagingTextureDesc, ERHIAccess::CPURead | ERHIAccess::DSVWrite, TEXT("Render Target Reader Staging Texture"));
 
 			stagingBuffer_ = RHICmdList.CreateTexture(stagingCreateDesc);

@@ -1,7 +1,7 @@
 #include "RenderTargetReaderWithUserData.h"
 #include "Misc/Debug.h"
 
-RenderTargetReaderWithUserData::RenderTargetReaderWithUserData(std::vector<UTextureRenderTarget2D*> textures, const bool& depth, const float& depthRange)
+RenderTargetReaderWithUserData::RenderTargetReaderWithUserData(std::vector<UTextureRenderTarget2D*> textures, const std::string& userDataFormatName, const bool& depth, const float& depthRange)
 	: RenderTargetReaderBase(textures, depth, depthRange)
 {
 	frameBuffers_[0] = nullptr;
@@ -20,7 +20,7 @@ RenderTargetReaderWithUserData::RenderTargetReaderWithUserData(std::vector<UText
 
 	GetOutputPin<1>().SetData(nullptr);
 	GetOutputPin<1>().SetSize(0);
-	GetOutputPin<1>().Initialize(this, "binary");
+	GetOutputPin<1>().Initialize(this, userDataFormatName);
 }
 
 RenderTargetReaderWithUserData::~RenderTargetReaderWithUserData()

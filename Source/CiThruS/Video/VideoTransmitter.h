@@ -18,6 +18,7 @@
 
 class USceneCaptureComponent2D;
 class RenderTargetReader;
+class RenderTargetReaderWithUserData;
 class AsyncPipelineRunner;
 
 // Transmits 360 or regular video through an RTP stream
@@ -25,8 +26,8 @@ UCLASS()
 class CITHRUS_API AVideoTransmitter : public AActor
 {
 	GENERATED_BODY()
-	
-public:	
+
+public:
 	AVideoTransmitter();
 
 	inline virtual bool ShouldTickIfViewportsOnly() const override { return useEditorTick_; }
@@ -52,14 +53,23 @@ public:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General Stream Settings")
 	int streamFrameRate_ = 0;
 
-	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Depth Settings")
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General Stream Settings")
 	float fov_ = 60.0f;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General Stream Settings")
+	TObjectPtr<UMaterial> postProcessMaterial_ = nullptr;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General Stream Settings")
+	TObjectPtr<UMaterial> segmentationPostProcessMaterial_ = nullptr;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General Stream Settings")
 	int processingThreadCount_ = 8;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General Stream Settings")
 	bool saveToFile_ = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General Stream Settings")
+	bool enableSegmentation_ = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General Stream Settings")
 	FString saveDirectory_ = FString(FPlatformProcess::UserDir()) + "CiThruS2/Recorded/";
@@ -72,6 +82,9 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Kvazaar Settings")
 	int quantizationParameter_ = 27;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Encoding Settings")
+	bool useNvenc_ = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "360 Stream Settings")
 	bool enable360Capture_ = false;
@@ -87,7 +100,9 @@ private:
 	USceneCaptureComponent2D* normalCamera_;
 
 	AsyncPipelineRunner* runner_;
+
 	RenderTargetReader* reader_;
+	RenderTargetReaderWithUserData* segmentationReader_;
 
 	std::mutex streamMutex_;
 
@@ -99,6 +114,9 @@ private:
 	bool useEditorTick_;
 	double captureAccumulator_ = 0.0;
 
+	uint16_t frameWidth_ = 1;
+	uint16_t frameHeight_ = 1;
+
 	virtual void PostRegisterAllComponents() override;
 	virtual void EndPlay(const EEndPlayReason::Type endPlayReason) override;
 	virtual void Tick(float deltaTime) override;
@@ -108,4 +126,6 @@ private:
 	bool ResetStreams();
 
 	void StopTransmitInternal();
+
+	void SetPostProcessingMaterial(UMaterial* material);
 };
