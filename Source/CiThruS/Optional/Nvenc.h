@@ -14,15 +14,15 @@
 
 #endif // _WIN32
 
-#if __has_include("NVENC/Include/nvEncodeAPI.h")
-#define CITHRUS_NVENC_AVAILABLE
-#include "NVENC/Include/nvEncodeAPI.h"
-
 // The current NVENC encoder block depends on DX12
 #ifdef _WIN32
 #include <d3d12.h>
 #include <dxgi1_4.h>
 #endif // _WIN32
+
+#if __has_include("NVENC/Include/nvEncodeAPI.h")
+#define CITHRUS_NVENC_AVAILABLE
+#include "NVENC/Include/nvEncodeAPI.h"
 #else
 #pragma message (__FILE__ ": warning: NVIDIA Video Codec SDK not found, NVENC HEVC encoding is unavailable")
 #endif // __has_include(...)
