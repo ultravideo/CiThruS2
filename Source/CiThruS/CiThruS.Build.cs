@@ -43,6 +43,9 @@ public class CiThruS : ModuleRules
             AddSharedLibraryIfExists(Path.Combine(pahocpp_base_path, "Bin/libssl-3-x64.dll"));
             AddSharedLibraryIfExists(Path.Combine(pahocpp_base_path, "Bin/libcrypto-3-x64.dll"));
 			AddStaticLibraryIfExists(Path.Combine(nvenc_base_path, "Lib/nvencodeapi.lib"));
+            // This should be delay loaded in case it doesn't exist (i.e. when Nvidia drivers aren't installed)
+            // Otherwise CiThruS fails to start entirely without it
+            PublicDelayLoadDLLs.Add("nvEncodeAPI64.dll");
             PublicSystemLibraries.Add("d3d12.lib");
             PublicSystemLibraries.Add("dxgi.lib");
         }

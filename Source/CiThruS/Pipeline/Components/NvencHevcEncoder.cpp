@@ -6,6 +6,8 @@
 
 #ifdef _WIN32
 
+#include "libloaderapi.h"
+
 #define NVENC_API_CHECK(call) do { NVENCSTATUS s = (call); if (s != NV_ENC_SUCCESS) { UE_LOG(LogTemp, Error, TEXT("NvencHevcEncoder: NVENC call failed (%d) at " #call), static_cast<int>(s)); ShutdownImpl(); return false; } } while (0)
 
 #define D3D12_CHECK(call) do { HRESULT hr = (call); if (FAILED(hr)) { UE_LOG(LogTemp, Error, TEXT("NvencHevcEncoder: D3D12 call failed (0x%08X) at " #call), static_cast<unsigned int>(hr)); ShutdownImpl(); return false; } } while (0)
@@ -84,6 +86,18 @@ bool NvencHevcEncoder::InitializeImpl()
 	UE_LOG(LogTemp, Error, TEXT("NvencHevcEncoder: NVIDIA Video Codec SDK headers not present at compile time"));
 	return false;
 #else
+#ifdef _WIN32
+	// This DLL is included with NVIDIA drivers, so if it doesn't load, it probably means NVIDIA drivers aren't
+	// installed. Which in turn probably means the GPU isn't from NVIDIA and NVENC can't be used on this computer
+	HMODULE libHandle = LoadLibraryEx(L"nvEncodeAPI64.dll", nullptr, 0);
+
+	if (libHandle == nullptr)
+	{
+		UE_LOG(LogTemp, Error, TEXT("NvencHevcEncoder: Failed to load nvEncodeAPI64.dll, are NVIDIA drivers installed?"));
+		return false;
+	}
+#endif // _WIN32
+
 	DXGI_FORMAT dxFormat = DXGI_FORMAT_UNKNOWN;
 
 	std::string inputFormat = GetInputPin<0>().GetFormat();
