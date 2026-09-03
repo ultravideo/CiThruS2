@@ -38,10 +38,6 @@ public class CiThruS : ModuleRules
 			AddStaticLibraryIfExists(Path.Combine(fpng_base_path, "Lib/fpng.lib"));
 			AddStaticLibraryIfExists(Path.Combine(pahocpp_base_path, "Lib/paho-mqttpp3-static.lib"));
 			AddStaticLibraryIfExists(Path.Combine(pahocpp_base_path, "Lib/paho-mqtt3as-static.lib"));
-            AddStaticLibraryIfExists(Path.Combine(pahocpp_base_path, "Lib/libssl.lib"));
-            AddStaticLibraryIfExists(Path.Combine(pahocpp_base_path, "Lib/libcrypto.lib"));
-            AddSharedLibraryIfExists(Path.Combine(pahocpp_base_path, "Bin/libssl-3-x64.dll"));
-            AddSharedLibraryIfExists(Path.Combine(pahocpp_base_path, "Bin/libcrypto-3-x64.dll"));
 			AddStaticLibraryIfExists(Path.Combine(nvenc_base_path, "Lib/nvencodeapi.lib"));
             // This should be delay loaded in case it doesn't exist (i.e. when Nvidia drivers aren't installed)
             // Otherwise CiThruS fails to start entirely without it
@@ -58,7 +54,6 @@ public class CiThruS : ModuleRules
 			AddStaticLibraryIfExists(Path.Combine(fpng_base_path, "Lib/fpng.a"));
 			AddStaticLibraryIfExists(Path.Combine(pahocpp_base_path, "Lib/libpaho-mqttpp3.a"));
 			AddStaticLibraryIfExists(Path.Combine(pahocpp_base_path, "Lib/libpaho-mqtt3as.a"));
-			PublicDependencyModuleNames.Add("OpenSSL");
         }
 		
 		// These are needed to use static libraries
@@ -87,7 +82,8 @@ public class CiThruS : ModuleRules
 				"Niagara",
 				"NiagaraCore",
 				"GeoReferencing",
-				"JsonUtilities"
+				"JsonUtilities",
+				"OpenSSL"
 			});
 		
 		if (Target.bBuildEditor)

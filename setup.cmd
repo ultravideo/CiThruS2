@@ -62,23 +62,50 @@ if "%~2"=="" exit /b 1
 exit /b 1
 
 :findandreplace
+:: First argument is file path, second is RegEx pattern to find, third is RegEx pattern to replace with (can be empty)
 if "%~1"=="" exit /b 1
 if "%~2"=="" exit /b 1
 
-:: Make sure any quotation marks, dollar signs and carets in the strings are handled correctly
+:: Make sure special characters are passed to PowerShell correctly
 set "FIND_STR=%~2"
-set "FIND_STR=%FIND_STR:"=`\"%"
+set "FIND_STR=%FIND_STR:""=`""""%"
+set "FIND_STR=%FIND_STR:\=`\%"
 set "FIND_STR=%FIND_STR:$=`$%"
-set "FIND_STR=%FIND_STR:^^=%"
 
 set "REPLACE_STR=%~3"
 :: This replacement syntax fails if the string is empty
-if not "%~3" == "" set "REPLACE_STR=%REPLACE_STR:"=`\"%"
+if not "%~3" == "" set "REPLACE_STR=%REPLACE_STR:""=`""""%"
+if not "%~3" == "" set "REPLACE_STR=%REPLACE_STR:\=`\%"
 if not "%~3" == "" set "REPLACE_STR=%REPLACE_STR:$=`$%"
-if not "%~3" == "" set "REPLACE_STR=%REPLACE_STR:^^=%"
 
 :: This uses PowerShell so that we have access to RegEx
-%POWERSHELL% -command "((Get-Content -path \""%~1\"" -Raw) -replace \""%FIND_STR%\"",\""%REPLACE_STR%\"") | Set-Content -Path \""%~1\""" && exit /b 0
+%POWERSHELL% -command "((Get-Content -Path \""%~1\"" -Raw) -replace \""%FIND_STR%\"",\""%REPLACE_STR%\"") | Set-Content -Path \""%~1\""" && exit /b 0
+
+exit /b 1
+
+:findstringinfile
+:: First argument is returned variable, second is file path, third is RegEx pattern to find, fourth is capture group index to return (optional, will return whole match if missing)
+if "%~2"=="" exit /b 1
+if "%~3"=="" exit /b 1
+
+:: Make sure special characters are passed to PowerShell correctly
+set "FIND_STR=%~3"
+set "FIND_STR=%FIND_STR:""=`""""%"
+set "FIND_STR=%FIND_STR:\=`\%"
+set "FIND_STR=%FIND_STR:$=`$%"
+
+set RETURN_VALUE=""
+
+:: For some reason the only way to save command results to a variable is to use a for loop or save it to a temporary file...
+if "%~4"=="" (
+	for /f "delims=" %%i in ('%POWERSHELL% -command "(Select-String -Pattern \""%FIND_STR%\"" -InputObject (Get-Content -Path \""%~2\"" -Raw)).Matches[0].Value"') do set "RETURN_VALUE=%%i"
+) else (
+	for /f "delims=" %%i in ('%POWERSHELL% -command "(Select-String -Pattern \""%FIND_STR%\"" -InputObject (Get-Content -Path \""%~2\"" -Raw)).Matches[0].Groups[%~4].Value"') do set "RETURN_VALUE=%%i"
+)
+
+if "%RETURN_VALUE%"=="" exit /b 1
+
+set "%1=%RETURN_VALUE%"
 
 exit /b 1
 
@@ -132,20 +159,58 @@ set PATH=%PATH%;"%ROOT_DIR%temp\Yasm\"
 
 exit /b 0
 
+:findueinstallation
+if not "%UE_ROOT_DIR%"=="" exit /b 0
+
+:: Get the UE version CiThruS is using from the project file
+call :findstringinfile UE_VER CiThruS.uproject "(?<=""EngineAssociation"":\s"")[0-9]*\.[0-9]*(?="")"
+
+if "%UE_VER%"=="" (
+    echo %COLOR_FAILURE%Failed to find Unreal Engine project file!%COLOR_RESET%
+	set ANY_FAILED=1
+	
+	exit /b 1
+)
+
+:: LauncherInstalled.dat should list the UE installation directories
+call :findstringinfile UE_ROOT_DIR %ProgramData%\Epic\UnrealEngineLauncher\LauncherInstalled.dat "(?<=""InstallLocation"": "")([^^""]*)"",[^^}]*""ArtifactId"":\s*""UE_%UE_VER%""" 1
+
+if "%UE_ROOT_DIR%"=="" (
+    echo %COLOR_FAILURE%Failed to find Unreal Engine %UE_VER% installation!%COLOR_RESET%
+	set ANY_FAILED=1
+	
+	exit /b 1
+)
+
+set "UE_ROOT_DIR=%UE_ROOT_DIR:\\=\%"
+
+echo %COLOR_SUCCESS%Found Unreal Engine %UE_VER%%COLOR_RESET% at %UE_ROOT_DIR%.
+
+exit /b 0
+
 :opensslsetup
 if exist temp\OpenSSL (
 	exit /b 0
 )
 
-:: OpenSSL is needed to build Eclipse Paho
-echo Downloading OpenSSL...
-call :downloadfile "https://download.firedaemon.com/FireDaemon-OpenSSL/openssl-%OPENSSL_VER%.zip" "temp\OpenSSL.zip" || call :downloadfailed OpenSSL && exit /b 1
-echo Extracting OpenSSL...
-call :unzip "temp\OpenSSL.zip" "temp\OpenSSL"
-del temp\OpenSSL.zip /q
+call :findueinstallation || exit /b 1
+
+mkdir temp\OpenSSL\lib
+mkdir temp\OpenSSL\include
+
+:: The only way I could get the CiThruS code to link correctly was by
+:: forcing it to use the same OpenSSL version that Unreal Engine uses,
+:: but Unreal Engine stores them in a different folder structure so
+:: CMake can't find them unless we copy them into a new folder like
+:: this. If you install another OpenSSL version, it segfaults instantly
+:: when any OpenSSL function is called inside CiThruS because of
+:: mismatched function signatures
+robocopy "%UE_ROOT_DIR%\Engine\Source\ThirdParty\OpenSSL\1.1.1t\include\Win64\VS2015\openssl" temp\OpenSSL\include\openssl /e
+robocopy "%UE_ROOT_DIR%\Engine\Source\ThirdParty\OpenSSL\1.1.1t\lib\Win64\VS2015\Release" temp\OpenSSL\lib libssl.lib
+robocopy "%UE_ROOT_DIR%\Engine\Source\ThirdParty\OpenSSL\1.1.1t\lib\Win64\VS2015\Release" temp\OpenSSL\lib libcrypto.lib
 
 :: CMake finds OpenSSL through this environment variable
-set "OPENSSL_ROOT_DIR=%ROOT_DIR%temp\OpenSSL\x64"
+set "OPENSSL_ROOT_DIR=%ROOT_DIR%temp\OpenSSL"
 
 exit /b 0
 
@@ -330,7 +395,7 @@ call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt" "target_link_
 :: These definitions break MSVC and aren't needed anyway
 call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt" "if\(WIN32\)\s*add_definitions\([\s\S]*?\)\s*endif\(\)" ""
 :: Yasm output file extension is incorrect
-call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt" "set\(YASM_OBJ ^"\${CMAKE_CURRENT_BINARY_DIR}\/\${BASENAME}.o^"\)" "set(YASM_OBJ ^"${CMAKE_CURRENT_BINARY_DIR}/${BASENAME}.obj^")"
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\CMakeLists.txt" "set\(YASM_OBJ ""\${CMAKE_CURRENT_BINARY_DIR}\/\${BASENAME}.o""\)" "set(YASM_OBJ ""${CMAKE_CURRENT_BINARY_DIR}/${BASENAME}.obj"")"
 :: Inline assembly is not supported on Windows, clear this file to disable it
 %POWERSHELL% -command "'' | Set-Content -Path temp\openHEVC-%OPENHEVC_VER%\libavutil\x86\intreadwrite.h"
 :: Many parts of config.h have been written incorrectly for Windows and the configure script that generates it doesn't work either
@@ -345,7 +410,7 @@ call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in" "#d
 call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in" "#define HAVE_POSIX_MEMALIGN 1" "#define HAVE_POSIX_MEMALIGN 0"
 call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\platform\x86\config.h.in" "#define HAVE_MEMALIGN 1" "#define HAVE_MEMALIGN 0"
 :: POSIX threads don't exist on Windows but there's a wrapper for them in the files
-call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\gpac\modules\openhevc_dec\openHevcWrapper.c" "#include ^"pthread.h^"" "#include ^"compat/w32pthreads.h^""
+call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\gpac\modules\openhevc_dec\openHevcWrapper.c" "#include ""pthread.h""" "#include ""compat/w32pthreads.h"""
 :: ATOMIC_VAR_INIT is deprecated
 call :findandreplace "temp\openHEVC-%OPENHEVC_VER%\libavutil\cpu.c" "static atomic_int cpu_flags = ATOMIC_VAR_INIT\(-1\);" "static atomic_int cpu_flags = -1;"
 
@@ -492,10 +557,6 @@ mkdir ThirdParty\PahoCpp\Include
 robocopy temp\paho.mqtt.cpp-%PAHO_CPP_VER% ThirdParty\PahoCpp LICENSE
 robocopy temp\paho.mqtt.cpp-%PAHO_CPP_VER%\build\src\Release ThirdParty\PahoCpp\Lib paho-mqttpp3-static.lib
 robocopy temp\paho.mqtt.cpp-%PAHO_CPP_VER%\build\externals\paho-mqtt-c\src\Release ThirdParty\PahoCpp\Lib paho-mqtt3as-static.lib
-robocopy temp\OpenSSL\x64\bin ThirdParty\PahoCpp\Bin libssl-3-x64.dll
-robocopy temp\OpenSSL\x64\bin ThirdParty\PahoCpp\Bin libcrypto-3-x64.dll
-robocopy temp\OpenSSL\x64\lib ThirdParty\PahoCpp\Lib libssl.lib
-robocopy temp\OpenSSL\x64\lib ThirdParty\PahoCpp\Lib libcrypto.lib
 robocopy temp\paho.mqtt.cpp-%PAHO_CPP_VER%\include ThirdParty\PahoCpp\Include /e
 robocopy temp\paho.mqtt.cpp-%PAHO_CPP_VER%\externals\paho-mqtt-c\src ThirdParty\PahoCpp\Include *.h
 
