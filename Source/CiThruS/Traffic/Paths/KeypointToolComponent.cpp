@@ -21,27 +21,32 @@ TArray<FKeypointToolKP> AKeypointToolComponent::GetKeypoints(EKeypointToolGraph 
 bool AKeypointToolComponent::SaveToFile(TArray<FKeypointToolKP> keypointsData, EKeypointToolGraph graph)
 {
 	// Construct a new graph from the updated data
-	KeypointGraph newGraph;
+	KeypointGraph newGraph(keypointsData.Num());
 
 	for (int i = 0; i < keypointsData.Num(); i++)
 	{
-		newGraph.AddKeypoint(keypointsData[i].location);
-	}
-
-	for (int i = 0; i < keypointsData.Num(); i++)
-	{
-		for (int j : keypointsData[i].outbound)
-		{
+		newGraph.AddKeypoint(i ,keypointsData[i].location);
+		for (int j : keypointsData[i].outbound) {
 			newGraph.LinkKeypoints(i, j);
 		}
+
+		// mark keypoint without inbound as spawn point
+		if (keypointsData[i].inbound.Num() == 0) {
+			newGraph.MarkSpawnPoint(i);
+		}
+
+		if (keypointsData[i].rules != 0) {
+			newGraph.SetKeypointRules(i, keypointsData[i].rules);
+		}
+	}
+
+	// add at least one spawn point
+	if (newGraph.SpawnPointCount() == 0){
+		newGraph.MarkSpawnPoint(0);
 	}
 
 	KeypointGraph roadGraph = GetCorrectGraph(graph);
 
-	for (int i = 0; i < roadGraph.SpawnPointCount(); i++)
-	{
-		newGraph.MarkSpawnPoint(roadGraph.GetSpawnPoint(i));
-	}
 
 	if (graph == EKeypointToolGraph::E_Car)
 	{
@@ -51,13 +56,6 @@ bool AKeypointToolComponent::SaveToFile(TArray<FKeypointToolKP> keypointsData, E
 		}
 	}
 
-	for (int i = 0; i < keypointsData.Num(); i++)
-	{
-		if (keypointsData[i].rules != 0)
-		{
-			newGraph.SetKeypointRules(i, keypointsData[i].rules);
-		}
-	}
 
 	// Save to file
 	FString filePath = FPaths::ProjectDir() + "/DataFiles/KeypointToolSaves/";
