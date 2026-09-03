@@ -2,6 +2,7 @@
 
 #include "CoreMinimal.h"
 #include "ITrafficArea.h"
+#include "Traffic/Paths/KeypointGraph.h"
 #include "TrafficParkArea.generated.h"
 
 // Parent class for triggers that start the parking sequence. BP_ParkedCar_ParkingSequenceTrigger is the child blueprint used instead of this
@@ -27,7 +28,7 @@ protected:
 
 	/* Rules that need to be met in order for parking sequence to trigger? Default to parking access only, i.e. 1.*/// 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (Bitmask, BitmaskEnum = "/Script/CiThruS.EKeypointRules"), Category = "Park Area Setup")
-	int32 parkingRules_ = 1;
+	int32 parkingRules_ = static_cast<int>(EKeypointRules::ParkingAccessOnly);
 
 	TSet<ITrafficEntity*> overlappingEntities_;
 	CollisionRectangle collisionRectangle_;

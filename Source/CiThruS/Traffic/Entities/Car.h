@@ -137,7 +137,8 @@ public:
 	bool enableAnimation = true;
 
 	// Parking controls
-	AParkingSpace* spaceBeingParkedTo_ = nullptr;
+	// Weak: the target parking space can be streamed out while this car is still driving towards it
+	TWeakObjectPtr<AParkingSpace> spaceBeingParkedTo_ = nullptr;
 	int reverseUntilPoint = -1;
 	int reverseFromPoint = -1;
 	void ReverseUntilPoint(int point);

@@ -112,11 +112,14 @@ void LodController::UpdateAllLods()
 
 	if (parkingController != nullptr)
 	{
-		const TArray<AParkingSpace*>& parkingSpaces = parkingController->GetParkingSpaces();
+		const TArray<TWeakObjectPtr<AParkingSpace>>& parkingSpaces = parkingController->GetParkingSpaces();
 
-		for (AParkingSpace* parkingSpace : parkingSpaces)
+		for (const TWeakObjectPtr<AParkingSpace>& parkingSpaceWeak : parkingSpaces)
 		{
-			if (!IsValid(parkingSpace)
+			// Null if the parking space has been streamed out or destroyed
+			AParkingSpace* parkingSpace = parkingSpaceWeak.Get();
+
+			if (parkingSpace == nullptr
 				|| !parkingSpace->HasParkedCar()
 				|| (parkingSpace->GetPublishTransform().GetLocation() - cameraLocation).SquaredLength() > farDistanceSquared)
 			{

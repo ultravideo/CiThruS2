@@ -34,22 +34,30 @@ public:
 
 	virtual bool FinishParking();
 
-	void SetParkingController(AParkingController* controller) { parkingController_ = controller; }
-	AParkingController* GetParkingController() const { return parkingController_; }
-	bool HasParkedCar() const { return occupied_ && occupant_ == nullptr && visualInstanceId_ >= 0; }
+	void SetParkingController(AParkingController* controller);
+	AParkingController* GetParkingController() const;
+	bool HasParkedCar() const { return occupied_ && !occupant_.IsValid() && visualInstanceId_ >= 0; }
 	FTransform GetPublishTransform() { return GetParkedTransform(); }
 	int GetVisualInstanceId() const { return visualInstanceId_; }
 
 protected:
 	AParkingSpace() : visualInstanceId_(-1) { }
 
+	// Parking spaces are streamed in and out at runtime, so each one registers itself with the
+	// parking controller here instead of relying only on the controller's one-off startup sweep
+	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type endPlayReason) override;
+
 	UFUNCTION(BlueprintNativeEvent)
 	FTransform GetParkedTransform();
 	FTransform GetParkedTransform_Implementation() { return GetActorTransform(); }
 
-	AParkingController* parkingController_;
+	// These reference actors whose lifetimes are independent of this one: the controller outlives
+	// parking spaces, and an occupant car can be destroyed while it is driving in. Weak pointers
+	// go null when the actor is destroyed instead of dangling into freed memory
+	TWeakObjectPtr<AParkingController> parkingController_;
+	TWeakObjectPtr<ACar> occupant_;
 
-	ACar* occupant_;
 	bool occupied_;
 	int visualInstanceId_;
 	TSubclassOf<ACar> carClass_;

@@ -3,9 +3,40 @@
 #include "Traffic/Entities/Car.h"
 #include "Misc/Debug.h"
 
+void AParkingSpace::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (AParkingController* parkingController = AParkingController::Find(GetWorld()))
+	{
+		parkingController->RegisterParkingSpace(this);
+	}
+}
+
+void AParkingSpace::EndPlay(const EEndPlayReason::Type endPlayReason)
+{
+	// Must unregister so the controller never holds a reference to a streamed-out parking space
+	if (AParkingController* parkingController = parkingController_.Get())
+	{
+		parkingController->UnregisterParkingSpace(this);
+	}
+
+	Super::EndPlay(endPlayReason);
+}
+
+void AParkingSpace::SetParkingController(AParkingController* controller)
+{
+	parkingController_ = controller;
+}
+
+AParkingController* AParkingSpace::GetParkingController() const
+{
+	return parkingController_.Get();
+}
+
 bool AParkingSpace::ParkCar(ACar* car)
 {
-	if (occupied_ || occupant_ != nullptr || parkingController_ == nullptr)
+	if (occupied_ || occupant_.IsValid() || !parkingController_.IsValid())
 	{
 		return false;
 	}
@@ -19,7 +50,7 @@ bool AParkingSpace::ParkCar(ACar* car)
 
 bool AParkingSpace::DepartCar()
 {
-	if (!occupied_ || occupant_ != nullptr || parkingController_ == nullptr)
+	if (!occupied_ || occupant_.IsValid() || !parkingController_.IsValid())
 	{
 		return false;
 	}
@@ -41,7 +72,7 @@ bool AParkingSpace::DepartCar()
 
 bool AParkingSpace::SpawnCar()
 {
-	if (occupied_ || occupant_ != nullptr || parkingController_ == nullptr)
+	if (occupied_ || occupant_.IsValid() || !parkingController_.IsValid())
 	{
 		return false;
 	}
@@ -55,7 +86,7 @@ bool AParkingSpace::SpawnCar()
 
 bool AParkingSpace::ClearCar()
 {
-	if (!occupied_ || parkingController_ == nullptr)
+	if (!occupied_ || !parkingController_.IsValid())
 	{
 		return false;
 	}
@@ -72,19 +103,22 @@ bool AParkingSpace::ClearCar()
 
 bool AParkingSpace::FinishParking()
 {
-	if (occupant_ == nullptr || parkingController_ == nullptr)
+	ACar* occupant = occupant_.Get();
+
+	// The occupant can be destroyed while it is driving in, in which case the space stays free
+	if (occupant == nullptr || !parkingController_.IsValid())
 	{
 		return false;
 	}
 
 	// Replace the vehicle actor with a parked vehicle instance.
-	// The current vehicle should automatically start a new path and teleport somewhere else as another active vehicle. Otherwise 
+	// The current vehicle should automatically start a new path and teleport somewhere else as another active vehicle. Otherwise
 	// the actor should get deleted, which in turn should create another vehicle actor starting from a parking space or a spawn keypoint.
 
-	visualInstanceId_ = parkingController_->CreateParkedInstanceForCar(occupant_);
+	visualInstanceId_ = parkingController_->CreateParkedInstanceForCar(occupant);
 
-	carClass_ = occupant_->GetClass();
-	carVariant_ = occupant_->GetVariantId();
+	carClass_ = occupant->GetClass();
+	carVariant_ = occupant->GetVariantId();
 
 	occupant_ = nullptr;
 	occupied_ = true;

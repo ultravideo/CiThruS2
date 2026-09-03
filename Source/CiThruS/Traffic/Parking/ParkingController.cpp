@@ -5,6 +5,7 @@
 #include "Traffic/TrafficController.h"
 #include "ParkingSpace.h"
 #include "Traffic/Entities/ITrafficEntity.h"
+#include "Video/SegmentationController.h"
 
 #include "Math/UnrealMathUtility.h"
 #include "Kismet/KismetMathLibrary.h"
@@ -12,9 +13,52 @@
 #include "Engine/SCS_Node.h"
 #include "Engine/InheritableComponentHandler.h"
 
+TWeakObjectPtr<AParkingController> AParkingController::cachedInstance_;
+
 AParkingController::AParkingController()
 {
 	PrimaryActorTick.bCanEverTick = false;
+}
+
+AParkingController* AParkingController::Find(const UWorld* world)
+{
+	if (world == nullptr)
+	{
+		return nullptr;
+	}
+
+	// The cache is keyed on the world so that it can't leak across PIE sessions
+	AParkingController* cached = cachedInstance_.Get();
+
+	if (cached != nullptr && cached->GetWorld() == world)
+	{
+		return cached;
+	}
+
+	TArray<AActor*> found;
+	UGameplayStatics::GetAllActorsOfClass(const_cast<UWorld*>(world), AParkingController::StaticClass(), found);
+
+	cached = found.Num() > 0 ? Cast<AParkingController>(found[0]) : nullptr;
+	cachedInstance_ = cached;
+
+	return cached;
+}
+
+void AParkingController::RegisterParkingSpace(AParkingSpace* parkingSpace)
+{
+	if (!IsValid(parkingSpace))
+	{
+		return;
+	}
+
+	parkingSpace->SetParkingController(this);
+	parkingSpaces_.AddUnique(parkingSpace);
+}
+
+void AParkingController::UnregisterParkingSpace(AParkingSpace* parkingSpace)
+{
+	// Order is irrelevant here, so the O(1) swap removal is fine
+	parkingSpaces_.RemoveSingleSwap(parkingSpace);
 }
 
 void AParkingController::BeginPlay()
@@ -70,6 +114,17 @@ void AParkingController::Initialize()
 					instance->SetMaterial(i, part.materials[i]);
 				}
 
+				// Image segmentation tracking for parked cars
+				if (segmentationTrackingParent_ == nullptr)
+				{
+					USegmentationController::RegisterObject(instance, ESegmentationClass::Car);
+					segmentationTrackingParent_ = instance;
+				}
+				else
+				{
+					USegmentationController::RegisterSubobject(instance, segmentationTrackingParent_);
+				}
+
 				instances.Add({ instance, part.transform });
 			}
 
@@ -83,15 +138,25 @@ void AParkingController::Initialize()
 	// Picks up everything already loaded; spaces streamed in later register themselves in BeginPlay
 	for (AActor* parkingSpaceActor : allParkingSpaces)
 	{
-		AParkingSpace* parkingSpace = Cast<AParkingSpace>(parkingSpaceActor);
+		RegisterParkingSpace(Cast<AParkingSpace>(parkingSpaceActor));
+	}
+}
 
-		parkingSpace->SetParkingController(this);
+void AParkingController::EndPlay(const EEndPlayReason::Type endPlayReason)
+{
+	Super::EndPlay(endPlayReason);
 
-		parkingSpaces_.Add(parkingSpace);
-
-		if (FMath::RandRange(0.0f, 1.0f) <= parkingDensity_)
+	// Reset image segmentation tracking
+	for (std::pair<UHierarchicalInstancedStaticMeshComponent* const, std::vector<int>> const& instance : instanceIndices_)
 	{
-			parkingSpace->SpawnCar();
+		USegmentationController::UnregisterObject(instance.first);
+	}
+
+	segmentationTrackingParent_ = nullptr;
+
+	if (cachedInstance_.Get() == this)
+	{
+		cachedInstance_ = nullptr;
 	}
 }
 
@@ -102,7 +167,9 @@ bool AParkingController::DepartRandomParkedCar()
 		return false;
 	}
 
-	return parkingSpaces_[rng_->RandRange(0, parkingSpaces_.Num() - 1)]->DepartCar();
+	AParkingSpace* parkingSpace = parkingSpaces_[rng_->RandRange(0, parkingSpaces_.Num() - 1)].Get();
+
+	return parkingSpace != nullptr && parkingSpace->DepartCar();
 }
 
 bool AParkingController::HismInstanceBelongsToParkingSpace(const UHierarchicalInstancedStaticMeshComponent* hism, int hismInstance, const AParkingSpace* parkingSpace) const
@@ -126,9 +193,13 @@ void AParkingController::BeginSimulateTraffic(FRandomStream* rng)
 
 	rng_ = rng;
 
-	for (AParkingSpace* parkingSpace : parkingSpaces_)
+	for (const TWeakObjectPtr<AParkingSpace>& parkingSpaceWeak : parkingSpaces_)
 	{
-		if (rng_->FRandRange(0.0f, 1.0f) <= parkingDensity_)
+		// Draw before the validity check so the random stream stays reproducible
+		const bool spawnCar = rng_->FRandRange(0.0f, 1.0f) <= parkingDensity_;
+		AParkingSpace* parkingSpace = parkingSpaceWeak.Get();
+
+		if (spawnCar && parkingSpace != nullptr)
 		{
 			parkingSpace->SpawnCar();
 		}
@@ -137,9 +208,12 @@ void AParkingController::BeginSimulateTraffic(FRandomStream* rng)
 
 void AParkingController::EndSimulateTraffic()
 {
-	for (AParkingSpace* parkingSpace : parkingSpaces_)
+	for (const TWeakObjectPtr<AParkingSpace>& parkingSpaceWeak : parkingSpaces_)
 	{
-		parkingSpace->ClearCar();
+		if (AParkingSpace* parkingSpace = parkingSpaceWeak.Get())
+		{
+			parkingSpace->ClearCar();
+		}
 	}
 
 	rng_ = nullptr;

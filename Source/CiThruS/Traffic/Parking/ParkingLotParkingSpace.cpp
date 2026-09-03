@@ -6,12 +6,12 @@
 
 bool AParkingLotParkingSpace::ParkCar(ACar* car)
 {
-	if (occupied_ || occupant_ != nullptr)
+	if (occupied_ || occupant_.IsValid())
 	{
 		return false;
 	}
 
-	if (parkingController_ == nullptr)
+	if (!parkingController_.IsValid())
 	{
 		Debug::Log("No ParkingController found. Check that the simulation is running first");
 
@@ -208,7 +208,7 @@ bool AParkingLotParkingSpace::ParkCar(ACar* car)
 
 bool AParkingLotParkingSpace::DepartCar()
 {
-	if (!occupied_ || occupant_ != nullptr)
+	if (!occupied_ || occupant_.IsValid())
 	{
 		return false;
 	}
