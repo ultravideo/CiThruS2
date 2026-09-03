@@ -19,7 +19,7 @@ void FreePathFollower::Initialize(const KeypointGraph* graph, AActor* trafficEnt
 
 void FreePathFollower::AdvanceTarget()
 {
-	if (++currentPoint_ >= PointCount() - 1)
+	if (++currentPoint_ >= PointCount())
 	{
 		if (path_.graph != nullptr)
 		{
@@ -40,15 +40,15 @@ FVector FreePathFollower::GetLocationAt(const int& point) const
 
 	if (point >= PointCount() - 1)
 	{
-		return GetPosition(PointCount() - 1) + locationOffset_;
+		return GetPosition(PointCount() - 1);
 	}
 
 	if (point < 0)
 	{
-		return GetPosition(0) + locationOffset_;
+		return GetPosition(0);
 	}
 
-	return GetPosition(point) + locationOffset_;
+	return GetPosition(point);
 }
 
 // Set a new path from one point to another known point

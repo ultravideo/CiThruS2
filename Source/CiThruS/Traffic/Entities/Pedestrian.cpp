@@ -6,8 +6,6 @@
 #include "Math/UnrealMathUtility.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
-#include "AIController.h"
-#include "Navigation/PathFollowingComponent.h"
 #include "Engine/World.h"
 
 APedestrian::APedestrian()
@@ -33,6 +31,7 @@ void APedestrian::Destroyed()
 {
 	if (trafficController_ != nullptr)
 	{
+		// Important so that the simulation doesn't crash if traffic entities are randomly deleted e.g. by the user
 		trafficController_->InvalidateTrafficEntity(this);
 	}
 
@@ -49,16 +48,22 @@ FVector APedestrian::PreferredSpawnPositionOffset()
 void APedestrian::Simulate(const KeypointGraph* graph)
 {
 	// For some reason SpawnDefaultActor() does nothing half the time so we have to spawn a controller manually
-	Controller = GetWorld()->SpawnActor<AAIController>();
-	Controller->Possess(this);
+	AAIController* controller = GetWorld()->SpawnActor<AAIController>();
+	controller->Possess(this);
 
 	GetCharacterMovement()->MaxWalkSpeed = moveSpeed_;
-	GetCharacterMovement()->bUseRVOAvoidance = true;
+
+	// Makes pedestrians avoid walking into each other
+	GetCharacterMovement()->AvoidanceConsiderationRadius = 300.0f;
+	GetCharacterMovement()->AvoidanceWeight = 0.5f;
+	GetCharacterMovement()->SetAvoidanceEnabled(true);
 
 	pathFollower_.Initialize(graph, this, FVector::UpVector * HEIGHT_CM * 0.5f);
 
 	useEditorTick_ = true;
 	simulate_ = true;
+
+	GoToNextTarget();
 }
 
 void APedestrian::Tick(float deltaTime)
@@ -86,54 +91,32 @@ void APedestrian::Tick(float deltaTime)
 	}
 
 	AAIController* aiController = Cast<AAIController>(Controller);
-
+	
 	if (aiController == nullptr)
 	{
 		return;
 	}
 
-	if (Stopped())
-	{
-		// inActiveStopArea_ = true;
-		// No need to move
+	bool isCurrentlyStopped = Stopped();
+
+	if (isCurrentlyStopped && !wasPreviouslyStopped_)
 		aiController->StopMovement();
-
-		return;
-	}
-
-	EPathFollowingRequestResult::Type pathFollowResult = aiController->MoveToLocation(pathFollower_.GetLocation(), 50.0f, true, true, true, true, nullptr, false);
-
-	if (pathFollowResult == EPathFollowingRequestResult::AlreadyAtGoal || pathFollowResult == EPathFollowingRequestResult::Failed)
-	{
-		// Reached current target point: get next target point or new path if end reached.
-		pathFollower_.AdvanceTarget();
-	}
-	else if (aiController->GetPathFollowingComponent()->GetStatus() == EPathFollowingStatus::Moving && !pathFollower_.IsLastTarget())
-	{
-/* 		boing_ = true;
-		// Calculate a new target location slightly before reaching the current goal. Reduces weird movement.
-		// Doesn't get rid of the brief stop when calculating a new target though.
-		FVector goalLocation = aiController->GetTargetLocation();
-		UE_LOG(LogTemp, Warning, TEXT("HEP! aiController->GetTargetLocation is %s"), *goalLocation.ToString());
-		float distToGoal = FVector::Dist2D(goalLocation, GetActorLocation());
-		if (distToGoal <= 100.0f)
-		{
-			pathFollower_.AdvanceTarget();
-		} */
-	}
+	else if (!isCurrentlyStopped && wasPreviouslyStopped_)
+		GoToNextTarget();
 	
-	// Update pathfinding status
+	wasPreviouslyStopped_ = isCurrentlyStopped;
+
+
+	// Update editor pathfinding status display
 	pathFollowerGoal_ = pathFollower_.GetLocation();
 	distanceToFollowerGoal_ = FVector::Dist2D(pathFollowerGoal_, GetActorLocation());
-	controllerGoal_ = aiController->GetTargetLocation();
-	distanceToControllerGoal_ = FVector::Dist2D(controllerGoal_, GetActorLocation());
 
-	atGoal_ = pathFollowResult == EPathFollowingRequestResult::AlreadyAtGoal;
+	atGoal_ = pathFollowResult_ == EPathFollowingRequestResult::AlreadyAtGoal;
 	moving_ = aiController->GetPathFollowingComponent()->GetStatus() == EPathFollowingStatus::Moving;
 	
 	lastTarget_ = pathFollower_.IsLastTarget();
 
-	pathFollowingRqResult_ = UEnum::GetValueAsString(pathFollowResult);
+	pathFollowingRqResult_ = UEnum::GetValueAsString(pathFollowResult_);
 	pathFollowingStatus_ = UEnum::GetValueAsString(aiController->GetPathFollowingComponent()->GetStatus());
 
 	moveDirection_ = GetActorForwardVector();
@@ -141,6 +124,46 @@ void APedestrian::Tick(float deltaTime)
 	// Update collision
 	collisionRectangle_.SetPosition(GetActorLocation());
 	collisionRectangle_.SetRotation(GetActorRotation().Quaternion());
+}
+
+void APedestrian::GoToNextTarget()
+{
+    AAIController* aiController = Cast<AAIController>(Controller);
+    if (aiController)
+    {
+        // Unbind previous delegates to be safe
+        aiController->GetPathFollowingComponent()->OnRequestFinished.RemoveAll(this);
+        
+        // Bind to the finished event
+        aiController->GetPathFollowingComponent()->OnRequestFinished.AddUObject(this, &APedestrian::OnMoveCompleted);
+        
+        pathFollowResult_ = aiController->MoveToLocation(pathFollower_.GetLocation() + FVector::UpVector * 50.0f, 50.0f, true, true, true, false, nullptr, false);
+    }
+}
+
+// This fires automatically when they reach the goal, fail, or are interrupted
+void APedestrian::OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result)
+{
+
+	// If pathfinding aborted because of stopping, don't do anything. 
+	// Tick function will handle restarting once the block clears. 
+	if (Stopped()) return;
+
+    if (Result.IsSuccess())
+    {
+        pathFollower_.AdvanceTarget();
+        GoToNextTarget(); // Start moving to the next one
+    }
+    else if (Result.HasFlag(FPathFollowingResultFlags::Blocked))
+	{
+		// Blocked means there's something in the way temporarily
+		GoToNextTarget(); // Try again, otherwise the pedestrian will never move again even if the path is cleared
+	}
+	else
+    {
+        // Handle failure (e.g., target position is not on the nav mesh)
+        UE_LOG(LogTemp, Warning, TEXT("Pedestrian path failed"));
+    }
 }
 
 void APedestrian::OnEnteredStopArea(ATrafficStopArea* stopArea)
@@ -173,16 +196,6 @@ void APedestrian::OnExitedYieldArea(ATrafficYieldArea* yieldArea)
 	{
 		shouldYield_ = false;
 	}
-}
-
-void APedestrian::OnFar()
-{
-	Far();
-}
-
-void APedestrian::OnNear()
-{
-	Near();
 }
 
 CollisionRectangle APedestrian::GetPredictedFutureCollisionRectangle() const

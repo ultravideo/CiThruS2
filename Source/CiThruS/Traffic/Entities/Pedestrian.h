@@ -5,6 +5,9 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
+#include "AIController.h"
+#include "Navigation/PathFollowingComponent.h"
+#include "AITypes.h"
 
 #include <set>
 
@@ -31,6 +34,9 @@ public:
 
 	virtual void Tick(float deltaTime) override;
 	inline virtual bool ShouldTickIfViewportsOnly() const override { return useEditorTick_; }
+
+	void OnMoveCompleted(FAIRequestID RequestID, const FPathFollowingResult& Result);
+	void GoToNextTarget();
 
 	inline virtual void SetController(ATrafficController* controller) override { trafficController_ = controller; }
 
@@ -80,11 +86,6 @@ protected:
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
 	float distanceToFollowerGoal_ = 0.0f;
  
-//	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
-	FVector controllerGoal_ = FVector::ZeroVector;
-//	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
-	float distanceToControllerGoal_ = 0.0f;
-
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
 	bool atGoal_ = false;
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
@@ -92,14 +93,15 @@ protected:
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
 	bool lastTarget_ = false;
 
+
+	EPathFollowingRequestResult::Type pathFollowResult_;
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
 	FString pathFollowingRqResult_ = "";
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
 	FString pathFollowingStatus_ = "";
 
-	//UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Pathfinding Status")
-	bool boing_ = false;
+	bool wasPreviouslyStopped_ = false;
 
 	UPROPERTY(BlueprintReadOnly, EditAnywhere, Category = "Traffic System|Collision Status")
 	bool shouldYield_;
