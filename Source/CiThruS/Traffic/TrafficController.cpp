@@ -821,6 +821,26 @@ void ATrafficController::ToggleViewFrustrum()
 	}
 }
 
+void ATrafficController::SetFixedSimulationFrameRate(int frameRate)
+{
+	if (!GEngine)
+	{
+		return;
+	}
+
+	if (frameRate > 0)
+	{
+		GEngine->bUseFixedFrameRate = true;
+		GEngine->FixedFrameRate = frameRate;
+		GEngine->SetMaxFPS(frameRate);
+	}
+	else
+	{
+		GEngine->bUseFixedFrameRate = false;
+		GEngine->SetMaxFPS(0);
+	}
+}
+
 void ATrafficController::VisualizeGraph(KeypointGraph* graph) const
 {
 	for (int i = 0; i < graph->LinkCount(); i++)

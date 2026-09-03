@@ -50,6 +50,9 @@ public:
 	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Traffic System")
 	void RedrawLinkLines();
 
+	UFUNCTION(BlueprintCallable, CallInEditor, Category = "Simulation")
+	void SetFixedSimulationFrameRate(int frameRate);
+
 	ACar* SpawnCar();
 	ACar* SpawnCar(const FVector& position, const FRotator& rotation, const bool& simulate);
 	ACar* SpawnCar(const FVector& position, const FRotator& rotation, const bool& simulate, const TSubclassOf<ACar>& carClass, const int& carVariant);
