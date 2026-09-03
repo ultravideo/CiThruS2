@@ -34,6 +34,9 @@ public:
 
 	void SetLightState(const ETrafficLightState& newState);
 
+	bool Contains(AVisualTrafficLight* trafficLight);
+	bool Contains(ATrafficStopArea* stopArea);
+
 protected:
 	ETrafficLightState lightState_;
 	float timeRemainingInCurrentState_;

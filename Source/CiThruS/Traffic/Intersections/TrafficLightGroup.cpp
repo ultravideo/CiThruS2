@@ -6,7 +6,6 @@
 #include "DrawDebugHelpers.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/MathUtility.h"
-#include "TrafficLightGroup.h"
 
 ATrafficLightGroup::ATrafficLightGroup()
 {
@@ -107,18 +106,59 @@ void ATrafficLightGroup::SetLightState(const ETrafficLightState& newState)
 				continue;
 			}
 
+			// Stay deactivated if the next group continues to be green to
+			// avoid activating for a split second and then immediately
+			// deactivating again
+			if (intersection_ != nullptr
+				&& intersection_->WillDeactivateNext(stopArea))
+			{
+				continue;
+			}
+
 			stopArea->Activate();
 		}
 
 		break;
 
 	case ETrafficLightState::Yellow:
+		timeRemainingInCurrentState_ = yellowLightDuration_;
+
+		for (ATrafficStopArea* stopArea : stopAreas_)
+		{
+			if (stopArea == nullptr)
+			{
+				continue;
+			}
+
+			// Stay deactivated if the next group continues to be green to
+			// avoid activating for a split second and then immediately
+			// deactivating again
+			if (intersection_ != nullptr
+				&& intersection_->WillDeactivateNext(stopArea))
+			{
+				continue;
+			}
+
+			stopArea->Activate();
+		}
+
+		break;
+
 	case ETrafficLightState::RedYellow:
 		timeRemainingInCurrentState_ = yellowLightDuration_;
 
 		for (ATrafficStopArea* stopArea : stopAreas_)
 		{
 			if (stopArea == nullptr)
+			{
+				continue;
+			}
+
+			// Stay deactivated if the previous group was green to avoid
+			// activating for a split second and then immediately
+			// deactivating again
+			if (intersection_ != nullptr
+				&& intersection_->WasDeactivatedPreviously(stopArea))
 			{
 				continue;
 			}
@@ -138,6 +178,15 @@ void ATrafficLightGroup::SetLightState(const ETrafficLightState& newState)
 				continue;
 			}
 
+			// Stay deactivated if the previous group was green to avoid
+			// activating for a split second and then immediately
+			// deactivating again
+			if (intersection_ != nullptr
+				&& intersection_->WasDeactivatedPreviously(stopArea))
+			{
+				continue;
+			}
+
 			stopArea->Deactivate();
 		}
 
@@ -151,6 +200,37 @@ void ATrafficLightGroup::SetLightState(const ETrafficLightState& newState)
 			continue;
 		}
 
+		if (intersection_ != nullptr)
+		{
+			// Don't set traffic lights back to red if they will also go green in the next group.
+			// It looks weird because they don't have any time to be red between groups
+			if ((lightState_ == ETrafficLightState::Yellow
+				|| lightState_ == ETrafficLightState::Red)
+				&& intersection_->WillBeGreenNext(visualLight))
+			{
+				continue;
+			}
+
+			// If the above code kept the light green through the previous group, don't cycle
+			// through RedYellow again, just stay green from the start of this group
+			if ((lightState_ == ETrafficLightState::RedYellow
+				|| lightState_ == ETrafficLightState::Green)
+				&& intersection_->WasGreenPreviously(visualLight))
+			{
+				continue;
+			}
+		}
+
 		visualLight->SetLightState(lightState_);
 	}
+}
+
+bool ATrafficLightGroup::Contains(AVisualTrafficLight* trafficLight)
+{
+	return visualLights_.Contains(trafficLight);
+}
+
+bool ATrafficLightGroup::Contains(ATrafficStopArea* stopArea)
+{
+	return stopAreas_.Contains(stopArea);
 }

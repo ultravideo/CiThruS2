@@ -5,6 +5,8 @@
 #include "IntersectionController.generated.h"
 
 class ATrafficLightGroup;
+class AVisualTrafficLight;
+class ATrafficStopArea;
 
 // Controls the traffic lights in a single intersection by cycling them periodically
 UCLASS()
@@ -22,6 +24,12 @@ public:
 	void SetCyclingGroup(int i) { cyclingGroup_ = i; }
 
 	void ResetLights();
+
+	bool WillBeGreenNext(AVisualTrafficLight* trafficLight) const;
+	bool WasGreenPreviously(AVisualTrafficLight* trafficLight) const;
+
+	bool WillDeactivateNext(ATrafficStopArea* stopArea) const;
+	bool WasDeactivatedPreviously(ATrafficStopArea* stopArea) const;
 
 protected:
 	int cyclingGroup_;
