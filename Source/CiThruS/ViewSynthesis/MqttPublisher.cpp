@@ -23,6 +23,8 @@ MqttPublisher::MqttPublisher(
 		client_->set_connected_handler(
 			[this](const std::string& cause)
 			{
+				std::unique_lock<std::mutex> lock(clientMutex_);
+
 				connectionStarted_ = false;
 				connectionExists_ = true;
 
@@ -32,6 +34,8 @@ MqttPublisher::MqttPublisher(
 		client_->set_disconnected_handler(
 			[this](const mqtt::properties& properties, mqtt::ReasonCode reasonCode)
 			{
+				std::unique_lock<std::mutex> lock(clientMutex_);
+
 				connectionStarted_ = false;
 				connectionExists_ = false;
 
@@ -42,6 +46,8 @@ MqttPublisher::MqttPublisher(
 		client_->set_connection_lost_handler(
 			[this](const std::string& cause)
 			{
+				std::unique_lock<std::mutex> lock(clientMutex_);
+
 				connectionStarted_ = false;
 				connectionExists_ = false;
 
@@ -90,22 +96,25 @@ MqttPublisher::~MqttPublisher()
 #ifdef CITHRUS_PAHOCPP_AVAILABLE
 	std::unique_lock<std::mutex> lock(clientMutex_);
 
+	if (client_)
+	{
+		if (client_->is_connected())
+		{
+			client_->disconnect()->wait();
+
+			Debug::Log("Disconnected from MQTT broker: Publisher destroyed");
+		}
+
+		delete client_;
+		client_ = nullptr;
+	}
+
 	for (std::pair<std::string, TopicWrapper> topics : publishedTopics_)
 	{
 		delete topics.second.topic;
 	}
 
 	publishedTopics_.clear();
-
-	if (client_)
-	{
-		client_->disconnect()->wait();
-
-		Debug::Log("Disconnected from MQTT broker: Publisher destroyed");
-
-		delete client_;
-		client_ = nullptr;
-	}
 #endif // CITHRUS_PAHOCPP_AVAILABLE
 }
 
