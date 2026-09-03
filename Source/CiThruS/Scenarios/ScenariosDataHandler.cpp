@@ -2,7 +2,7 @@
 #include "DataStructures/ScenarioData.h"
 #include "Serialization/BufferArchive.h"
 
-#define FILEPATH(scenario) (FString(FPlatformProcess::UserDir()) + "\\CiThruS2\\Scenarios\\" + scenario + ".sav")
+#define FILEPATH(scenario) (FString(FPlatformProcess::UserDir()) + "/CiThruS2/Scenarios/" + scenario + ".sav")
 
 bool ScenariosDataHandler::SaveData(FScenarioData data)
 {

@@ -103,6 +103,9 @@ void ATrafficController::EndPlay(const EEndPlayReason::Type endPlayReason)
 
 	delete lodController_;
 	lodController_ = nullptr;
+
+	delete rng_;
+	rng_ = nullptr;
 }
 
 void ATrafficController::Tick(float deltaTime)
@@ -147,7 +150,7 @@ TArray<AActor*> ATrafficController::GetEntitiesInArea(FVector center3d, FVector 
 	FVector2D cv = FVector2D(center + 0.5f * (-forward * length - right * width));
 	FVector2D dv = FVector2D(center + 0.5f * (-forward * length + right * width));
 
-	// Collect current pawns in the scene
+/* 	// Collect current pawns in the scene
 	std::list<APawn*> pawns;
 	for (TActorIterator<APawn> it = TActorIterator<APawn>(GetWorld()); it; it.operator++())
 	{
@@ -157,9 +160,9 @@ TArray<AActor*> ATrafficController::GetEntitiesInArea(FVector center3d, FVector 
 		}
 
 		pawns.push_back(*it);
-	}
+	} */
 
-	// Check against cars?
+	// Check against traffic entities
 	for (int i = 0; i < simulatedEntities_.size(); i++)
 	{
 		if (ACar* car = Cast<ACar>(simulatedEntities_[i]))
@@ -171,31 +174,33 @@ TArray<AActor*> ATrafficController::GetEntitiesInArea(FVector center3d, FVector 
 		}
 	}
 
-	// Check against pawns
+	// Check against player vehicles
+	APawn* playerPawn = GetWorld()->GetFirstPlayerController()->GetPawn();
+	if (playerPawn && MathUtility::PointInsideRectangle(FVector2D(playerPawn->GetActorLocation()), av, bv, cv, dv))
+	{
+		colliding.Add(playerPawn);
+	}
+
+/* 	// Check against pawns
 	for (APawn* pawn : pawns)
 	{
 		if (MathUtility::PointInsideRectangle(FVector2D(pawn->GetActorLocation()), av, bv, cv, dv))
 		{
 			colliding.Add(pawn);
 		}
-	}
+	} */
 
 	return colliding;
 }
 
 ACar* ATrafficController::SpawnCar()
 {
-	int spawnPoint = roadGraph_.GetRandomSpawnPoint();
+	int spawnPoint = roadGraph_.GetRandomSpawnPoint(*rng_);
 
-	return SpawnCar(roadGraph_.GetKeypointPosition(spawnPoint), roadGraph_.GetKeypointRotation(spawnPoint), true, templateCars_[FMath::RandRange(0, templateCars_.Num() - 1)], -1);
+	return SpawnCar(roadGraph_.GetKeypointPosition(spawnPoint), roadGraph_.GetKeypointRotation(spawnPoint), true);
 }
 
 ACar* ATrafficController::SpawnCar(const FVector& position, const FRotator& rotation, const bool& simulate)
-{
-	return SpawnCar(position, rotation, simulate, templateCars_[FMath::RandRange(0, templateCars_.Num() - 1)], -1);
-}
-
-ACar* ATrafficController::SpawnCar(const FVector& position, const FRotator& rotation, const bool& simulate, const TSubclassOf<ACar>& carClass, const int& carVariant)
 {
 	if (templateCars_.Num() == 0)
 	{
@@ -203,10 +208,18 @@ ACar* ATrafficController::SpawnCar(const FVector& position, const FRotator& rota
 		return nullptr;
 	}
 
-	FActorSpawnParameters spawnParams;
+	// The car variant is NOT the same as this index, it's a variant WITHIN the template car class like a version of it with a specific color
+	int templateCarIndex = rng_->RandRange(0, templateCars_.Num() - 1);
+
+	return SpawnCar(position, rotation, simulate, templateCars_[templateCarIndex], -1);
+}
+
+ACar* ATrafficController::SpawnCar(const FVector& position, const FRotator& rotation, const bool& simulate, const TSubclassOf<ACar>& carClass, const int& carVariant)
+{
+	FActorSpawnParameters spawnParams{};
 
 	spawnParams.SpawnCollisionHandlingOverride
-		= ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+		= ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
 	ACar* car = GetWorld()->SpawnActor<ACar>(carClass, position, rotation, spawnParams);
 
@@ -237,7 +250,7 @@ ACar* ATrafficController::SpawnCar(const FVector& position, const FRotator& rota
 			lodController_->AddEntity(car);
 		}
 
-		car->Simulate(&roadGraph_);
+		car->Simulate(&roadGraph_, rng_->RandRange(std::numeric_limits<std::int32_t>::min(), std::numeric_limits<std::int32_t>::max()));
 	}
 	else
 	{
@@ -245,6 +258,13 @@ ACar* ATrafficController::SpawnCar(const FVector& position, const FRotator& rota
 	}
 
 	return car;
+}
+
+APedestrian* ATrafficController::SpawnPedestrian()
+{
+	int spawnPoint = sharedUseGraph_.GetRandomSpawnPoint(*rng_);
+
+	return SpawnPedestrian(sharedUseGraph_.GetKeypointPosition(spawnPoint), sharedUseGraph_.GetKeypointRotation(spawnPoint), true);
 }
 
 APedestrian* ATrafficController::SpawnPedestrian(const FVector& position, const FRotator& rotation, const bool& simulate)
@@ -255,19 +275,32 @@ APedestrian* ATrafficController::SpawnPedestrian(const FVector& position, const 
 		return nullptr;
 	}
 
-	FActorSpawnParameters spawnParams;
+	// The pedestrian variant is NOT the same as this index, it's a variant WITHIN the template pedestrian class like a version of it with specific clothing
+	int templatePedestrianIndex = rng_->RandRange(0, templatePedestrians_.Num() - 1);
+
+	return SpawnPedestrian(position, rotation, simulate, templatePedestrians_[templatePedestrianIndex], -1);
+}
+
+APedestrian* ATrafficController::SpawnPedestrian(const FVector& position, const FRotator& rotation, const bool& simulate, const TSubclassOf<APedestrian>& pedestrianClass, const int& pedestrianVariant)
+{
+	FActorSpawnParameters spawnParams{};
 
 	spawnParams.SpawnCollisionHandlingOverride
 		= ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-	APedestrian* pedestrian = GetWorld()->SpawnActor<APedestrian>(
-		templatePedestrians_[FMath::RandRange(0, templatePedestrians_.Num() - 1)],
+	APedestrian* pedestrian = GetWorld()->SpawnActor<APedestrian>(pedestrianClass,
 		position + APedestrian::PreferredSpawnPositionOffset(), rotation, spawnParams);
 
 	if (!pedestrian)
 	{
 		Debug::Log("Pedestrian spawn failed");
 		return nullptr;
+	}
+
+	if (pedestrianVariant >= 0)
+	{
+		// TODO
+		//pedestrian->SetVariantId(pedestrianVariant);
 	}
 
 #if WITH_EDITOR
@@ -284,7 +317,7 @@ APedestrian* ATrafficController::SpawnPedestrian(const FVector& position, const 
 			lodController_->AddEntity(pedestrian);
 		}
 
-		pedestrian->Simulate(&sharedUseGraph_);
+		pedestrian->Simulate(&sharedUseGraph_, rng_->RandRange(std::numeric_limits<std::int32_t>::min(), std::numeric_limits<std::int32_t>::max()));
 	}
 	else
 	{
@@ -294,20 +327,34 @@ APedestrian* ATrafficController::SpawnPedestrian(const FVector& position, const 
 	return pedestrian;
 }
 
+ABicycle* ATrafficController::SpawnBicycle()
+{
+	int spawnPoint = bicycleGraph_.GetRandomSpawnPoint(*rng_);
+
+	return SpawnBicycle(bicycleGraph_.GetKeypointPosition(spawnPoint), bicycleGraph_.GetKeypointRotation(spawnPoint), true);
+}
+
 ABicycle* ATrafficController::SpawnBicycle(const FVector& position, const FRotator& rotation, const bool& simulate)
 {
 	if (templateBicycles_.Num() == 0)
 	{
-		Debug::Log("Can't spawn bicycles: no template bicycles available!");
+		Debug::Log("Can't spawn bicycle: no template bicycles available!");
 		return nullptr;
 	}
 
-	FActorSpawnParameters spawnParams;
+	// The bicycle variant is NOT the same as this index, it's a variant WITHIN the template bicycle class like a version of it with a specific color
+	int templateBicycleIndex = rng_->RandRange(0, templateBicycles_.Num() - 1);
 
-	spawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	return SpawnBicycle(position, rotation, simulate, templateBicycles_[templateBicycleIndex], -1);
+}
 
-	ABicycle* bicycle = GetWorld()->SpawnActor<ABicycle>(
-		templateBicycles_[FMath::RandRange(0, templateBicycles_.Num() - 1)],
+ABicycle* ATrafficController::SpawnBicycle(const FVector& position, const FRotator& rotation, const bool& simulate, const TSubclassOf<ABicycle>& bicycleClass, const int& bicycleVariant)
+{
+	FActorSpawnParameters spawnParams{};
+
+	spawnParams.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
+
+	ABicycle* bicycle = GetWorld()->SpawnActor<ABicycle>(bicycleClass,
 		position /* + ABicycle::PreferredSpawnPositionOffset()*/, rotation, spawnParams);
 	//UE_LOG(LogTemp, Log, TEXT("Spawning bicycle at: %s"), *position.ToString());
 
@@ -315,6 +362,12 @@ ABicycle* ATrafficController::SpawnBicycle(const FVector& position, const FRotat
 	{
 		Debug::Log("Bicycle spawn failed");
 		return nullptr;
+	}
+
+	if (bicycleVariant >= 0)
+	{
+		// TODO
+		// bicycle->SetVariantId(bicycleVariant);
 	}
 
 #if WITH_EDITOR
@@ -331,7 +384,7 @@ ABicycle* ATrafficController::SpawnBicycle(const FVector& position, const FRotat
 			lodController_->AddEntity(bicycle);
 		}
 
-		bicycle->Simulate(&bicycleGraph_);
+		bicycle->Simulate(&bicycleGraph_, rng_->RandRange(std::numeric_limits<std::int32_t>::min(), std::numeric_limits<std::int32_t>::max()));
 	}
 	else
 	{
@@ -341,7 +394,12 @@ ABicycle* ATrafficController::SpawnBicycle(const FVector& position, const FRotat
 	return bicycle;
 }
 
-ATram* ATrafficController::SpawnTram(const FVector& position, const bool& simulate)
+ATram* ATrafficController::SpawnTram()
+{
+	return nullptr;
+}
+
+ATram* ATrafficController::SpawnTram(const FVector& position, const FRotator& rotation, const bool& simulate)
 {
 	if (templateTrams_.Num() == 0)
 	{
@@ -349,18 +407,31 @@ ATram* ATrafficController::SpawnTram(const FVector& position, const bool& simula
 		return nullptr;
 	}
 
-	FActorSpawnParameters spawnParams;
+	// The tram variant is NOT the same as this index, it's a variant WITHIN the template tram class like a version of it with a specific color
+	int templateTramIndex = rng_->RandRange(0, templateTrams_.Num() - 1);
+
+	return SpawnTram(position, rotation, simulate, templateTrams_[templateTramIndex], -1);
+}
+
+ATram* ATrafficController::SpawnTram(const FVector& position, const FRotator& rotation, const bool& simulate, const TSubclassOf<ATram>& tramClass, const int& tramVariant)
+{
+	FActorSpawnParameters spawnParams{};
 
 	spawnParams.SpawnCollisionHandlingOverride
-		= ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+		= ESpawnActorCollisionHandlingMethod::AlwaysSpawn;
 
-	ATram* tram = GetWorld()->SpawnActor<ATram>(
-		templateTrams_[FMath::RandRange(0, templateTrams_.Num() - 1)], position, FRotator(), spawnParams);
+	ATram* tram = GetWorld()->SpawnActor<ATram>(tramClass, position, rotation, spawnParams);
 
 	if (!tram)
 	{
 		Debug::Log("Tram spawn failed");
 		return nullptr;
+	}
+
+	if (tramVariant >= 0)
+	{
+		// TODO
+		// tram->SetVariantId(tramVariant);
 	}
 
 #if WITH_EDITOR
@@ -377,7 +448,7 @@ ATram* ATrafficController::SpawnTram(const FVector& position, const bool& simula
 			lodController_->AddEntity(tram);
 		}
 
-		tram->Simulate(&tramwayGraph_);
+		tram->Simulate(&tramwayGraph_, rng_->RandRange(std::numeric_limits<std::int32_t>::min(), std::numeric_limits<std::int32_t>::max()));
 	}
 	else
 	{
@@ -385,39 +456,6 @@ ATram* ATrafficController::SpawnTram(const FVector& position, const bool& simula
 	}
 
 	return tram;
-}
-
-void ATrafficController::RespawnCar(ACar* car)
-{
-	// Emergency vehicle gets respawned in another location
-	if (car->GetClass() == emergencyVehicleActor_)
-	{			
-		car->Destroy();
-
-		int32 ruleExceptions = 0;
-		ruleExceptions = emergencyVehicleActor_.GetDefaultObject()->GetKeypointRuleExceptions();
-		int spawnPoint = roadGraph_.GetRandomSpawnPoint();
-
-		SpawnCar(roadGraph_.GetKeypointPosition(spawnPoint), roadGraph_.GetKeypointRotation(spawnPoint), true, emergencyVehicleActor_, -1);
-
-		return;
-	} 
-	else 
-	{
-		// Handle normal car respawn
-		car->Destroy();
-
-		if (parkingController_ && simulateParking_)
-		{
-			// Try to spawn from a parking space 50% of the time
-			if (FMath::RandRange(0.0f, 1.0f) > 0.5f && parkingController_->DepartRandomParkedCar())
-			{
-				return;
-			}
-		}
-		
-		SpawnCar();
-	}
 }
 
 void ATrafficController::InvalidateTrafficEntity(ITrafficEntity* entity)
@@ -445,6 +483,8 @@ void ATrafficController::BeginSimulateTraffic()
 {
 	DeleteAllEntities();
 
+	if (parkingController_) parkingController_->EndSimulateTraffic();
+
 	if (lodController_ != nullptr)
 	{
 		delete lodController_;
@@ -456,14 +496,45 @@ void ATrafficController::BeginSimulateTraffic()
 		lodController_ = new LodController(this, distanceFromCameraToEnableLowDetail_);
 	}
 
-	// Create new cars
+	if (rng_ != nullptr)
+	{
+		delete rng_;
+	}
 	
+	if (trafficSeedZeroForRandom_ != 0)
+	{
+		rng_ = new FRandomStream(trafficSeedZeroForRandom_);
+	}
+	else
+	{
+		auto now = std::chrono::system_clock::now();
+
+		rng_ = new FRandomStream(std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count() % 0xFFFFFFFF);
+	}
+
+	// Must be initialized before any cars are spawned in case they decide to spawn from parking spaces.
+	if (parkingController_ != nullptr)
+	{
+		parkingController_->BeginSimulateTraffic(rng_);
+	}
+
+	SpawnCars();
+	SpawnTrams();
+	SpawnPedestrians();
+	SpawnBicycles();
+
+	UE_LOG(LogTemp, Log, TEXT("Spawned %d cars, %d trams, %d pedestrians and %d bicycles"), amountOfCarsToSpawn_, amountOfTramsToSpawn_, amountOfPedestriansToSpawn_, amountOfBicyclesToSpawn_);
+}
+
+void ATrafficController::SpawnCars()
+{
 	// Somewhat close margin based on the amount of cars, to prevent repeating keypoints, and having as much space as possible for each car 
 	float kpMargin = 10000000 * FMath::Pow(amountOfCarsToSpawn_, -1.4) + 300;
 	kpMargin = FMath::Clamp(kpMargin, 0, 4000);
 
-	std::vector<int> keypointsWithMargin = roadGraph_.GetKeypointsWithMargin(kpMargin); 
+	std::vector<int> keypointsWithMargin = roadGraph_.GetKeypointsWithMargin(kpMargin, *rng_);
 	// Remove intersections from spawn location list, to prevent cars getting stuck in those
+	// TODO: a better way to do this would be to mark the keypoints in the file as "never spawn here" instead of using these hardcoded areas
 	roadGraph_.RemoveKeypointsByRange(keypointsWithMargin, FVector2D(-12060.0, -45180.0), 2600.0f); // Campus intersection
 	roadGraph_.RemoveKeypointsByRange(keypointsWithMargin, FVector2D(-17850.0, -73060.0), 2250.0f); // Duo intersection
 	roadGraph_.RemoveKeypointsByRange(keypointsWithMargin, FVector2D(-23510.0, -84480.0), 1975.0f); // Polamk intersection
@@ -475,133 +546,212 @@ void ATrafficController::BeginSimulateTraffic()
 	// selection is based on this blog post. 524287 is just an arbitrary big prime
 	// https://lemire.me/blog/2017/09/18/visiting-all-values-in-an-array-exactly-once-in-random-order/
 	const int prime = 524287;
-	int randomSeed = FMath::RandRange(0, prime - 1);
+	int randomSeed = rng_->RandRange(0, prime - 1);
 
-	if (keypointsWithMargin.size() > 0)
-	{
-		int spawnNumber = 0; // Keep a separate counter to avoid spawning twice with the same one
-
-		if (spawnEmergencyVehicle_ && emergencyVehicleActor_)
-		{
-			int32 ruleExceptions = 0;
-			ruleExceptions = emergencyVehicleActor_.GetDefaultObject()->GetKeypointRuleExceptions();
-			int fs = 0;
-
-			while (fs < 50)
-			{
-				int kpIndex = (spawnNumber++ * prime + randomSeed) % keypointsWithMargin.size();
-
-				if (roadGraph_.CompareRules(kpIndex, ruleExceptions))
-				{
-					SpawnCar(roadGraph_.GetKeypointPosition(keypointsWithMargin[0]), roadGraph_.GetKeypointRotation(keypointsWithMargin[0]), true, emergencyVehicleActor_, -1);
-					break;
-				}
-
-				fs++;
-			}	
-
-		}
-
-		for (int i = 0; i < amountOfCarsToSpawn_; i++)
-		{
-			// Spawn car at random keypoint, Enforce spawning by keypoint rules
-			TSubclassOf<ACar> templateCar = templateCars_[FMath::RandRange(0, templateCars_.Num() - 1)];
-
-			// Adding a null check here to avoid crashing if templateCars_ has an empty entry. 
-			// TODO: Seems like SpawnCar() rolls a new random car rather than using templateCar..?
-			int32 ruleExceptions = 0;
-
-			if (templateCar)
-			{
-				ruleExceptions = templateCar.GetDefaultObject()->GetKeypointRuleExceptions();
-			}
-
-			int fs = 0;
-
-			while (fs < 50)
-			{
-				int kpIndex = (spawnNumber++ * prime + randomSeed) % keypointsWithMargin.size();
-
-				if (roadGraph_.CompareRules(kpIndex, ruleExceptions))
-				{
-					SpawnCar(roadGraph_.GetKeypointPosition(keypointsWithMargin[kpIndex]), roadGraph_.GetKeypointRotation(keypointsWithMargin[kpIndex]), true);
-					break;
-				}
-
-				fs++;
-			}		
-		}
-	}
-	else
+	if (keypointsWithMargin.size() <= 0)
 	{
 		Debug::Log("no road keypoints, can't spawn cars!");
+		return;
 	}
 
-	// Create new trams
+	int spawnNumber = 0; // Keep a separate counter to avoid spawning twice with the same one
 
-	if (tramwayGraph_.KeypointCount() > 0)
+	if (spawnEmergencyVehicle_ && emergencyVehicleActor_)
 	{
-		if (amountOfTramsToSpawn_ > 0)
+		ACar* defaultEmergencyVehicleObject = emergencyVehicleActor_.GetDefaultObject();
+
+		int32 ruleExceptions = defaultEmergencyVehicleObject->GetKeypointRuleExceptions();
+		// TODO
+		int variant = -1;
+
+		int fs = 0;
+
+		while (fs < 50)
 		{
-			// Spawn the trams evenly across the track
-			int offset = FMath::Floor(FMath::RandRange(0, tramwayGraph_.KeypointCount() - 1) / amountOfTramsToSpawn_);
+			int kpIndex = (spawnNumber++ * prime + randomSeed) % keypointsWithMargin.size();
 
-			for (int i = 0; i < amountOfTramsToSpawn_; i++)
+			if (roadGraph_.CompareRules(kpIndex, ruleExceptions))
 			{
-				int spawnIndex = FMath::Floor(tramwayGraph_.KeypointCount() * (float)i / (float)amountOfTramsToSpawn_) + offset;
-
-				if (spawnIndex >= tramwayGraph_.KeypointCount())
-				{
-					spawnIndex -= tramwayGraph_.KeypointCount();
-				}
-
-				SpawnTram(tramwayGraph_.GetKeypointPosition(spawnIndex), true);
+				SpawnCar(roadGraph_.GetKeypointPosition(keypointsWithMargin[0]), roadGraph_.GetKeypointRotation(keypointsWithMargin[0]), true, emergencyVehicleActor_, variant);
+				break;
 			}
-		}	
+
+			fs++;
+		}
 	}
-	else
+
+	if (templateCars_.Num() == 0)
+	{
+		Debug::Log("no template cars, can't spawn cars!");
+		return;
+	}
+
+	for (int i = 0; i < amountOfCarsToSpawn_; i++)
+	{
+		// Spawn car at random keypoint, Enforce spawning by keypoint rules
+		TSubclassOf<ACar> templateCar = templateCars_[rng_->RandRange(0, templateCars_.Num() - 1)];
+		ACar* defaultCarObject = templateCar.GetDefaultObject();
+
+		// Adding a null check here to avoid crashing if templateCars_ has an empty entry.
+		if (!templateCar)
+		{
+			Debug::Log("Null car in template list");
+			continue;
+		}
+
+		int32 ruleExceptions = defaultCarObject->GetKeypointRuleExceptions();
+		// TODO
+		int variant = -1;
+
+		int fs = 0;
+
+		while (fs < 50)
+		{
+			int kpIndex = (spawnNumber++ * prime + randomSeed) % keypointsWithMargin.size();
+
+			if (roadGraph_.CompareRules(kpIndex, ruleExceptions))
+			{
+				SpawnCar(roadGraph_.GetKeypointPosition(keypointsWithMargin[kpIndex]), roadGraph_.GetKeypointRotation(keypointsWithMargin[kpIndex]), true, templateCar, variant);
+				break;
+			}
+
+			fs++;
+		}
+	}
+}
+
+void ATrafficController::SpawnTrams()
+{
+	if (tramwayGraph_.KeypointCount() <= 0)
 	{
 		Debug::Log("No tramway keypoints, can't spawn trams!");
+		return;
 	}
 
-	// Create new pedestrians
-
-	if (sharedUseGraph_.KeypointCount() > 0)
+	if (templateTrams_.Num() == 0)
 	{
-		for (int i = 0; i < amountOfPedestriansToSpawn_; i++)
-		{
-			// Spawn pedestrian at random keypoint
-			int kpIndex = (i * prime + randomSeed) % sharedUseGraph_.KeypointCount();
-			const FVector position = sharedUseGraph_.GetKeypointPosition(kpIndex);
-
-			SpawnPedestrian(position, FRotator::ZeroRotator, true);
-		}
+		Debug::Log("no template trams, can't spawn cars!");
+		return;
 	}
-	else
+
+	if (amountOfTramsToSpawn_ == 0)
+	{
+		return;
+	}
+
+	// Spawn the trams evenly across the track
+	int offset = FMath::Floor(rng_->RandRange(0, tramwayGraph_.KeypointCount() - 1) / amountOfTramsToSpawn_);
+
+	for (int i = 0; i < amountOfTramsToSpawn_; i++)
+	{
+		int spawnIndex = FMath::Floor(tramwayGraph_.KeypointCount() * (float)i / (float)amountOfTramsToSpawn_) + offset;
+
+		if (spawnIndex >= tramwayGraph_.KeypointCount())
+		{
+			spawnIndex -= tramwayGraph_.KeypointCount();
+		}
+
+		TSubclassOf<ATram> templateTram = templateTrams_[rng_->RandRange(0, templateTrams_.Num() - 1)];
+		ATram* defaultTramObject = templateTram.GetDefaultObject();
+
+		// Adding a null check here to avoid crashing if templateTrams_ has an empty entry.
+		if (!templateTram)
+		{
+			Debug::Log("Null tram in template list");
+			continue;
+		}
+
+		// TODO
+		int variant = -1;
+
+		SpawnTram(tramwayGraph_.GetKeypointPosition(spawnIndex), tramwayGraph_.GetKeypointRotation(spawnIndex), true, templateTram, variant);
+	}
+}
+
+void ATrafficController::SpawnPedestrians()
+{
+	if (sharedUseGraph_.KeypointCount() <= 0)
 	{
 		Debug::Log("no shared use keypoints, can't spawn pedestrians!");
+		return;
 	}
 
-	// Create new bicycles
-
-	if (bicycleGraph_.KeypointCount() > 0)
+	if (templatePedestrians_.Num() == 0)
 	{
-		for (int i = 0; i < amountOfBicyclesToSpawn_; i++)
-		{
-			int kpIndex = (i * prime + randomSeed) % bicycleGraph_.KeypointCount();
-			const FVector position = bicycleGraph_.GetKeypointPosition(kpIndex);
-			const FRotator rotation = bicycleGraph_.GetKeypointRotation(kpIndex);
-
-			SpawnBicycle(position, rotation, true);
-		}
+		Debug::Log("no template pedestrians, can't spawn pedestrians!");
+		return;
 	}
-	else
+
+	// Spawn entities at "random" keypoints while avoiding spawning at the same keypoint twice. Index
+	// selection is based on this blog post. 524287 is just an arbitrary big prime
+	// https://lemire.me/blog/2017/09/18/visiting-all-values-in-an-array-exactly-once-in-random-order/
+	const int prime = 524287;
+	int randomSeed = rng_->RandRange(0, prime - 1);
+
+	for (int i = 0; i < amountOfPedestriansToSpawn_; i++)
+	{
+		// Spawn pedestrian at random keypoint
+		int kpIndex = (i * prime + randomSeed) % sharedUseGraph_.KeypointCount();
+		const FVector position = sharedUseGraph_.GetKeypointPosition(kpIndex);
+
+		TSubclassOf<APedestrian> templatePedestrian = templatePedestrians_[rng_->RandRange(0, templatePedestrians_.Num() - 1)];
+		APedestrian* defaultPedestrianObject = templatePedestrian.GetDefaultObject();
+
+		// Adding a null check here to avoid crashing if templatePedestrians_ has an empty entry.
+		if (!templatePedestrian)
+		{
+			Debug::Log("Null pedestrian in template list");
+			continue;
+		}
+
+		// TODO
+		int variant = -1;
+
+		SpawnPedestrian(position, FRotator::ZeroRotator, true, templatePedestrian, variant);
+	}
+}
+
+void ATrafficController::SpawnBicycles()
+{
+	if (bicycleGraph_.KeypointCount() <= 0)
 	{
 		Debug::Log("no bicycle keypoints, can't spawn bicycles!");
+		return;
 	}
 
-	UE_LOG(LogTemp, Log, TEXT("Spawned %d cars, %d trams, %d pedestrians and %d bicycles"), amountOfCarsToSpawn_, amountOfTramsToSpawn_, amountOfPedestriansToSpawn_, amountOfBicyclesToSpawn_);
-	std::list<CollisionRectangle> pawns;
+	if (templateBicycles_.Num() == 0)
+	{
+		Debug::Log("no template bicycles, can't spawn bicycles!");
+		return;
+	}
+
+	// Spawn entities at "random" keypoints while avoiding spawning at the same keypoint twice. Index
+	// selection is based on this blog post. 524287 is just an arbitrary big prime
+	// https://lemire.me/blog/2017/09/18/visiting-all-values-in-an-array-exactly-once-in-random-order/
+	const int prime = 524287;
+	int randomSeed = rng_->RandRange(0, prime - 1);
+
+	for (int i = 0; i < amountOfBicyclesToSpawn_; i++)
+	{
+		int kpIndex = (i * prime + randomSeed) % bicycleGraph_.KeypointCount();
+		const FVector position = bicycleGraph_.GetKeypointPosition(kpIndex);
+		const FRotator rotation = bicycleGraph_.GetKeypointRotation(kpIndex);
+
+		TSubclassOf<ABicycle> templateBicycle = templateBicycles_[rng_->RandRange(0, templateBicycles_.Num() - 1)];
+		ABicycle* defaultBicycleObject = templateBicycle.GetDefaultObject();
+
+		// Adding a null check here to avoid crashing if templateBicycles_ has an empty entry.
+		if (!templateBicycle)
+		{
+			Debug::Log("Null bicycle in template list");
+			continue;
+		}
+
+		// TODO
+		int variant = -1;
+
+		SpawnBicycle(position, rotation, true, templateBicycle, variant);
+	}
 }
 
 template<class T>
@@ -617,7 +767,7 @@ void ATrafficController::DeleteAllEntitiesOfType()
 		if (castEntity != nullptr)
 		{
 			// If you get errors complaining about this spot it's because the
-			// type you gave to the template doesn't have a Destroy() function
+			// type you gave to the template doesn't have a Destroy() function (i.e. doesn't inherit from AActor)
 			castEntity->Destroy();
 
 			return true;

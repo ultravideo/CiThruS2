@@ -21,6 +21,16 @@ void AParkingController::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	Initialize();
+}
+
+void AParkingController::Initialize()
+{
+	if (trafficController_ != nullptr)
+	{
+		return;
+	}
+
 	// Get ref to traffic controller 
 	TArray<AActor*> find;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), ATrafficController::StaticClass(), find);
@@ -40,6 +50,7 @@ void AParkingController::BeginPlay()
 			Debug::Log("Template car is null, skipping");
 			continue;
 		}
+
 		TArray<FCarVisualVariant> parkedVariants = Cast<ACar>(templateCar->GetDefaultObject(true))->GetParkedVariants();
 
 		for (FCarVisualVariant variant : parkedVariants)
@@ -69,6 +80,7 @@ void AParkingController::BeginPlay()
 	TArray<AActor*> allParkingSpaces;
 	UGameplayStatics::GetAllActorsOfClass(GetWorld(), AParkingSpace::StaticClass(), allParkingSpaces);
 
+	// Picks up everything already loaded; spaces streamed in later register themselves in BeginPlay
 	for (AActor* parkingSpaceActor : allParkingSpaces)
 	{
 		AParkingSpace* parkingSpace = Cast<AParkingSpace>(parkingSpaceActor);
@@ -78,9 +90,8 @@ void AParkingController::BeginPlay()
 		parkingSpaces_.Add(parkingSpace);
 
 		if (FMath::RandRange(0.0f, 1.0f) <= parkingDensity_)
-		{
+	{
 			parkingSpace->SpawnCar();
-		}
 	}
 }
 
@@ -91,7 +102,7 @@ bool AParkingController::DepartRandomParkedCar()
 		return false;
 	}
 
-	return parkingSpaces_[FMath::RandRange(0, parkingSpaces_.Num() - 1)]->DepartCar();
+	return parkingSpaces_[rng_->RandRange(0, parkingSpaces_.Num() - 1)]->DepartCar();
 }
 
 bool AParkingController::HismInstanceBelongsToParkingSpace(const UHierarchicalInstancedStaticMeshComponent* hism, int hismInstance, const AParkingSpace* parkingSpace) const
@@ -109,6 +120,31 @@ bool AParkingController::HismInstanceBelongsToParkingSpace(const UHierarchicalIn
 	return false;
 }
 
+void AParkingController::BeginSimulateTraffic(FRandomStream* rng)
+{
+	Initialize();
+
+	rng_ = rng;
+
+	for (AParkingSpace* parkingSpace : parkingSpaces_)
+	{
+		if (rng_->FRandRange(0.0f, 1.0f) <= parkingDensity_)
+		{
+			parkingSpace->SpawnCar();
+		}
+	}
+}
+
+void AParkingController::EndSimulateTraffic()
+{
+	for (AParkingSpace* parkingSpace : parkingSpaces_)
+	{
+		parkingSpace->ClearCar();
+	}
+
+	rng_ = nullptr;
+}
+
 int AParkingController::CreateParkedInstance(FTransform transform, TSubclassOf<ACar>& carClassOut, int& carVariantOut)
 {
 	TArray<TTuple<UClass*, int>> instanceKeys;
@@ -120,7 +156,7 @@ int AParkingController::CreateParkedInstance(FTransform transform, TSubclassOf<A
 		return -1;
 	}
 
-	TTuple<UClass*, int> key = instanceKeys[FMath::RandRange(0, instanceKeys.Num() - 1)];
+	TTuple<UClass*, int> key = instanceKeys[rng_->RandRange(0, instanceKeys.Num() - 1)];
 	carClassOut = key.Get<0>();
 	carVariantOut = key.Get<1>();
 
@@ -132,7 +168,8 @@ int AParkingController::CreateParkedInstance(FTransform transform, TSubclassOf<A
 	{
 		FTransform localTransform;
 		FTransform::Multiply(&localTransform, &instance.localTransform, &transform);
-		int instanceId = instance.hism->AddInstance(localTransform, true);
+		// This uses AddInstances instead of AddInstance because the latter forgets to update some cache stuff and sometimes triggers an ensure statement
+		int instanceId = instance.hism->AddInstances({ localTransform }, true, true, true)[0];
 		instanceIndices_[instance.hism].push_back(instanceId);
 		topIndices_[instance.hism].push_back(instanceIndices_[instance.hism].size() - 1);
 		instanceIds.push_back({ instance.hism, instanceIndices_[instance.hism].size() - 1 });
@@ -169,7 +206,8 @@ int AParkingController::CreateParkedInstanceForCar(ACar* car)
 		FTransform localTransform;
 		FTransform carTransform = car->GetActorTransform();
 		FTransform::Multiply(&localTransform, &instance.localTransform, &carTransform);
-		int instanceId = instance.hism->AddInstance(localTransform, true);
+		// This uses AddInstances instead of AddInstance because the latter forgets to update some cache stuff and sometimes triggers an ensure statement
+		int instanceId = instance.hism->AddInstances({ localTransform }, true, true, true)[0];
 		instanceIndices_[instance.hism].push_back(instanceId);
 		topIndices_[instance.hism].push_back(instanceIndices_[instance.hism].size() - 1);
 		instanceIds.push_back({ instance.hism, instanceIndices_[instance.hism].size() - 1 });

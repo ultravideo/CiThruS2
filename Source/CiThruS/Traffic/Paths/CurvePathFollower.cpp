@@ -10,14 +10,13 @@
 #include "Traffic/Parking/ParkingSpace.h"
 #include <iostream>
 
-void CurvePathFollower::Initialize(const KeypointGraph* graph, AActor* trafficEntity, bool makeSCurve)
+void CurvePathFollower::Initialize(const KeypointGraph* graph, AActor* trafficEntity, FRandomStream* rng, bool makeSCurve)
 {
+	rng_ = rng;
 	makeSCurve_ = makeSCurve;
 	trafficEntity_ = trafficEntity;
 	path_ = KeypointPath();
 	path_.graph = graph;
-
-
 
 	if (trafficEntity->GetActorLocation().IsZero()) // Position not set, spawn to any random keypoint
 	{
@@ -44,9 +43,10 @@ void CurvePathFollower::Advance(const float& step)
 		// End car parking sequence, if entity is car & is currently in park sequence
 		if (ACar* car = Cast<ACar>(trafficEntity_))
 		{
-			if (car->spaceBeingParkedTo_ != nullptr)
+			// Null if the parking space was destroyed while the car was driving towards it
+			if (AParkingSpace* spaceBeingParkedTo = car->spaceBeingParkedTo_.Get())
 			{
-				car->spaceBeingParkedTo_->FinishParking();
+				spaceBeingParkedTo->FinishParking();
 			}
 
 			car->spaceBeingParkedTo_ = nullptr;
@@ -174,6 +174,12 @@ void CurvePathFollower::NewPath(const int& startKeypoint, const int& targetKeypo
 {
 	const KeypointGraph* graph = path_.graph;
 	path_ = graph->FindPath(startKeypoint, targetKeypoint);
+
+	if (path_.keypoints.Num() == 0)
+	{
+		path_ = graph->GetRandomPathFrom(startKeypoint, *rng_);
+	}
+
 	trafficEntity_->SetActorLocation(GetLocation());
 	progressToNextPoint_ = 0.0f;
 	currentPoint_ = 0;
@@ -216,23 +222,35 @@ void CurvePathFollower::NewPath(const bool& fromNearestKeypoint)
 	
 	if (ACar* car = Cast<ACar>(trafficEntity_))
 	{
-		// (for cars) Since we're not continuing from nearest point,
-		// either spawn to a spawnpoint or a parking space 
-		car->GetController()->RespawnCar(car);
-	}
-	else
-	{	
-		// Failed to find,
-		//  or don't want to find a path continuing from nearest keypoint
-		//		=> So get a new path from a random spawnpoint
-		path_ = graph->GetRandomPathFrom(graph->GetRandomSpawnPoint(), GetKeypointRuleExceptions());	
+		// Cars are special in that they can park. They should sometimes start from a parking
+		// space to simulate cars randomly departing from parking lots
+		AParkingController* parkingController = car->GetController()->GetParkingController();
 
-		progressToNextPoint_ = 0.0f;
-		currentPoint_ = 0;
+		// Avoid respawning from a parking space if this car can't access parking areas
+		if (parkingController
+			&& (car->GetKeypointRuleExceptions() & static_cast<int>(EKeypointRules::ParkingAccessOnly)) != 0)
+		{
+			// Try to respawn from a parking space 50% of the time
+			if (rng_->FRandRange(0.0f, 1.0f) > 0.5f && parkingController->DepartRandomParkedCar())
+			{
+				// The parking space spawned a new car, so delete this car to keep the number of active cars the same
+				car->Destroy();
 
-		currentCurve_ = CreateCurveFromPoint(currentPoint_);
-		trafficEntity_->SetActorLocation(GetLocation());		
+				return;
+			}
+		}
 	}
+	
+	// Failed to find,
+	// or don't want to find a path continuing from nearest keypoint
+	//		=> So get a new path from a random spawnpoint
+	path_ = graph->GetRandomPathFrom(graph->GetRandomSpawnPoint(*rng_), GetKeypointRuleExceptions());
+
+	progressToNextPoint_ = 0.0f;
+	currentPoint_ = 0;
+
+	currentCurve_ = CreateCurveFromPoint(currentPoint_);
+	trafficEntity_->SetActorLocation(GetLocation());
 }
 
 void CurvePathFollower::SetPointAndProgress(int point, float progress)
@@ -256,7 +274,7 @@ void CurvePathFollower::FirstTimeSpawn()
 
 	currentPoint_ = 0;
 	// Randomize spawn point between the first 2 points
-	progressToNextPoint_ = FMath::RandRange(0.0f, 1.0f);
+	progressToNextPoint_ = rng_->FRandRange(0.0f, 1.0f);
 
 	currentCurve_ = CreateCurveFromPoint(currentPoint_);
 	trafficEntity_->SetActorLocation(GetLocation());

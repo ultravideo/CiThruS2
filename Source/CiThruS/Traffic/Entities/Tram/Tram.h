@@ -26,7 +26,7 @@ public:
 	// Called every frame
 	virtual void Tick(float deltaTime) override;
 
-	virtual void Simulate(const KeypointGraph* graph);
+	virtual void Simulate(const KeypointGraph* graph, int seed);
 
 	inline virtual void SetController(ATrafficController* controller) override { trafficController_ = controller; }
 
@@ -100,6 +100,7 @@ protected:
 	bool useEditorTick_ = false;
 
 	CurvePathFollower pathFollower_;
+	FRandomStream* rng_;
 	CollisionRectangle collisionRectangle_;
 	CollisionRectangle futureCollisionRectangle_;
 
@@ -121,6 +122,7 @@ protected:
 	virtual void SetColliders();
 
 	virtual void BeginPlay() override;
+	virtual void BeginDestroy() override;
 	virtual void Destroyed() override;
 
 	bool BlockedBy(ITrafficEntity* trafficEntity) const;

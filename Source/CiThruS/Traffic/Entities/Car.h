@@ -18,13 +18,15 @@ struct DriverCharacteristics {
 	float normalSpeedMultiplier = 1.0f; //How much over the speed limit the vehicle tends to go
 
 	// Set defaults randomly
-	DriverCharacteristics()
+	DriverCharacteristics(const FRandomStream& rng)
 	{
-		float rand = FMath::RandRange(0.0f, 1.0f);
+		float rand = rng.FRandRange(0.0f, 1.0f);
 		maxSpeed = 600;
 		//maxSpeed = 1246 * FMath::Pow(rand, 0.2141f); // ~25-44 km/h, should probably be more
-		normalSpeedMultiplier = 1 + FMath::RandRange(0.0f, 0.2f); // 1-1.2 times faster than the speed limit
+		normalSpeedMultiplier = 1 + rng.FRandRange(0.0f, 0.2f); // 1-1.2 times faster than the speed limit
 	}
+
+	DriverCharacteristics() { }
 };
 
 USTRUCT(BlueprintType)
@@ -62,9 +64,9 @@ public:
 
 	virtual void Tick(float deltaTime) override;
 
-	virtual void Simulate(const KeypointGraph* graph);
+	virtual void Simulate(const KeypointGraph* graph, int seed);
 
-	inline CurvePathFollower GetPathFollower() const { return pathFollower_; }
+	inline const CurvePathFollower& GetPathFollower() const { return pathFollower_; }
 	inline ATrafficController* GetController() const { return trafficController_; }
 
 	inline void SetMoveSpeed(float speed) { targetSpeed_ = FMath::Clamp(speed, -driverCharacteristics_.maxSpeed, driverCharacteristics_.maxSpeed); }
@@ -170,6 +172,7 @@ protected:
 	bool useEditorTick_ = false;
 
 	CurvePathFollower pathFollower_;
+	FRandomStream* rng_;
 	CollisionRectangle collisionRectangle_;
 	CollisionRectangle futureCollisionRectangle_;
 
@@ -203,6 +206,7 @@ protected:
 	virtual void SetColliders();
 
 	virtual void BeginPlay() override;
+	virtual void BeginDestroy() override;
 	virtual void Destroyed() override;
 
 	UFUNCTION(BlueprintNativeEvent)

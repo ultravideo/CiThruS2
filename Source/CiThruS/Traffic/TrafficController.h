@@ -53,17 +53,24 @@ public:
 	ACar* SpawnCar();
 	ACar* SpawnCar(const FVector& position, const FRotator& rotation, const bool& simulate);
 	ACar* SpawnCar(const FVector& position, const FRotator& rotation, const bool& simulate, const TSubclassOf<ACar>& carClass, const int& carVariant);
-	APedestrian* SpawnPedestrian(const FVector& position, const FRotator& rotation, const bool& simulate);
-	ABicycle* SpawnBicycle(const FVector& position, const FRotator& rotation, const bool& simulate);
-	ATram* SpawnTram(const FVector& position, const bool& simulate);
 
-	void RespawnCar(ACar* car); // Used to respawn cars after start of simulation
+	APedestrian* SpawnPedestrian();
+	APedestrian* SpawnPedestrian(const FVector& position, const FRotator& rotation, const bool& simulate);
+	APedestrian* SpawnPedestrian(const FVector& position, const FRotator& rotation, const bool& simulate, const TSubclassOf<APedestrian>& pedestrianClass, const int& pedestrianVariant);
+
+	ABicycle* SpawnBicycle();
+	ABicycle* SpawnBicycle(const FVector& position, const FRotator& rotation, const bool& simulate);
+	ABicycle* SpawnBicycle(const FVector& position, const FRotator& rotation, const bool& simulate, const TSubclassOf<ABicycle>& bicycleClass, const int& bicycleVariant);
+
+	ATram* SpawnTram();
+	ATram* SpawnTram(const FVector& position, const FRotator& rotation, const bool& simulate);
+	ATram* SpawnTram(const FVector& position, const FRotator& rotation, const bool& simulate, const TSubclassOf<ATram>& tramClass, const int& tramVariant);
 
 	inline void DeleteAllCars() { DeleteAllEntitiesOfType<ACar>(); }
 	inline void DeleteAllTrams() { DeleteAllEntitiesOfType<ATram>(); }
 	inline void DeleteAllPedestrians() { DeleteAllEntitiesOfType<APedestrian>(); }
 	inline void DeleteAllBicycles() { DeleteAllEntitiesOfType<ABicycle>(); }
-	inline void DeleteAllEntities() { DeleteAllCars(); DeleteAllTrams(); DeleteAllPedestrians(); DeleteAllBicycles(); }
+	inline void DeleteAllEntities() { DeleteAllEntitiesOfType<AActor>(); }
 
 	void InvalidateTrafficEntity(ITrafficEntity* entity);
 
@@ -101,6 +108,9 @@ protected:
 	/* Enable/disable parking */
 	UPROPERTY(EditAnywhere, Category = "Traffic System|Vehicle Simulation")
 	bool simulateParking_ = true;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Traffic System|Vehicle Simulation")
+	int trafficSeedZeroForRandom_ = 0;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Traffic System|Vehicle Simulation")
 	TArray<TSubclassOf<ACar>> templateCars_;
@@ -172,6 +182,8 @@ protected:
 	TArray<ITrafficArea*> trafficAreas_;
 
 	bool visualizeCollisions_;
+
+	FRandomStream* rng_ = nullptr;
  
 	UFUNCTION(BlueprintCallable)
 	void BeginSimulateTraffic();
@@ -188,6 +200,11 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type endPlayReason) override;
 
 	void CheckEntityCollisions();
+
+	void SpawnCars();
+	void SpawnTrams();
+	void SpawnPedestrians();
+	void SpawnBicycles();
 
 	template <class T>
 	void DeleteAllEntitiesOfType();

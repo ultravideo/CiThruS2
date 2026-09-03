@@ -4,7 +4,6 @@
 #include "Containers/Array.h"
 #include "Math/UnrealMathUtility.h"
 
-#include <random>
 #include <vector>
 #include <string>
 
@@ -24,10 +23,9 @@ struct KeypointPath
 	{
 		keypoints = newIndexes;
 		customPoints = newCustomPoints;
-	}	
+	}
 
 	FVector GetPointPosition(const int index) const;
-
 };
 
 // Enum to hold keypoint rules
@@ -62,8 +60,10 @@ class KeypointGraph
 {
 public:
 	KeypointGraph() { };
+	KeypointGraph(int kpCount) : keypoints_(kpCount) { };
 
 	void AddKeypoint(const FVector& position);
+	void AddKeypoint(unsigned int index, const FVector& position);
 	void RemoveKeypoint(const int& kpIndex);
 	void LinkKeypoints(const int& firstKeypointIndex, const int& secondKeypointIndex);
 	void MarkSpawnPoint(const int& keypointIndex);
@@ -78,14 +78,14 @@ public:
 	void ApplyZoneRules(ATrafficController* controller);
 
 	// Get random paths. Only allow paths that comply with given rule exceptions. All rules bypassed by default.
-	KeypointPath GetRandomPathFrom(const int& startKeypointIndex, const int32 ruleExceptions = MAX_int32) const;
-	KeypointPath GetRandomPath(const int32 ruleExceptions = MAX_int32) const { return GetRandomPathFrom(FMath::RandRange(0, KeypointCount() - 1), ruleExceptions); };
-	/* Pathing algorithm to find route from point A to B.Only allow paths that comply with given rule exceptions.All rules bypassed by default. */
+	KeypointPath GetRandomPathFrom(const int& startKeypointIndex, const FRandomStream& rng, const int32 ruleExceptions = MAX_int32) const;
+	KeypointPath GetRandomPath(const FRandomStream& rng, const int32 ruleExceptions = MAX_int32) const { return GetRandomPathFrom(rng.RandRange(0, KeypointCount() - 1), ruleExceptions); };
+	/* Pathing algorithm to find route from point A to B. Only allow paths that comply with given rule exceptions. All rules bypassed by default. */
 	KeypointPath FindPath(const int& startKeypointIndex, const int& destination, const int32 ruleExceptions = MAX_int32) const;
 
 	// Gets a list of keypoint indices where each keypoint is guaranteed to
 	// be at least margin units away from every other keypoint in the list.
-	std::vector<int> GetKeypointsWithMargin(const float& margin) const;
+	std::vector<int> GetKeypointsWithMargin(const float& margin, const FRandomStream& rng) const;
 	// Remove keypoints from a list if they are too close to a position
 	void RemoveKeypointsByRange(std::vector<int>& list, const FVector2D position, float range);
 
@@ -105,7 +105,7 @@ public:
 
 	inline int SpawnPointCount() const { return spawnPoints_.size(); };
 	inline int GetSpawnPoint(const int& spawnPointIndex) const { return spawnPoints_[spawnPointIndex]; };
-	inline int GetRandomSpawnPoint() const { return spawnPoints_[FMath::RandRange(0, SpawnPointCount() - 1)]; };
+	inline int GetRandomSpawnPoint(const FRandomStream& rng) const { return spawnPoints_[rng.RandRange(0, SpawnPointCount() - 1)]; };
 
 	std::vector<int> GetInboundKeypoints(const int keypointIndex) const { return (keypointIndex >= 0 && keypointIndex < keypoints_.size()) ? keypoints_[keypointIndex].inboundKeypoints : std::vector<int>(); }
 	std::vector<int> GetOutBoundKeypoints(const int keypointIndex) const { return (keypointIndex >= 0 && keypointIndex < keypoints_.size()) ? keypoints_[keypointIndex].outboundKeypoints : std::vector<int>(); }

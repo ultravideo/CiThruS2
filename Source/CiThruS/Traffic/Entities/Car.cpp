@@ -25,12 +25,21 @@ void ACar::BeginPlay()
 	// Set collider dimensions
 	collisionRectangle_.SetDimensions(collisionDimensions_);
 	SetColliders();
-}	
+}
+
+void ACar::BeginDestroy()
+{
+	Super::BeginDestroy();
+
+	delete rng_;
+	rng_ = nullptr;
+}
 
 void ACar::Destroyed()
 {
 	if (trafficController_ != nullptr)
 	{
+		// Important so that the simulation doesn't crash if traffic entities are randomly deleted e.g. by the user
 		trafficController_->InvalidateTrafficEntity(this);
 	}
 
@@ -280,6 +289,8 @@ void ACar::UpdateBlockingCollisionWith(ITrafficEntity* otherEntity)
 
 	blocked_ = BlockedBy(otherEntity);
 
+#if !UE_BUILD_SHIPPING
+
 	if (blocked_)
 	{
 		blockingEntityName_ = otherEntity->GetName();
@@ -288,6 +299,7 @@ void ACar::UpdateBlockingCollisionWith(ITrafficEntity* otherEntity)
 	{
 		blockingEntityName_ = FString(TEXT("None"));
 	}
+#endif // !UE_BUILD_SHIPPING
 }
 
 void ACar::UpdateBlockingCollisionWith(FVector position)
@@ -534,9 +546,13 @@ void ACar::OnNear()
 	Near();
 }
 
-void ACar::Simulate(const KeypointGraph* graph)
+void ACar::Simulate(const KeypointGraph* graph, int seed)
 {
-	pathFollower_.Initialize(graph, this);
+	rng_ = new FRandomStream(seed);
+
+	driverCharacteristics_ = DriverCharacteristics(*rng_);
+
+	pathFollower_.Initialize(graph, this, rng_);
 
 	// Set car speed to it's maximum, will be externally changed later
 	targetSpeed_ = driverCharacteristics_.maxSpeed;
@@ -836,7 +852,7 @@ void ACar::CreateOvertakePath(TArray<int>& path, TArray<FVector>& customPoints, 
 	}
 
 	// Create the new path
-	TArray<int> newPath = oldPath.graph->GetRandomPathFrom(adjLaneEndIndex).keypoints;
+	TArray<int> newPath = oldPath.graph->GetRandomPathFrom(adjLaneEndIndex, *rng_).keypoints;
 	FVector currentLocation = GetActorLocation();
 
 	customPoints.Add(currentLocation - GetActorForwardVector() * wheelbase_); // A location bit before current location

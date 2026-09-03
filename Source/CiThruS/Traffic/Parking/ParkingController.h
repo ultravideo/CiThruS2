@@ -34,8 +34,18 @@ public:
 
 	bool HismInstanceBelongsToParkingSpace(const UHierarchicalInstancedStaticMeshComponent* hism, int hismInstance, const AParkingSpace* parkingSpace) const;
 
+	void BeginSimulateTraffic(FRandomStream* rng);
+	void EndSimulateTraffic();
+
 	ATrafficController* GetTrafficController() { return trafficController_; }
-	const TArray<AParkingSpace*>& GetParkingSpaces() const { return parkingSpaces_; }
+	const TArray<TWeakObjectPtr<AParkingSpace>>& GetParkingSpaces() const { return parkingSpaces_; }
+
+	// Parking spaces call these themselves as they are streamed in and out
+	void RegisterParkingSpace(AParkingSpace* parkingSpace);
+	void UnregisterParkingSpace(AParkingSpace* parkingSpace);
+
+	// There should only ever be one parking controller, so the lookup is cached after the first search
+	static AParkingController* Find(const UWorld* world);
 
 protected:
 	struct InstanceData
@@ -47,14 +57,24 @@ protected:
 	UPROPERTY(BlueprintReadWrite, EditAnywhere)
 	float parkingDensity_ = 1;
 
-	TArray<AParkingSpace*> parkingSpaces_;
+	// Weak: parking spaces are destroyed and recreated by World Partition streaming, so these
+	// must neither keep them alive nor dangle into freed memory once they are gone
+	TArray<TWeakObjectPtr<AParkingSpace>> parkingSpaces_;
+
+	static TWeakObjectPtr<AParkingController> cachedInstance_;
 
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type endPlayReason) override;
+
+	void Initialize();
 
 	ATrafficController* trafficController_;
+	FRandomStream* rng_;
 
 	TMap<TTuple<UClass*, int>, TArray<InstanceData>> instanceComponents_;
+
+	UHierarchicalInstancedStaticMeshComponent* segmentationTrackingParent_ = nullptr;
 
 	std::vector<std::vector<std::tuple<UHierarchicalInstancedStaticMeshComponent*, int>>> instances_;
 	std::unordered_map<UHierarchicalInstancedStaticMeshComponent*, std::vector<int>> instanceIndices_;

@@ -11,7 +11,7 @@ class CITHRUS_API FreePathFollower
 public:
 	FreePathFollower() { }
 
-	void Initialize(const KeypointGraph* graph, AActor* trafficEntity, const FVector& locationOffset);
+	void Initialize(const KeypointGraph* graph, AActor* trafficEntity, FRandomStream* rng, const FVector& locationOffset);
 
 	void AdvanceTarget();
 
@@ -27,6 +27,7 @@ public:
 protected:
 	KeypointPath path_;
 	AActor* trafficEntity_; // Entity controlled by this PathFollower
+	FRandomStream* rng_;
 
 	int currentPoint_;
 	FVector locationOffset_;

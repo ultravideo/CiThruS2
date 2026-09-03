@@ -26,10 +26,21 @@ void ATram::BeginPlay()
 	collisionBoundingSphereRadius_ = 1.5f * sqrt(collisionDimensions_.Dot(collisionDimensions_));
 }
 
+void ATram::BeginDestroy()
+{
+	Super::BeginDestroy();
+
+	delete rng_;
+	rng_ = nullptr;
+}
+
 void ATram::Destroyed()
 {
 	if (trafficController_ != nullptr)
+	{
+		// Important so that the simulation doesn't crash if traffic entities are randomly deleted e.g. by the user
 		trafficController_->InvalidateTrafficEntity(this);
+	}
 
 	Super::Destroyed();
 }
@@ -322,9 +333,11 @@ void ATram::OnExitedStopArea(ATrafficStopArea* stopArea)
 	overlappedStopAreas_.Remove(stopArea);
 }
 
-void ATram::Simulate(const KeypointGraph* graph)
+void ATram::Simulate(const KeypointGraph* graph, int seed)
 {
-	pathFollower_.Initialize(graph, this);
+	rng_ = new FRandomStream(seed);
+
+	pathFollower_.Initialize(graph, this, rng_);
 
 	useEditorTick_ = true;
 	simulate_ = true;

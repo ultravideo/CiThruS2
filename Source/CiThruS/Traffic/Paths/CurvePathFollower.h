@@ -16,7 +16,7 @@ public:
 	CurvePathFollower() { }
 	~CurvePathFollower() { }
 
-	void Initialize(const KeypointGraph* graph, AActor* trafficEntity, bool makeSCurve = true);
+	void Initialize(const KeypointGraph* graph, AActor* trafficEntity, FRandomStream* rng, bool makeSCurve = true);
 
 	// Advance on path by <step>
 	void Advance(const float& step);
@@ -37,9 +37,9 @@ public:
 	void NewPath(const bool& fromNearestKeypoint); // Get a random path from current location or a random spawnpoint
 
 	// Getters
-	inline KeypointPath& GetPath() { return path_; }
-	inline int GetCurrentLocalPoint() { return currentPoint_; }
-	inline float GetProgress() { return progressToNextPoint_; }
+	inline const KeypointPath& GetPath() const { return path_; }
+	inline int GetCurrentLocalPoint() const { return currentPoint_; }
+	inline float GetProgress() const { return progressToNextPoint_; }
 
 	/* Set new path with custom point positions. "customPoints" are positions that do not exist as keypoints. They must be indexed starting from -8 and going down(-8, -9...).
 	"indexes" should contain all keypoint indexes & custom point indexes of the path. Note: use Car::ApplyCustomPath if trying to set custom path for cars.*/
@@ -52,6 +52,7 @@ public:
 protected:
 	KeypointPath path_;
 	AActor* trafficEntity_; // Entity controlled by this PathFollower
+	FRandomStream* rng_;
 	std::shared_ptr<ICurve> currentCurve_; // The curve representing the current path segment
 
 	int currentPoint_ = 0;

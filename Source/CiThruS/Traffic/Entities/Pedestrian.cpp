@@ -27,6 +27,14 @@ void APedestrian::BeginPlay()
 	collisionRectangle_.SetRotation(GetActorRotation().Quaternion());
 }
 
+void APedestrian::BeginDestroy()
+{
+	Super::BeginDestroy();
+
+	delete rng_;
+	rng_ = nullptr;
+}
+
 void APedestrian::Destroyed()
 {
 	if (trafficController_ != nullptr)
@@ -34,6 +42,9 @@ void APedestrian::Destroyed()
 		// Important so that the simulation doesn't crash if traffic entities are randomly deleted e.g. by the user
 		trafficController_->InvalidateTrafficEntity(this);
 	}
+
+	delete rng_;
+	rng_ = nullptr;
 
 	Super::Destroyed();
 }
@@ -45,8 +56,10 @@ FVector APedestrian::PreferredSpawnPositionOffset()
 	return FVector::UpVector * HEIGHT_CM * 0.5f;
 }
 
-void APedestrian::Simulate(const KeypointGraph* graph)
+void APedestrian::Simulate(const KeypointGraph* graph, int seed)
 {
+	rng_ = new FRandomStream(seed);
+
 	// For some reason SpawnDefaultActor() does nothing half the time so we have to spawn a controller manually
 	AAIController* controller = GetWorld()->SpawnActor<AAIController>();
 	controller->Possess(this);
@@ -58,7 +71,7 @@ void APedestrian::Simulate(const KeypointGraph* graph)
 	GetCharacterMovement()->AvoidanceWeight = 0.5f;
 	GetCharacterMovement()->SetAvoidanceEnabled(true);
 
-	pathFollower_.Initialize(graph, this, FVector::UpVector * HEIGHT_CM * 0.5f);
+	pathFollower_.Initialize(graph, this, rng_, FVector::UpVector * HEIGHT_CM * 0.5f);
 
 	useEditorTick_ = true;
 	simulate_ = true;
@@ -196,6 +209,16 @@ void APedestrian::OnExitedYieldArea(ATrafficYieldArea* yieldArea)
 	{
 		shouldYield_ = false;
 	}
+}
+
+void APedestrian::OnFar()
+{
+	Far();
+}
+
+void APedestrian::OnNear()
+{
+	Near();
 }
 
 CollisionRectangle APedestrian::GetPredictedFutureCollisionRectangle() const

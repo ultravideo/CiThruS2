@@ -44,19 +44,19 @@ void UScenarioBuilderComponent::RunScenario(FString ScenarioName)
 	// Reset NPCs
 	trafficController_->DeleteAllEntities();
 
+	FRandomStream rng = FRandomStream(data.trafficSeed);
+
 	// Spawn Cars
 	for (int i = 0; i < data.carData.Num(); i++)
 	{
 		FCarScenarioData carData = data.carData[i];
-		float rar = FMath::RandRange(0.0f, 1.0f);
+		// This should NOT be based on the traffic seed because the per-car spawn rate is for random variation in each scenario run
+		// The path calculations must be performed even if this car won't spawn to make the scenario behavior deterministic
+		float rar = FMath::FRandRange(0.0f, 1.0f);
 		bool spawnCar = rar > carData.spawnRate ? false : true;
-		if (!spawnCar)
-		{
-			continue;
-		}
 		
 		// Note: This should set a random path starting from closest keypoint
-		ACar* carInstance_ = trafficController_->SpawnCar(carData.location, carData.rotation, carData.simulate);
+		ACar* carInstance = spawnCar ? trafficController_->SpawnCar(carData.location, carData.rotation, carData.simulate) : nullptr;
 		if (carData.simulate)
 		{
 			// Check if car has a route
@@ -71,10 +71,19 @@ void UScenarioBuilderComponent::RunScenario(FString ScenarioName)
 				int startIndex = graph.GetClosestKeypoint(carData.routeStart);
 				int endIndex = graph.GetClosestKeypoint(carData.routeEnd);
 				KeypointPath path = graph.FindPath(startIndex, endIndex);
-				// Create a random path continuing from the end of given path
-				KeypointPath pathContinuation = graph.GetRandomPathFrom(endIndex);
-				pathContinuation.keypoints.RemoveAt(0);
-				path.keypoints.Append(pathContinuation.keypoints);
+
+				// Pathfinding may fail and return an empty path. If so, just generate a random path
+				if (path.keypoints.Num() == 0)
+				{
+					path = graph.GetRandomPathFrom(startIndex, rng);
+				}
+				else
+				{
+					// Create a random path continuing from the end of given path
+					KeypointPath pathContinuation = graph.GetRandomPathFrom(endIndex, rng);
+					pathContinuation.keypoints.RemoveAt(0);
+					path.keypoints.Append(pathContinuation.keypoints);
+				}
 
 				// Add current position to path
 				TArray<FVector> customPath;
@@ -82,15 +91,22 @@ void UScenarioBuilderComponent::RunScenario(FString ScenarioName)
 				path.keypoints.Insert(-8, 0);
 
 				Debug::Log(path.keypoints.Num());
-				// Apply route
-				carInstance_->ApplyCustomPath(path.keypoints, customPath, 0, 0.0f);
+
+				if (carInstance != nullptr)
+				{
+					// Apply route
+					carInstance->ApplyCustomPath(path.keypoints, customPath, 0, 0.0f);
+				}
 			}
 		}
 
-		carInstance_->SetMoveSpeed(carData.speed);
-		carInstance_->SetInstantSpeed(carData.speed);
-		UE_LOG(LogTemp, Warning, TEXT("%s"), *carInstance_->GetActorLocation().ToString());
-		Debug::Log(carInstance_->GetPathFollower().GetPath().keypoints.Num());
+		if (carInstance != nullptr)
+		{
+			carInstance->SetMoveSpeed(carData.speed);
+			carInstance->SetInstantSpeed(carData.speed);
+			UE_LOG(LogTemp, Warning, TEXT("%s"), *carInstance->GetActorLocation().ToString());
+			Debug::Log(carInstance->GetPathFollower().GetPath().keypoints.Num());
+		}
 	}
 
 	// Spawn pedestrians
@@ -126,7 +142,7 @@ void UScenarioBuilderComponent::RunScenario(FString ScenarioName)
 			// Note - might be better to check distance to each car instead of 1 center point
 			// to prevent any randomized cars spawning too near the scenario, but that only becomes a problem
 			// with very large scenarios	
-			int spawnKeypoint = FMath::RandRange(0, graph.KeypointCount() - 1);
+			int spawnKeypoint = rng.RandRange(0, graph.KeypointCount() - 1);
 			FVector spawnLocation = graph.GetKeypointPosition(spawnKeypoint);
 			if (FVector::Distance(spawnLocation, center) > data.randomCarMinDistance * 100)
 			{

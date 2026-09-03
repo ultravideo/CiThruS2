@@ -16,6 +16,11 @@ void KeypointGraph::AddKeypoint(const FVector& position)
 	keypoints_.push_back({ position });
 }
 
+void KeypointGraph::AddKeypoint(unsigned int index, const FVector& position)
+{
+	keypoints_.at(index) = { position };
+}
+
 void KeypointGraph::RemoveKeypoint(const int& kpIndex)
 {
 	// Remove links that reference this keypoint
@@ -318,12 +323,12 @@ void KeypointGraph::ApplyZoneRules(ATrafficController* controller)
 	return;
 }
 
-KeypointPath KeypointGraph::GetRandomPathFrom(const int& startKeypointIndex, const int32 ruleExceptions) const
+KeypointPath KeypointGraph::GetRandomPathFrom(const int& startKeypointIndex, const FRandomStream& rng, const int32 ruleExceptions) const
 {
 	// Can't start path from current start index? Get a random path instead.
 	if (!CompareRules(startKeypointIndex, ruleExceptions))
 	{
-		return GetRandomPath(); 
+		return GetRandomPath(rng);
 	}
 
 	TArray<int> kps;
@@ -352,7 +357,7 @@ KeypointPath KeypointGraph::GetRandomPathFrom(const int& startKeypointIndex, con
 			break;
 		}
 
-		const int next = nexts[FMath::RandRange(0, nexts.size() - 1)];
+		const int next = nexts[rng.RandRange(0, nexts.size() - 1)];
 
 		kps.Add(next);
 		last = next;
@@ -363,10 +368,10 @@ KeypointPath KeypointGraph::GetRandomPathFrom(const int& startKeypointIndex, con
 
 KeypointPath KeypointGraph::FindPath(const int& startKeypointIndex, const int& destination, const int32 ruleExceptions) const
 {
-	// Can't start path from current start index? Get a random path instead.
+	// Can't start path from current start index? Return empty path
 	if (!CompareRules(startKeypointIndex, ruleExceptions))
 	{
-		return GetRandomPath();
+		return { this, {} };
 	}
 
 	// This is a basic A* algorithm, from here on out
@@ -479,36 +484,35 @@ KeypointPath KeypointGraph::FindPath(const int& startKeypointIndex, const int& d
 
 		closed.Add(q);
 	}
-// Clear references
+
+	// Clear references
 	opened.Empty();
 	closed.Empty();
 
-
-// A path could not be found, give path to a random outbound keypoint if there are any. Otherwise just spawn the vehicle again from a spawn point.
-	std::vector<int> outbounds = GetVerifiedKeypoints(keypoints_[startKeypointIndex].outboundKeypoints, ruleExceptions);
-	if (outbounds.size() == 0)
-	{
-		return GetRandomPathFrom(GetRandomSpawnPoint());
-	}
-	else
-	{
-		int rand = FMath::RandRange(0, outbounds.size() - 1);
-		return { this, TArray<int>({startKeypointIndex, outbounds[rand]}) };
-	}	
+	// A path could not be found, return empty path
+	return { this, {} };
 }
 
-std::vector<int> KeypointGraph::GetKeypointsWithMargin(const float& margin) const
+std::vector<int> KeypointGraph::GetKeypointsWithMargin(const float& margin, const FRandomStream& rng) const
 {
 	float marginSquared = margin * margin;
 	std::vector<int> result;
 
 	result.reserve(keypoints_.size());
 
-	//Randomize keypoint order, so we don't always end up with the same set of keypoints
+	// Randomize keypoint order, so we don't always end up with the same set of keypoints
 	std::vector<Keypoint> randOrderKeypoints = std::vector<Keypoint>(keypoints_);
-	auto rd = std::random_device{};
-	auto rng = std::default_random_engine{ rd() };
-	std::shuffle(std::begin(randOrderKeypoints), std::end(randOrderKeypoints), rng);
+
+	for (int i = 0; i < keypoints_.size(); i++)
+	{
+		int indexA = rng.RandRange(0, keypoints_.size() - 1);
+		int indexB = rng.RandRange(0, keypoints_.size() - 1);
+
+		// Randomly swap pairs of keypoints to shuffle them (probably not ideal for proper randomization)
+		Keypoint swap = randOrderKeypoints[indexA];
+		randOrderKeypoints[indexA] = randOrderKeypoints[indexB];
+		randOrderKeypoints[indexB] = swap;
+	}
 
 	// Add only keypoints that are not within the margin of previously added keypoints
 	for (int i = 0; i < randOrderKeypoints.size(); i++)
@@ -545,7 +549,9 @@ void KeypointGraph::RemoveKeypointsByRange(std::vector<int>& list, const FVector
 	for (int i : list)
 	{
 		if (FVector2D::DistSquared(FVector2D(GetKeypointPosition(i)), position) > range)
+		{
 			newList.push_back(i);
+		}
 	}
 
 	list = newList;

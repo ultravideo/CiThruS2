@@ -27,10 +27,19 @@ void ABicycle::BeginPlay()
 	collisionRectangle_.SetRotation(GetActorRotation().Quaternion());
 }
 
+void ABicycle::BeginDestroy()
+{
+	Super::BeginDestroy();
+
+	delete rng_;
+	rng_ = nullptr;
+}
+
 void ABicycle::Destroyed()
 {
 	if (trafficController_ != nullptr)
 	{
+		// Important so that the simulation doesn't crash if traffic entities are randomly deleted e.g. by the user
 		trafficController_->InvalidateTrafficEntity(this);
 	}
 
@@ -44,12 +53,13 @@ FVector ABicycle::PreferredSpawnPositionOffset()
 	return FVector::UpVector * HEIGHT_CM * 0.5f;
 }
 
-void ABicycle::Simulate(const KeypointGraph* graph)
+void ABicycle::Simulate(const KeypointGraph* graph, int seed)
 {
+	rng_ = new FRandomStream(seed);
 
-	moveSpeed_ = baseSpeed_ + FMath::RandRange(-randomSpeed_, randomSpeed_);
+	moveSpeed_ = baseSpeed_ + rng_->FRandRange(-randomSpeed_, randomSpeed_);
 
-	pathFollower_.Initialize(graph, this, false);
+	pathFollower_.Initialize(graph, this, rng_, false);
 	useEditorTick_ = true;
 	simulate_ = true;
 }
@@ -64,7 +74,6 @@ void ABicycle::Tick(float deltaTime)
 		return;
 	}
 
-
 	// Check if any overlapped stop areas are active
 	inActiveStopArea_ = false;
 
@@ -75,12 +84,12 @@ void ABicycle::Tick(float deltaTime)
 		if (stopArea->Active() && FVector2D::DotProduct(FVector2D(stopArea->GetActorForwardVector()), FVector2D(moveDirection_)) > UE_HALF_SQRT_3)
 		{
 			inActiveStopArea_ = true;
-			moveSpeed_ = baseSpeed_ + FMath::RandRange(-randomSpeed_, randomSpeed_); // Reroll speed when stopped
+			moveSpeed_ = baseSpeed_ + rng_->FRandRange(-randomSpeed_, randomSpeed_); // Reroll speed when stopped
 			break;
 		}
 	}
 
-	if ( Stopped() || Blocked() ) 
+	if (Stopped() || Blocked()) 
 	{
 		// No need to move
 		return;

@@ -33,6 +33,9 @@ public:
 	UPROPERTY(BlueprintReadWrite)		
 	float randomCarMinDistance = 100.0f;
 
+	UPROPERTY(BlueprintReadWrite)
+	int32 trafficSeed = 0;
+
 	friend FArchive& operator<<(FArchive& Ar, FScenarioData& data)
 	{
 		Ar << data.playerData;
@@ -45,6 +48,8 @@ public:
 
 		Ar << data.randomCarAmount;
 		Ar << data.randomCarMinDistance;
+
+		Ar << data.trafficSeed;
 
 		return Ar;
 	}

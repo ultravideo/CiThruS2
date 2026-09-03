@@ -25,7 +25,7 @@ public:
 	
 	static FVector PreferredSpawnPositionOffset();
 
-	void Simulate(const KeypointGraph* graph);
+	void Simulate(const KeypointGraph* graph, int seed);
 
 	virtual void Tick(float deltaTime) override;
 	inline virtual bool ShouldTickIfViewportsOnly() const override { return useEditorTick_; }
@@ -69,6 +69,7 @@ protected:
 
 	ATrafficController* trafficController_;
 	CurvePathFollower pathFollower_;
+	FRandomStream* rng_;
 	CollisionRectangle collisionRectangle_;
 	CollisionRectangle futureCollisionRectangle_;
 
@@ -125,6 +126,7 @@ protected:
 	void Near_Implementation() {}
 
 	virtual void BeginPlay() override;
+	virtual void BeginDestroy() override;
 	virtual void Destroyed() override;
 
 	bool BlockedBy(ITrafficEntity* trafficEntity) const;

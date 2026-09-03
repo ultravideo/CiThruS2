@@ -7,9 +7,10 @@
 #include "Traffic/Entities/Car.h"
 #include "CurveFactory.h"
 
-void FreePathFollower::Initialize(const KeypointGraph* graph, AActor* trafficEntity, const FVector& locationOffset)
+void FreePathFollower::Initialize(const KeypointGraph* graph, AActor* trafficEntity, FRandomStream* rng, const FVector& locationOffset)
 {
 	trafficEntity_ = trafficEntity;
+	rng_ = rng;
 	path_ = KeypointPath();
 	path_.graph = graph;
 	locationOffset_ = locationOffset;
@@ -58,6 +59,12 @@ void FreePathFollower::NewPath(const int& startKeypoint, const int& targetKeypoi
 {
 	const KeypointGraph* graph = path_.graph;
 	path_ = graph->FindPath(startKeypoint, targetKeypoint);
+
+	if (path_.keypoints.Num() == 0)
+	{
+		path_ = graph->GetRandomPathFrom(startKeypoint, *rng_);
+	}
+
 	trafficEntity_->SetActorLocation(GetLocation() + locationOffset_);
 	currentPoint_ = 0;
 }
@@ -73,12 +80,12 @@ void FreePathFollower::NewPath(const bool& fromNearestKeypoint)
 
 	if (fromNearestKeypoint)
 	{
-		path_ = graph->GetRandomPathFrom(graph->GetClosestKeypoint(trafficEntity_->GetActorLocation()));
+		path_ = graph->GetRandomPathFrom(graph->GetClosestKeypoint(trafficEntity_->GetActorLocation()), *rng_);
 	}
 	else
 	{	
 		// Teleport to allocated spawn point
-		path_ = graph->GetRandomPathFrom(graph->GetRandomSpawnPoint());	
+		path_ = graph->GetRandomPathFrom(graph->GetRandomSpawnPoint(*rng_), *rng_);
 	}
 
 	currentPoint_ = 0;
