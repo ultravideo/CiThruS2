@@ -172,10 +172,12 @@ std::vector<SegmentedObject>* USegmentationController::OptimizeIndicesForCamera(
 				continue;
 			}
 
-			UPrimitiveComponent* const& stencilComponent =
-				objectData.second.parentUeComponent.IsValid() && objectData.second.parentUeComponent != nullptr
-					? objectData.second.parentUeComponent.Get()
-					: component;
+			UPrimitiveComponent* stencilComponent = objectData.second.parentUeComponent;
+
+			if (stencilComponent == nullptr)
+			{
+				stencilComponent = component;
+			}
 
 			auto existingMapping = componentToStencilIndex.find(stencilComponent);
 

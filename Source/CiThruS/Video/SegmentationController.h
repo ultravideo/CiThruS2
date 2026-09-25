@@ -32,7 +32,7 @@ struct SegmentedObject
 	uint32_t trackingId;
 	ESegmentationClass classId;
 	TWeakObjectPtr<UPrimitiveComponent> ueComponent;
-	TWeakObjectPtr<UPrimitiveComponent> parentUeComponent;
+	UPrimitiveComponent* parentUeComponent;
 	FColor maskColor;
 };
 
