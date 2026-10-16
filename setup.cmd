@@ -6,10 +6,9 @@ set DLSS_VER=DLSS-4.5/2026.02.10_UE5.6_DLSS4.5Plugin_v8.5.0
 set FSR_VER=560
 set KVAZAAR_VER=2.3.2
 set YASM_VER=1.3.0
-set UVGRTP_VER=3.1.6
+set UVGRTP_VER=4.0.1
 set OPENHEVC_VER=ffmpeg_update
 set FPNG_VER=1.0.6
-set OPENSSL_VER=3.6.1
 set PAHO_C_VER=1.3.15
 set PAHO_CPP_VER=1.5.3
 set CITHRUS_CONTENT_VER=24_11_2025
@@ -25,12 +24,14 @@ goto :setupstart
 :downloadfailed
 echo %COLOR_FAILURE%Failed to download %~1!%COLOR_RESET%
 set ANY_FAILED=1
+chdir /d %ROOT_DIR%
 
 exit /b 0
 
 :buildfailed
 echo %COLOR_FAILURE%Failed to build %~1!%COLOR_RESET%
 set ANY_FAILED=1
+chdir /d %ROOT_DIR%
 
 exit /b 0
 
@@ -110,6 +111,8 @@ set "%1=%RETURN_VALUE%"
 exit /b 1
 
 :powershellsetup
+echo Checking for PowerShell...
+
 set POWERSHELL=powershell
 where powershell > nul 2>&1
 if errorlevel 1 (
@@ -118,11 +121,14 @@ if errorlevel 1 (
 	exit /b 1
 )
 
+echo PowerShell found.
+
 exit /b 0
 
 :visualstudiosetup
 :: Get VS Command Prompt
 if "%VisualStudioVersion%" == "" (
+	echo Setting up Visual Studio build tools...
 	echo Starting x64 Native Tools Command Prompt for Visual Studio...
 	
 	:: Try the default installation locations. Microsoft keeps changing the naming schemes for these directories so let's just check all we can find in case they do that again
@@ -130,7 +136,10 @@ if "%VisualStudioVersion%" == "" (
 		for /d %%j in ("%%i\*") do (
 			call "%%j\VC\Auxiliary\Build\vcvars64.bat" 2>nul
 
-			if errorlevel 0 exit /b 0
+			if errorlevel 0 (
+				echo Visual Studio build tools successfully set up.
+				exit /b 0
+			)
 		)
 	)
 	
@@ -147,6 +156,8 @@ if exist temp\Yasm (
 	exit /b 0
 )
 
+echo Setting up Yasm...
+
 :: Yasm is needed to build Kvazaar and OpenHEVC
 echo Downloading Yasm...
 call :downloadfile "http://www.tortall.net/projects/yasm/releases/vsyasm-%YASM_VER%-win64.zip" "temp\Yasm.zip" || call :downloadfailed yasm && exit /b 1
@@ -156,6 +167,8 @@ del temp\Yasm.zip /q
 
 :: Kvazaar finds Yasm through the PATH environment variable
 set PATH=%PATH%;"%ROOT_DIR%temp\Yasm\"
+
+echo Yasm successfully set up.
 
 exit /b 0
 
@@ -212,10 +225,14 @@ robocopy "%UE_ROOT_DIR%\Engine\Source\ThirdParty\OpenSSL\1.1.1t\lib\Win64\VS2015
 :: CMake finds OpenSSL through this environment variable
 set "OPENSSL_ROOT_DIR=%ROOT_DIR%temp\OpenSSL"
 
+echo OpenSSL successfully set up.
+
 exit /b 0
 
 :contentsetup
 call :dependencymissing Content "CiThruS2 content" && exit /b 0
+
+echo Setting up CiThruS2 content...
 
 :: Download
 echo Downloading CiThruS2 content...
@@ -242,6 +259,8 @@ exit /b 0
 
 :airsimsetup
 call :dependencymissing Plugins\AirSim "AirSim" && exit /b 0
+
+echo Setting up AirSim...
 
 :: Download
 echo Downloading AirSim (from Colosseum)...
@@ -278,6 +297,8 @@ exit /b 0
 :dlsssetup
 call :dependencymissing Plugins\DLSS "NVIDIA DLSS" && exit /b 0
 
+echo Setting up NVIDIA DLSS...
+
 :: Download
 echo Downloading NVIDIA DLSS...
 call :downloadfile "https://developer.nvidia.com/downloads/assets/gameworks/downloads/secure/dlss/%DLSS_VER%.zip" "temp\DLSS.zip" || call :downloadfailed "NVIDIA DLSS" && exit /b 1
@@ -302,6 +323,8 @@ exit /b 0
 
 :fsrsetup
 call :dependencymissing Plugins\FSR "AMD FSR 4" && exit /b 0
+
+echo Setting up AMD FSR 4...
 
 :: Download
 echo Downloading AMD FSR 4...
@@ -334,9 +357,15 @@ exit /b 0
 :kvazaarsetup
 call :dependencymissing ThirdParty\Kvazaar "Kvazaar" && exit /b 0
 
+echo Setting up Kvazaar...
+
 :: Set up dependencies
+echo Setting up dependencies for Kvazaar...
+
 call :visualstudiosetup || exit /b 1
 call :yasmsetup || exit /b 1
+
+echo Dependencies for Kvazaar successfully set up.
 
 :: Download
 echo Downloading Kvazaar...
@@ -375,9 +404,15 @@ exit /b 0
 :openhevcsetup
 call :dependencymissing ThirdParty\OpenHEVC "OpenHEVC" && exit /b 0
 
+echo Setting up OpenHEVC...
+
 :: Set up dependencies
+echo Setting up dependencies for OpenHEVC...
+
 call :visualstudiosetup || exit /b 1
 call :yasmsetup || exit /b 1
+
+echo Dependencies for OpenHEVC successfully set up.
 
 :: Download
 echo Downloading OpenHEVC...
@@ -443,8 +478,14 @@ exit /b 0
 :uvgrtpsetup
 call :dependencymissing ThirdParty\uvgRTP "uvgRTP" && exit /b 0
 
+echo Setting up uvgRTP...
+
 :: Set up dependencies
+echo Setting up dependencies for uvgRTP...
+
 call :visualstudiosetup || exit /b 1
+
+echo Dependencies for uvgRTP successfully set up.
 
 :: Download
 echo Downloading uvgRTP...
@@ -470,7 +511,8 @@ mkdir ThirdParty\uvgRTP\Include
 
 robocopy temp\uvgRTP-%UVGRTP_VER% ThirdParty\uvgRTP COPYING
 robocopy temp\uvgRTP-%UVGRTP_VER%\build\Release ThirdParty\uvgRTP\Lib /e
-robocopy temp\uvgRTP-%UVGRTP_VER%\include\uvgrtp ThirdParty\uvgRTP\Include
+robocopy temp\uvgRTP-%UVGRTP_VER%\include ThirdParty\uvgRTP\Include /e
+robocopy temp\uvgRTP-%UVGRTP_VER%\build\include ThirdParty\uvgRTP\Include /e
 
 :: Finish
 echo Cleaning up uvgRTP files...
@@ -483,8 +525,14 @@ exit /b 0
 :fpngsetup
 call :dependencymissing ThirdParty\fpng "fpng" && exit /b 0
 
+echo Setting up fpng...
+
 :: Set up dependencies
+echo Setting up dependencies for fpng...
+
 call :visualstudiosetup || exit /b 1
+
+echo Dependencies for fpng successfully set up.
 
 :: Download
 echo Downloading fpng...
@@ -518,9 +566,15 @@ exit /b 0
 :pahocppsetup
 call :dependencymissing ThirdParty\PahoCpp "Eclipse Paho" && exit /b 0
 
+echo Setting up Eclipse Paho C++ library...
+
 :: Set up dependencies
+echo Setting up dependencies for Eclipse Paho C++ library...
+
 call :visualstudiosetup || exit /b 1
 call :opensslsetup || exit /b 1
+
+echo Dependencies for Eclipse Paho C++ library successfully set up.
 
 :: Download
 echo Downloading Eclipse Paho C++ library...
@@ -550,14 +604,14 @@ if exist temp\paho.mqtt.cpp-%PAHO_CPP_VER%\build\PahoMqttCpp.slnx set PAHO_CPP_S
 msbuild %PAHO_CPP_SLN% /p:Configuration="Release" /p:Platform=x64 /p:PlatformToolset=v143 /p:WindowsTargetPlatformVersion=10.0 || call :buildfailed "Eclipse Paho" && exit /b 1
 
 :: Copy results
-mkdir ThirdParty\PahoCpp\Bin
 mkdir ThirdParty\PahoCpp\Lib
 mkdir ThirdParty\PahoCpp\Include
 
 robocopy temp\paho.mqtt.cpp-%PAHO_CPP_VER% ThirdParty\PahoCpp LICENSE
 robocopy temp\paho.mqtt.cpp-%PAHO_CPP_VER%\build\src\Release ThirdParty\PahoCpp\Lib paho-mqttpp3-static.lib
 robocopy temp\paho.mqtt.cpp-%PAHO_CPP_VER%\build\externals\paho-mqtt-c\src\Release ThirdParty\PahoCpp\Lib paho-mqtt3as-static.lib
-robocopy temp\paho.mqtt.cpp-%PAHO_CPP_VER%\include ThirdParty\PahoCpp\Include /e
+
+robocopy temp\paho.mqtt.cpp-%PAHO_CPP_VER%\include ThirdParty\PahoCpp\Include /s
 robocopy temp\paho.mqtt.cpp-%PAHO_CPP_VER%\externals\paho-mqtt-c\src ThirdParty\PahoCpp\Include *.h
 
 :: Finish
@@ -571,8 +625,14 @@ exit /b 0
 :nvencsetup
 call :dependencymissing ThirdParty\NVENC "NVENC" && exit /b 0
 
+echo Setting up NVENC...
+
 :: Set up dependencies
+echo Setting up dependencies for NVENC...
+
 call :visualstudiosetup || exit /b 1
+
+echo Dependencies for NVENC successfully set up.
 
 :: Download
 mkdir temp\NVENC
@@ -617,13 +677,17 @@ exit /b 0
 set ROOT_DIR=%~dp0
 set ANY_FAILED=0
 
-call :powershellsetup || exit /b 1
+:: This checks if this file is being executed directly as setup.cmd or as part of another script
+set SCRIPT_CALLED_ALONE=0
+echo.%cmdcmdline% | %WINDIR%\system32\find.exe /i "%~0" >nul && set SCRIPT_CALLED_ALONE=1
 
 chdir /d %ROOT_DIR%
 if exist temp rmdir temp /s /q
 mkdir temp
 
 echo Setting up CiThruS2...
+
+call :powershellsetup || exit /b 1
 
 call :contentsetup
 :: AirSim is not available for UE 5.6, skip for now
@@ -634,8 +698,8 @@ call :kvazaarsetup
 call :openhevcsetup
 call :uvgrtpsetup
 call :fpngsetup
-call :pahocppsetup
 call :nvencsetup
+call :pahocppsetup
 
 if not exist Content (
 	echo %COLOR_FAILURE%Setup failed, CiThruS2 cannot be used without the content!%COLOR_RESET%
@@ -647,7 +711,10 @@ if not exist Content (
 
 if exist temp rmdir temp /s /q
 chdir /d %ROOT_DIR%
-pause
+
+:: Pause so that the window doesn't close automatically and the user can look
+:: at the output, but don't pause if this was called as part of another script
+if %SCRIPT_CALLED_ALONE%==1 pause
 
 if %ANY_FAILED%==1 (
 	exit /b 1

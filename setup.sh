@@ -5,7 +5,7 @@ DLSS_VER="DLSS-4.5/2026.02.10_UE5.6_DLSS4.5Plugin_v8.5.0"
 FSR_VER="560"
 KVAZAAR_VER="2.3.2"
 YASM_VER="1.3.0"
-UVGRTP_VER="3.1.6"
+UVGRTP_VER="4.0.1"
 OPENHEVC_VER="ffmpeg_update"
 FPNG_VER="1.0.6"
 PAHO_C_VER="1.3.15"
@@ -195,8 +195,8 @@ find_openssl()
     # when any OpenSSL function is called inside CiThruS because of
     # mismatched function signatures
     ln -s ${UE_ROOT_DIR}/Engine/Source/ThirdParty/OpenSSL/1.1.1t/include/Unix/openssl temp/OpenSSL/include/openssl
-    ln -s ${UE_ROOT_DIR}/Engine/Binaries/ThirdParty/OpenSSL/Unix/lib/x86_64-unknown-linux-gnu/libssl.so.1.1 temp/OpenSSL/lib/libssl.so
-    ln -s ${UE_ROOT_DIR}/Engine/Binaries/ThirdParty/OpenSSL/Unix/lib/x86_64-unknown-linux-gnu/libcrypto.so.1.1 temp/OpenSSL/lib/libcrypto.so
+    ln -s ${UE_ROOT_DIR}/Engine/Source/ThirdParty/OpenSSL/1.1.1t/lib/Unix/x86_64-unknown-linux-gnu/libssl.a temp/OpenSSL/lib/libssl.a
+    ln -s ${UE_ROOT_DIR}/Engine/Source/ThirdParty/OpenSSL/1.1.1t/lib/Unix/x86_64-unknown-linux-gnu/libcrypto.a temp/OpenSSL/lib/libcrypto.a
 
     # CMake uses this environment variable to find OpenSSL
     export OPENSSL_ROOT_DIR="${ROOT_DIR}/temp/OpenSSL"
@@ -208,6 +208,8 @@ setup_content()
 	then
 		return 0
 	fi
+
+    echo "Setting up CiThruS2 content..."
 
     # Download
     echo "Downloading CiThruS2 content..."
@@ -235,6 +237,8 @@ setup_airsim()
     then
         return 0
     fi
+
+    echo "Setting up AirSim..."
 
     # Download
     echo "Downloading AirSim (from Colosseum)..."
@@ -277,6 +281,8 @@ setup_dlss()
         return 0
     fi
 
+    echo "Setting up NVIDIA DLSS..."
+
     # Download
     echo "Downloading NVIDIA DLSS..."
     wget -O temp/DLSS.zip https://developer.nvidia.com/downloads/assets/gameworks/downloads/secure/dlss/${DLSS_VER}.zip || { download_failed "NVIDIA DLSS" && return 1; }
@@ -306,6 +312,8 @@ setup_fsr()
         return 0
     fi
 
+    echo "Setting up AMD FSR 4..."
+
     # Download
     echo "Downloading AMD FSR 4..."
     wget -O temp/FSR.zip https://gpuopen.com/download-Unreal-Engine-FSR4-plugin/ || { download_failed "AMD FSR 4" && return 1; }
@@ -333,26 +341,6 @@ setup_fsr()
     echo -e "${COLOR_SUCCESS}AMD FSR 4 successfully set up.${COLOR_RESET}"
 }
 
-setup_impostorbaker()
-{
-    if ! dependency_missing Plugins/ImpostorBaker-master ImpostorBaker
-    then
-        return 0
-    fi
-
-    # Download
-    echo Downloading ImpostorBaker...
-    wget -O temp/ImpostorBaker.zip https://github.com/ictusbrucks/ImpostorBaker/archive/refs/heads/master.zip || { download_failed "ImpostorBaker" && return 1; }
-
-    echo "Extracting ImpostorBaker..."
-    mkdir -p Plugins/
-    unzip temp/ImpostorBaker.zip -d Plugins
-    rm temp/ImpostorBaker.zip
-
-    # Finish
-    echo -e "${COLOR_SUCCESS}ImpostorBaker successfully set up.${COLOR_RESET}"
-}
-
 setup_kvazaar()
 {
     if ! dependency_missing ThirdParty/Kvazaar Kvazaar
@@ -360,8 +348,14 @@ setup_kvazaar()
         return 0
     fi
 
+    echo "Setting up Kvazaar..."
+
     # Set up dependencies
+    echo "Setting up dependencies for Kvazaar..."
+
     find_clang || return 1
+
+    echo "Dependencies for Kvazaar successfully set up."
 
     # Download
     echo "Downloading Kvazaar..."
@@ -402,8 +396,14 @@ setup_openhevc()
         return 0
     fi
 
+    echo "Setting up OpenHEVC..."
+
     # Set up dependencies
+    echo "Setting up dependencies for OpenHEVC..."
+
     find_clang || return 1
+
+    echo "Dependencies for OpenHEVC successfully set up."
 
     # Download
     echo "Downloading OpenHEVC..."
@@ -452,8 +452,14 @@ setup_uvgrtp()
         return 0
     fi
 
+    echo "Setting up uvgRTP..."
+
     # Set up dependencies
+    echo "Setting up dependencies for uvgRTP..."
+
     find_clang || return 1
+
+    echo "Dependencies for uvgRTP successfully set up."
 
     # Download
     echo "Downloading uvgRTP..."
@@ -479,7 +485,8 @@ setup_uvgrtp()
 
     cp temp/uvgRTP-${UVGRTP_VER}/COPYING ThirdParty/uvgRTP
     cp temp/uvgRTP-${UVGRTP_VER}/Release/libuvgrtp.a ThirdParty/uvgRTP/Lib
-    cp temp/uvgRTP-${UVGRTP_VER}/include/uvgrtp/* ThirdParty/uvgRTP/Include
+    cp -r temp/uvgRTP-${UVGRTP_VER}/include/* ThirdParty/uvgRTP/Include
+    cp -r temp/uvgRTP-${UVGRTP_VER}/build/include/* ThirdParty/uvgRTP/Include
 
     # Finish
     echo "Cleaning up uvgRTP files..."
@@ -495,8 +502,14 @@ setup_fpng()
         return 0
     fi
 
+    echo "Setting up fpng..."
+
     # Set up dependencies
+    echo "Setting up dependencies for fpng..."
+
     find_clang || return 1
+
+    echo "Dependencies for fpng successfully set up."
 
     # Download
     echo "Downloading fpng..."
@@ -535,9 +548,15 @@ setup_pahocpp()
         return 0
     fi
 
+    echo "Setting up Eclipse Paho..."
+
     # Set up dependencies
+    echo "Setting up dependencies for Eclipse Paho..."
+
     find_clang || return 1
     find_openssl || return 1
+
+    echo "Dependencies for Eclipse Paho successfully set up."
 
     # Download
     echo "Downloading Eclipse Paho C++ library..."
@@ -589,7 +608,7 @@ setup_pahocpp()
 ROOT_DIR=$(pwd)
 ANY_FAILED=0
 
-cd ${ROOT_DIR}
+cd "${ROOT_DIR}"
 
 rm -rf temp
 mkdir temp
@@ -600,7 +619,6 @@ setup_content
 # setup_airsim (Skip this for now, AirSim is outdated)
 setup_dlss
 # setup_fsr (The FSR plugin does not actually compile on Linux, so skip it)
-setup_impostorbaker
 setup_kvazaar
 setup_openhevc
 setup_uvgrtp
@@ -618,7 +636,7 @@ else
 fi
 
 rm -rf temp
-cd ${ROOT_DIR}
+cd "${ROOT_DIR}"
 
 if [[ ${ANY_FAILED} = 1 ]]
 then

@@ -27,6 +27,7 @@ public class CiThruS : ModuleRules
 		var kvazaar_base_path = Path.Combine(thirdparty_directory, "Kvazaar/");
 		var openhevc_base_path = Path.Combine(thirdparty_directory, "OpenHEVC/");
 		var fpng_base_path = Path.Combine(thirdparty_directory, "fpng/");
+		var openssl_base_path = Path.Combine(thirdparty_directory, "OpenSSL/");
 		var pahocpp_base_path = Path.Combine(thirdparty_directory, "PahoCpp/");
 		var nvenc_base_path = Path.Combine(thirdparty_directory, "NVENC/");
 		
@@ -38,10 +39,11 @@ public class CiThruS : ModuleRules
 			AddStaticLibraryIfExists(Path.Combine(fpng_base_path, "Lib/fpng.lib"));
 			AddStaticLibraryIfExists(Path.Combine(pahocpp_base_path, "Lib/paho-mqttpp3-static.lib"));
 			AddStaticLibraryIfExists(Path.Combine(pahocpp_base_path, "Lib/paho-mqtt3as-static.lib"));
-			AddStaticLibraryIfExists(Path.Combine(nvenc_base_path, "Lib/nvencodeapi.lib"));
+            AddStaticLibraryIfExists(Path.Combine(nvenc_base_path, "Lib/nvencodeapi.lib"));
             // This should be delay loaded in case it doesn't exist (i.e. when Nvidia drivers aren't installed)
             // Otherwise CiThruS fails to start entirely without it
             PublicDelayLoadDLLs.Add("nvEncodeAPI64.dll");
+			// Currently needed for NVENC because support for it was added through DirectX
             PublicSystemLibraries.Add("d3d12.lib");
             PublicSystemLibraries.Add("dxgi.lib");
         }
@@ -58,14 +60,15 @@ public class CiThruS : ModuleRules
 		
 		// These are needed to use static libraries
 		PublicDefinitions.Add("KVZ_STATIC_LIB=1");
-		
-		// This lets us #include files with their path from the root folder which makes includes more convenient and consistent between files
-		PublicIncludePaths.Add(ModuleDirectory);
+
+        // This lets us #include files with their path from the root folder which makes includes more convenient and consistent between files
+        PublicIncludePaths.Add(ModuleDirectory);
 		PublicIncludePaths.Add(thirdparty_directory);
 		
 		PublicIncludePaths.Add(Path.Combine(pahocpp_base_path, "Include/"));
+        PublicIncludePaths.Add(Path.Combine(uvgrtp_base_path, "Include/"));
 
-		PublicDependencyModuleNames.AddRange(
+        PublicDependencyModuleNames.AddRange(
 			new string[]
 			{
 				"Core",
@@ -83,6 +86,8 @@ public class CiThruS : ModuleRules
 				"NiagaraCore",
 				"GeoReferencing",
 				"JsonUtilities",
+				"Sockets",
+				"Networking",
 				"OpenSSL"
 			});
 		
