@@ -4,6 +4,8 @@ setlocal
 set AIRSIM_VER=2.1.0
 set DLSS_VER=DLSS-4.5/2026.02.10_UE5.6_DLSS4.5Plugin_v8.5.0
 set FSR_VER=560
+set METALIDAR_VER=5.3.2
+set UDPWRAPPER_VER=b9d74105
 set KVAZAAR_VER=2.3.2
 set YASM_VER=1.3.0
 set UVGRTP_VER=4.0.1
@@ -354,6 +356,50 @@ echo Cleaning up FSR files...
 rmdir %FSR_FOLDER_NAME% /s /q
 
 echo %COLOR_SUCCESS%AMD FSR 4 successfully set up.%COLOR_RESET%
+
+exit /b 0
+
+:metalidarsetup
+call :dependencymissing Plugins\MetaLidar "MetaLidar" && exit /b 0
+
+:: Download
+echo Downloading MetaLidar...
+call :downloadfile "https://github.com/metabotics-ai/MetaLidar/archive/refs/tags/ue%METALIDAR_VER%.zip" "temp\MetaLidar.zip" || call :downloadfailed MetaLidar && exit /b 1
+echo Extracting MetaLidar...
+call :unzip "temp\MetaLidar.zip" "temp"
+del temp\MetaLidar.zip /q
+
+mkdir Plugins\MetaLidar
+robocopy temp\MetaLidar-ue%METALIDAR_VER% Plugins\MetaLidar /e
+
+:: patch to make UdpScanComponent accessible to blueprints
+call :findandreplace "Plugins\MetaLidar\Source\MetaLidar\Public\LidarBaseActor.h" "([ \t]*)(class UUDPComponent\* UdpScanComponent;)" "$1UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ""MetaLidar"")`r`n$1$2"
+
+:: Finish
+echo Cleaning up MetaLidar files...
+rmdir temp\MetaLidar-ue%METALIDAR_VER% /s /q
+
+echo %COLOR_SUCCESS%MetaLidar successfully set up.%COLOR_RESET%
+exit /b 0
+
+:UDPWrappersetup
+call :dependencymissing Plugins\UDPWrapper "UDPWrapper" && exit /b 0
+
+:: Download (using git clone because the releases are .7z files...)
+echo Downloading UDPWrapper...
+git clone https://github.com/getnamo/UDP-Unreal.git temp\UDPWrapper || call :downloadfailed UDPWrapper && exit /b 1
+cd temp\UDPWrapper
+git checkout %UDPWRAPPER_VER% || call :downloadfailed UDPWrapper && exit /b 1
+cd ..\..
+
+mkdir Plugins\UDPWrapper
+robocopy temp\UDPWrapper Plugins\UDPWrapper /e
+
+:: Finish
+echo Cleaning up UDPWrapper files...
+rmdir temp\UDPWrapper /s /q
+
+echo %COLOR_SUCCESS%UDPWrapper successfully set up.%COLOR_RESET%
 
 exit /b 0
 
@@ -796,6 +842,8 @@ call :contentsetup
 ::call :airsimsetup
 call :dlsssetup
 call :fsrsetup
+call :metalidarsetup
+call :udpwrappersetup
 call :kvazaarsetup
 call :openhevcsetup
 call :uvgrtpsetup

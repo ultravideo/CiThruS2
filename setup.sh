@@ -3,6 +3,7 @@
 AIRSIM_VER="2.1.0"
 DLSS_VER="DLSS-4.5/2026.02.10_UE5.6_DLSS4.5Plugin_v8.5.0"
 FSR_VER="560"
+METALIDAR_VER="5.3.2"
 KVAZAAR_VER="2.3.2"
 YASM_VER="1.3.0"
 UVGRTP_VER="4.0.1"
@@ -342,6 +343,61 @@ setup_fsr()
     fi
     
     echo -e "${COLOR_SUCCESS}AMD FSR 4 successfully set up.${COLOR_RESET}"
+}
+
+setup_metalidar()
+{
+    if ! dependency_missing Plugins/MetaLidar "MetaLidar"
+    then
+        return 0
+    fi
+
+    # Download
+    echo "Downloading MetaLidar..."
+    wget -O temp/MetaLidar.zip https://github.com/metabotics-ai/MetaLidar/archive/refs/tags/ue${METALIDAR_VER}.zip || { download_failed "MetaLidar" && return 1; }
+    echo "Extracting MetaLidar..."
+    unzip temp/MetaLidar.zip -d temp
+    rm temp/MetaLidar.zip
+
+    mkdir -p Plugins/MetaLidar
+    cp -r "temp/MetaLidar-ue${METALIDAR_VER}/." Plugins/MetaLidar
+
+    # patch to make UdpScanComponent accessible to blueprints
+    sed -Ei "s/([ \t]*)(class UUDPComponent\* UdpScanComponent;)/\1UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = ""MetaLidar"")\n\1\2/" "Plugins/MetaLidar/Source/MetaLidar/Public/LidarBaseActor.h"
+
+    # Finish
+    echo "Cleaning up MetaLidar files..."
+    rm -rf "temp/MetaLidar-ue${METALIDAR_VER}"
+
+    echo -e "${COLOR_SUCCESS}MetaLidar successfully set up.${COLOR_RESET}"
+
+    return 0
+}
+
+setup_udpwrapper()
+{
+    if ! dependency_missing Plugins/UDPWrapper "UDPWrapper"
+    then
+        return 0
+    fi
+
+    # Download (using git clone because the releases are .7z files...)
+    echo "Downloading UDPWrapper..."
+    git clone https://github.com/getnamo/UDP-Unreal.git temp/UDPWrapper || { download_failed "UDPWrapper" && return 1; }
+    cd temp/UDPWrapper
+    git checkout ${UDPWRAPPER_VER} || { download_failed "UDPWrapper" && return 1; }
+    cd ../..
+
+    mkdir -p Plugins/
+    cp -r temp/UDPWrapper Plugins/
+
+    # Finish
+    echo "Cleaning up UDPWrapper files..."
+    rm -rf temp/UDPWrapper
+
+    echo -e "${COLOR_SUCCESS}UDPWrapper successfully set up.${COLOR_RESET}"
+
+    return 0
 }
 
 setup_kvazaar()
@@ -723,6 +779,8 @@ setup_content
 # setup_airsim (Skip this for now, AirSim is outdated)
 setup_dlss
 # setup_fsr (The FSR plugin does not actually compile on Linux, so skip it)
+setup_metalidar
+setup_udpwrapper
 setup_kvazaar
 setup_openhevc
 setup_uvgrtp
