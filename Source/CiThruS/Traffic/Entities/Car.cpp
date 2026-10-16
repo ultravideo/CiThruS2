@@ -154,7 +154,7 @@ void ACar::Move(const float& deltaTime)
 
 	FVector tangent;
 	FVector rearAxlePosition = pathFollower_.GetLocation(tangent);
-	FVector middlePosition = reverseUntilPoint == -1 ?  rearAxlePosition + tangent * wheelbase_ * 0.5f : rearAxlePosition + tangent * wheelbase_ * -0.5f;
+	FVector middlePosition = reverseUntilPoint_ == -1 ?  rearAxlePosition + tangent * wheelbase_ * 0.5f : rearAxlePosition + tangent * wheelbase_ * -0.5f;
 	
 	if (!lowDetail_)
 	{
@@ -181,20 +181,20 @@ void ACar::Move(const float& deltaTime)
 		int currentPoint = GetPathFollower().GetCurrentLocalPoint();
 
 		// Move forwards
-		if (reverseUntilPoint == -1 && (reverseFromPoint > currentPoint || reverseFromPoint == -1)) 
+		if (reverseUntilPoint_ == -1 && (reverseFromPoint_ > currentPoint || reverseFromPoint_ == -1)) 
 		{
 			SetActorLocationAndRotation(middlePosition, moveDirection_.ToOrientationQuat(), false, nullptr, ETeleportType::TeleportPhysics);
 		}
 		// Move in reverse (Still follow the path, the mesh just rotated 180)
-		else if (reverseUntilPoint > currentPoint)
+		else if (reverseUntilPoint_ > currentPoint)
 		{
 			SetActorLocationAndRotation(middlePosition, (-moveDirection_).ToOrientationQuat(), false, nullptr, ETeleportType::TeleportPhysics);
 		}
 		// Start reversing from normal movement, until forever.
-		else if (reverseFromPoint <= currentPoint && reverseFromPoint != -1)
+		else if (reverseFromPoint_ <= currentPoint && reverseFromPoint_ != -1)
 		{
-			reverseFromPoint = -1;
-			reverseUntilPoint = 9999;
+			reverseFromPoint_ = -1;
+			reverseUntilPoint_ = 9999;
 			SetInstantSpeed(0);
 			targetSpeed_ = 150.0f;
 		}
@@ -202,7 +202,7 @@ void ACar::Move(const float& deltaTime)
 		else
 		{
 			SetInstantSpeed(0);
-			reverseUntilPoint = -1;
+			reverseUntilPoint_ = -1;
 		}
 	}
 	else
@@ -259,7 +259,7 @@ void ACar::ReverseUntilPoint(int point)
 {
 	if (point > pathFollower_.GetCurrentLocalPoint())
 	{
-		reverseUntilPoint = point;
+		reverseUntilPoint_ = point;
 	}
 }
 
@@ -267,8 +267,14 @@ void ACar::StartReverseFromPoint(int point)
 {
 	if (point > pathFollower_.GetCurrentLocalPoint() && point < pathFollower_.GetPath().keypoints.Num())
 	{
-		reverseFromPoint = point;
+		reverseFromPoint_ = point;
 	}
+}
+
+void ACar::ClearParkingStatus()
+{
+	reverseFromPoint_ = -1;
+	reverseUntilPoint_ = -1;
 }
 
 void ACar::WaitForUnobstructedDepart(FVector collisionDimensions, FVector collisionPositionOffset)
@@ -536,14 +542,14 @@ void ACar::OnFar()
 {
 	lowDetail_ = true;
 
-	Far();
+	BpOnFar();
 }
 
 void ACar::OnNear()
 {
 	lowDetail_ = false;
 
-	Near();
+	BpOnNear();
 }
 
 void ACar::Simulate(const KeypointGraph* graph, int seed)

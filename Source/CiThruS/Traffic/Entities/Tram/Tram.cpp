@@ -24,6 +24,7 @@ void ATram::BeginPlay()
 	// it should always contain both the main collision rectangle and the future collision rectangle of the car
 	// without being too large either
 	collisionBoundingSphereRadius_ = 1.5f * sqrt(collisionDimensions_.Dot(collisionDimensions_));
+
 }
 
 void ATram::BeginDestroy()
@@ -110,23 +111,146 @@ void ATram::Move(const float& deltaTime)
 
 	pathFollower_.Advance(moveSpeed_ * deltaTime);
 
-	FVector rearPosition = pathFollower_.GetLocation();
-	FVector frontPosition = pathFollower_.GetLocation(wheelbase_);
+	FVector cartTangent;
+	FVector frontPosition = pathFollower_.GetLocation();
+	FVector rearPosition = pathFollower_.GetLocation(-frontRearCartWheelbase_);
+	FRotator cartRotation = FRotator(0.0f, 0.0f, 0.0f);
 
-	FRotator cartRotation = FRotationMatrix::MakeFromX(frontPosition - rearPosition).Rotator();
+	FVector splineStart;
+	FVector splineStartTangent;
+	FTransform actorWorldTransform = this->GetActorTransform();
 
 	//Apply movement & rotation
-	SetActorLocationAndRotation((frontPosition + rearPosition) * 0.5f, cartRotation, false, nullptr, ETeleportType::TeleportPhysics);
-
+	//SetActorLocationAndRotation(frontPosition, cartRotation, false, nullptr, ETeleportType::TeleportPhysics);
+	SetActorLocation(frontPosition, false, nullptr, ETeleportType::TeleportPhysics);
+	
 	// Set cart locations and rotations
-	for (int i = 1; i < carts_.Num(); i++)
+	for (int i = 0; i < carts_.Num(); i++)
 	{
-		rearPosition = pathFollower_.GetLocation(-i * (wheelbase_ + cartGap_));
-		frontPosition = pathFollower_.GetLocation(-i * (wheelbase_ + cartGap_) + wheelbase_);
 
-		/*Draw some debug lines to visualise cart edge points*/ if (ENABLE_DEBUG) { FVector a = frontPosition + FVector::UpVector * 0; FVector b = rearPosition + FVector::UpVector * 0; Debug::DrawTemporarySphere(GetWorld(), a, i % 2 == 0 ? FColor::Blue:FColor::Red, deltaTime * 2, 30); Debug::DrawTemporarySphere(GetWorld(), b, i % 2 == 0 ? FColor::Blue : FColor::Red, deltaTime * 2, 30); Debug::DrawTemporaryLine(GetWorld(), a, b, i % 2 == 1 ? FColor::Blue : FColor::Red, deltaTime * 2, 20.0f); }
+ 		if (i == 0)
+		{
+			// front cart
+			frontPosition = pathFollower_.GetLocation(0.0f, cartTangent);
+			rearPosition = pathFollower_.GetLocation(-frontRearCartWheelbase_);
+			cartTangent = frontPosition - rearPosition;
+			cartRotation = FRotationMatrix::MakeFromX(cartTangent).Rotator();
 
-		cartRotation = FRotationMatrix::MakeFromX(frontPosition - rearPosition).Rotator();
+ 			if (drawDebug_) {
+				//Debug::DrawTemporarySphere(GetWorld(), frontPosition, FColor::Blue, deltaTime * 2, 30);
+				//Debug::DrawTemporarySphere(GetWorld(), rearPosition, FColor::Red, deltaTime * 2, 30);
+				Debug::DrawTemporaryLine(GetWorld(), frontPosition, rearPosition, FColor::Blue, deltaTime * 2, 5.0f);
+			}
+			splineStart = pathFollower_.GetLocation(-frontRearCartWheelbase_);//rearPosition;
+			splineStartTangent = cartTangent;
+
+		}
+		else if (i == carts_.Num() - 1)
+		{
+			// rear cart
+			float prevCartLengths = frontRearCartWheelbase_ + (i - 1) * (middleCartWheelbase_ + middleCartWheelOffset_ * 2) + (i - 1) * cartGap_;
+			rearPosition = pathFollower_.GetLocation(-prevCartLengths - cartGap_, cartTangent);
+			frontPosition = pathFollower_.GetLocation(-prevCartLengths - cartGap_ - frontRearCartWheelbase_);
+			cartRotation = FRotationMatrix::MakeFromX(rearPosition - frontPosition).Rotator();
+
+			
+			accordionStartTangent_ = -splineStartTangent.GetSafeNormal();
+			accordionEndTangent_ = -cartTangent.GetSafeNormal();
+			accordionStartPosition_ = splineStart - accordionStartTangent_ * accordionOffset_;
+			accordionEndPosition_ = rearPosition - accordionEndTangent_ * accordionOffset_;
+
+			if (drawDebug_) {
+				Debug::DrawTemporarySphere(GetWorld(), accordionStartPosition_, FColor::Orange, deltaTime * 2, 30);
+				Debug::DrawTemporarySphere(GetWorld(), accordionStartTangent_, FColor::Yellow, deltaTime * 2, 30);
+				Debug::DrawTemporarySphere(GetWorld(), accordionEndPosition_, FColor::Green, deltaTime * 2, 30);
+				Debug::DrawTemporarySphere(GetWorld(), accordionEndTangent_, FColor::Blue, deltaTime * 2, 30);
+				//Debug::DrawTemporarySphere(GetWorld(), frontPosition, FColor::Orange, deltaTime * 2, 30);
+				//Debug::DrawTemporarySphere(GetWorld(), rearPosition, FColor::Purple, deltaTime * 2, 30);
+			}
+			
+
+
+			accordions_[i-1]->SetStartAndEnd( 
+				actorWorldTransform.InverseTransformPosition(accordionStartPosition_), 
+				actorWorldTransform.InverseTransformVector(accordionStartTangent_), 
+				actorWorldTransform.InverseTransformPosition(accordionEndPosition_), 
+				actorWorldTransform.InverseTransformVector(accordionEndTangent_), true);
+
+			if (drawDebug_) {
+				Debug::DrawTemporaryLine(GetWorld(), frontPosition, rearPosition, FColor::Blue, deltaTime * 2, 5.0f);
+				//Debug::DrawTemporarySphere(GetWorld(), frontPosition, FColor::Green, deltaTime * 2, 30);
+				//Debug::DrawTemporarySphere(GetWorld(), rearPosition, FColor::Yellow, deltaTime * 2, 30);
+			}
+
+		}
+		else
+		{
+			// middle cart
+			float prevCartLengths = frontRearCartWheelbase_ + (i - 1) * (middleCartWheelbase_ + middleCartWheelOffset_ * 2) + (i - 1) * cartGap_;
+			
+			FVector cartFrontJoint;
+			if (drawDebug_) {
+				Debug::DrawTemporaryLine(GetWorld(), rearPosition, cartFrontJoint, FColor::Green, deltaTime * 2, 5.0f);
+			};
+			
+			frontPosition = pathFollower_.GetLocation(-prevCartLengths - cartGap_ - middleCartWheelOffset_);
+			if (drawDebug_) {
+				Debug::DrawTemporaryLine(GetWorld(), cartFrontJoint, frontPosition, FColor::Yellow, deltaTime * 2, 5.0f); }
+				rearPosition = pathFollower_.GetLocation(-prevCartLengths - cartGap_ - middleCartWheelOffset_ - middleCartWheelbase_);
+				
+			cartTangent = frontPosition - rearPosition;
+			cartRotation = FRotationMatrix::MakeFromX(cartTangent).Rotator();
+			cartFrontJoint = frontPosition + cartTangent.GetSafeNormal() * middleCartWheelOffset_;
+			
+			accordionStartTangent_ = actorWorldTransform.InverseTransformVector(-splineStartTangent.GetSafeNormal());
+			accordionEndTangent_ = actorWorldTransform.InverseTransformVector(cartTangent.GetSafeNormal());
+			accordionStartPosition_ = actorWorldTransform.InverseTransformPosition(splineStart + splineStartTangent.GetSafeNormal() * accordionOffset_);
+			accordionEndPosition_ = actorWorldTransform.InverseTransformPosition(cartFrontJoint - cartTangent.GetSafeNormal() * accordionOffset_);
+
+			if (drawDebug_) {
+				Debug::DrawTemporarySphere(GetWorld(), cartFrontJoint, FColor::Green, deltaTime * 2, 30);
+				Debug::DrawTemporarySphere(GetWorld(), splineStart, FColor::Blue, deltaTime * 2, 30);
+				Debug::DrawTemporarySphere(GetWorld(), frontPosition, FColor::Orange, deltaTime * 2, 30);
+				Debug::DrawTemporarySphere(GetWorld(), rearPosition, FColor::Purple, deltaTime * 2, 30);
+			}
+
+			accordions_[i-1]->SetStartAndEnd( 
+				accordionStartPosition_, 
+				accordionStartTangent_, 
+				accordionEndPosition_, 
+				accordionEndTangent_, true);
+			//accordions_[i]->SetForwardAxis(Y, true);
+			//accordions_[i]->SetSplineUpDir(FVector(0, 0, 0), true);
+			//accordions_[i]->SetStartAndEnd( splineStart, splineStartTangent.GetSafeNormal() * cartGap_, cartFrontJoint, cartTangent.GetSafeNormal() * cartGap_, true);
+			//accordions_[i]->SetWorldLocationAndRotation(splineStart, FRotationMatrix::MakeFromX(splineStartTangent).Rotator());
+			//if (drawDebug_) {
+				int32 debugSegments = 7;
+				FVector previousPoint = splineStart;
+				float splineLength = FVector::Dist(splineStart, cartFrontJoint);
+				for (int32 j = 0; j < debugSegments; j++)
+				{ 
+					float alpha = (float)j / (float)debugSegments;
+
+					FVector currentPoint = FMath::CubicInterp(splineStart, -splineStartTangent.GetSafeNormal() * splineLength, cartFrontJoint, cartTangent.GetSafeNormal() * splineLength, alpha);
+					if (drawDebug_) {
+						Debug::DrawTemporarySphere(GetWorld(), currentPoint, FColor::Orange, deltaTime * 2, 5.0f);
+					}
+					//Debug::DrawTemporaryLine(GetWorld(), previousPoint, currentPoint, FColor::Orange, deltaTime * 2, 5.0f);
+					previousPoint = currentPoint;
+				}
+				if (drawDebug_) {
+					Debug::DrawTemporarySphere(GetWorld(), splineStart, FColor::Green, deltaTime * 2, 5.0f);
+					Debug::DrawTemporarySphere(GetWorld(), cartFrontJoint, FColor::Blue, deltaTime * 2, 5.0f);
+					Debug::DrawTemporarySphere(GetWorld(), splineStart - splineStartTangent.GetSafeNormal() * splineLength, FColor::Cyan, deltaTime * 2, 5.0f);
+					Debug::DrawTemporarySphere(GetWorld(), cartFrontJoint + cartTangent.GetSafeNormal() * splineLength, FColor::Emerald, deltaTime * 2, 5.0f);
+				}
+			//}
+
+			splineStart = rearPosition - cartTangent.GetSafeNormal() * middleCartWheelOffset_;
+			splineStartTangent = cartTangent;
+
+		}
+
 		carts_[i]->SetWorldLocationAndRotation(frontPosition, cartRotation);
 	}
 }
@@ -174,16 +298,6 @@ float ATram::GetAnimSteeringAngle()
 	float angle = FMath::Acos(FVector::DotProduct(a, b)) * 90;
 
 	return sign * angle * 2.0f;
-}
-
-void ATram::OnFar()
-{
-	Far();
-}
-
-void ATram::OnNear()
-{
-	Near();
 }
 
 void ATram::UpdateBlockingCollisionWith(ITrafficEntity* otherEntity)

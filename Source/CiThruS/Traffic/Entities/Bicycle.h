@@ -34,6 +34,13 @@ public:
 
 	inline CurvePathFollower GetPathFollower() const { return pathFollower_; }
 
+	UFUNCTION(BlueprintCallable)
+	virtual int GetVariantId() const override { return BpGetVariantId(); }
+	UFUNCTION(BlueprintCallable)
+	virtual void SetVariantId(int variantId) override { BpSetVariantId(variantId); }
+	UFUNCTION(BlueprintCallable)
+	virtual int NumVariants() const override { return BpNumVariants(); }
+
 	virtual void OnEnteredStopArea(ATrafficStopArea* stopArea) override;
 	virtual void OnExitedStopArea(ATrafficStopArea* stopArea) override;
 
@@ -50,8 +57,8 @@ public:
 	inline virtual bool Stopped() const override { return inActiveStopArea_; }
 	inline virtual bool Blocked() const { return blocked_ || blockedByFuturePawn_; }
 
-	virtual void OnFar() override;
-	virtual void OnNear() override;
+	virtual void OnFar() override { BpOnFar(); }
+	virtual void OnNear() override { BpOnNear(); }
 
 	inline virtual FVector GetMoveDirection() const override { return moveDirection_; }
 	inline float GetMoveSpeed() const override { return moveSpeed_; }
@@ -118,12 +125,24 @@ protected:
 	float wheelbase_ = 100.0f;
 
 	UFUNCTION(BlueprintNativeEvent)
-	void Far();
-	void Far_Implementation() {}
+	void BpOnFar();
+	void BpOnFar_Implementation() {}
 
 	UFUNCTION(BlueprintNativeEvent)
-	void Near();
-	void Near_Implementation() {}
+	void BpOnNear();
+	void BpOnNear_Implementation() {}
+
+	UFUNCTION(BlueprintNativeEvent)
+	int BpGetVariantId() const;
+	int BpGetVariantId_Implementation() { return 0; }
+
+	UFUNCTION(BlueprintNativeEvent)
+	void BpSetVariantId(int variantId);
+	void BpSetVariantId_Implementation(int variantId) {}
+
+	UFUNCTION(BlueprintNativeEvent)
+	int BpNumVariants() const;
+	int BpNumVariants_Implementation() { return 0; }
 
 	virtual void BeginPlay() override;
 	virtual void BeginDestroy() override;

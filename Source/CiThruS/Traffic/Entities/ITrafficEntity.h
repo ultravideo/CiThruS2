@@ -33,7 +33,11 @@ public:
 	virtual void OnEnteredYieldArea(ATrafficYieldArea* stopArea) = 0;
 	virtual void OnExitedYieldArea(ATrafficYieldArea* stopArea) = 0;
 
+	// Called when a LodController determines the traffic entity goes far away from the camera or offscreen.
+	// Can be used for optimization to disable things that aren't needed when the traffic entity isn't visible
 	virtual void OnFar() { }
+	// Called when a LodController determines the traffic entity returns near the camera or onscreen.
+	// Can be used to re-enable things that were disabled through OnFar
 	virtual void OnNear() { }
 
 	virtual void UpdateBlockingCollisionWith(ITrafficEntity* otherEntity) = 0;
@@ -53,6 +57,14 @@ public:
 	virtual CollisionRectangle GetPredictedFutureCollisionRectangle() const = 0;
 
 	virtual FString GetName() const = 0;
+
+	// A single traffic entity actor can have multiple variants, e.g. different colors of the same model.
+	// Each variant should correspond to a unique ID (unique to the actor, not globally) so that it can
+	// be used to spawn a specific variant when needed, e.g. spawn a red car every time in a scenario
+	// instead of a random color
+	virtual int GetVariantId() const = 0;
+	virtual void SetVariantId(int variantId) = 0;
+	virtual int NumVariants() const = 0;
 
 	virtual int32 GetKeypointRuleExceptions() const { return 0; }
 	virtual std::pair<int32, int32> GetCurrentZone() const { return currentZone_; }

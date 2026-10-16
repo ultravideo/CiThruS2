@@ -299,8 +299,7 @@ APedestrian* ATrafficController::SpawnPedestrian(const FVector& position, const 
 
 	if (pedestrianVariant >= 0)
 	{
-		// TODO
-		//pedestrian->SetVariantId(pedestrianVariant);
+		pedestrian->SetVariantId(pedestrianVariant);
 	}
 
 #if WITH_EDITOR
@@ -366,8 +365,7 @@ ABicycle* ATrafficController::SpawnBicycle(const FVector& position, const FRotat
 
 	if (bicycleVariant >= 0)
 	{
-		// TODO
-		// bicycle->SetVariantId(bicycleVariant);
+		bicycle->SetVariantId(bicycleVariant);
 	}
 
 #if WITH_EDITOR
@@ -430,8 +428,7 @@ ATram* ATrafficController::SpawnTram(const FVector& position, const FRotator& ro
 
 	if (tramVariant >= 0)
 	{
-		// TODO
-		// tram->SetVariantId(tramVariant);
+		tram->SetVariantId(tramVariant);
 	}
 
 #if WITH_EDITOR
@@ -561,8 +558,8 @@ void ATrafficController::SpawnCars()
 		ACar* defaultEmergencyVehicleObject = emergencyVehicleActor_.GetDefaultObject();
 
 		int32 ruleExceptions = defaultEmergencyVehicleObject->GetKeypointRuleExceptions();
-		// TODO
-		int variant = -1;
+		int numVariants = defaultEmergencyVehicleObject->NumVariants();
+		int variant = numVariants > 0 ? rng_->RandRange(0, numVariants - 1) : -1;
 
 		int fs = 0;
 
@@ -600,8 +597,8 @@ void ATrafficController::SpawnCars()
 		}
 
 		int32 ruleExceptions = defaultCarObject->GetKeypointRuleExceptions();
-		// TODO
-		int variant = -1;
+		int numVariants = defaultCarObject->NumVariants();
+		int variant = numVariants > 0 ? rng_->RandRange(0, numVariants - 1) : -1;
 
 		int fs = 0;
 
@@ -661,8 +658,8 @@ void ATrafficController::SpawnTrams()
 			continue;
 		}
 
-		// TODO
-		int variant = -1;
+		int numVariants = defaultTramObject->NumVariants();
+		int variant = numVariants > 0 ? rng_->RandRange(0, numVariants - 1) : -1;
 
 		SpawnTram(tramwayGraph_.GetKeypointPosition(spawnIndex), tramwayGraph_.GetKeypointRotation(spawnIndex), true, templateTram, variant);
 	}
@@ -704,8 +701,8 @@ void ATrafficController::SpawnPedestrians()
 			continue;
 		}
 
-		// TODO
-		int variant = -1;
+		int numVariants = defaultPedestrianObject->NumVariants();
+		int variant = numVariants > 0 ? rng_->RandRange(0, numVariants - 1) : -1;
 
 		SpawnPedestrian(position, FRotator::ZeroRotator, true, templatePedestrian, variant);
 	}
@@ -747,8 +744,8 @@ void ATrafficController::SpawnBicycles()
 			continue;
 		}
 
-		// TODO
-		int variant = -1;
+		int numVariants = defaultBicycleObject->NumVariants();
+		int variant = numVariants > 0 ? rng_->RandRange(0, numVariants - 1) : -1;
 
 		SpawnBicycle(position, rotation, true, templateBicycle, variant);
 	}

@@ -105,10 +105,7 @@ void APedestrian::Tick(float deltaTime)
 
 	AAIController* aiController = Cast<AAIController>(Controller);
 	
-	if (aiController == nullptr)
-	{
-		return;
-	}
+	if (aiController == nullptr) return;
 
 	bool isCurrentlyStopped = Stopped();
 
@@ -209,16 +206,6 @@ void APedestrian::OnExitedYieldArea(ATrafficYieldArea* yieldArea)
 	{
 		shouldYield_ = false;
 	}
-}
-
-void APedestrian::OnFar()
-{
-	Far();
-}
-
-void APedestrian::OnNear()
-{
-	Near();
 }
 
 CollisionRectangle APedestrian::GetPredictedFutureCollisionRectangle() const

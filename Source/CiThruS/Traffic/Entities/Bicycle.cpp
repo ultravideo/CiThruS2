@@ -358,16 +358,6 @@ void ABicycle::OnExitedYieldArea(ATrafficYieldArea* yieldArea)
  */
 }
 
-void ABicycle::OnFar()
-{
-	Far();
-}
-
-void ABicycle::OnNear()
-{
-	Near();
-}
-
 /*
 CollisionRectangle ABicycle::GetPredictedFutureCollisionRectangle() const
 {

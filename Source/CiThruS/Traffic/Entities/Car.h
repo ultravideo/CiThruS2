@@ -86,13 +86,12 @@ public:
 	TArray<FCarVisualVariant> GetParkedVariants();
 	TArray<FCarVisualVariant> GetParkedVariants_Implementation() { return {}; }
 
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
-	int GetVariantId();
-	int GetVariantId_Implementation() { return 0; }
-
-	UFUNCTION(BlueprintNativeEvent, BlueprintCallable)
-	void SetVariantId(int variantId);
-	void SetVariantId_Implementation(int variantId) { }
+	UFUNCTION(BlueprintCallable)
+	virtual int GetVariantId() const override { return BpGetVariantId(); }
+	UFUNCTION(BlueprintCallable)
+	virtual void SetVariantId(int variantId) override { BpSetVariantId(variantId); }
+	UFUNCTION(BlueprintCallable)
+	virtual int NumVariants() const override { return BpNumVariants(); }
 
 	virtual void OnEnteredStopArea(ATrafficStopArea* stopArea) override;
 	virtual void OnExitedStopArea(ATrafficStopArea* stopArea) override;
@@ -128,7 +127,7 @@ public:
 
 	// Animation stuff
 	UFUNCTION(BlueprintCallable)
-	float GetAnimWheelRotationSpeed() { return moveSpeed_ >= 50 ? (reverseUntilPoint == -1 ? moveSpeed_ / 100 : -moveSpeed_ / 100) : 0.0f; }
+	float GetAnimWheelRotationSpeed() { return moveSpeed_ >= 50 ? (reverseUntilPoint_ == -1 ? moveSpeed_ / 100 : -moveSpeed_ / 100) : 0.0f; }
 	UFUNCTION(BlueprintCallable)
 	float GetAnimSteeringAngle();
 	UFUNCTION(BlueprintCallable)
@@ -139,10 +138,9 @@ public:
 	// Parking controls
 	// Weak: the target parking space can be streamed out while this car is still driving towards it
 	TWeakObjectPtr<AParkingSpace> spaceBeingParkedTo_ = nullptr;
-	int reverseUntilPoint = -1;
-	int reverseFromPoint = -1;
 	void ReverseUntilPoint(int point);
 	void StartReverseFromPoint(int point);
+	void ClearParkingStatus();
 	/* Wait until specified area is clear of other entities */
 	void WaitForUnobstructedDepart(FVector collisionDimensions, FVector collisionPositionOffset);
 	bool waitForUnobstructedDepart = false;
@@ -201,6 +199,9 @@ protected:
 	FVector moveDirection_;
 	float animAcceleration_ = 0.0f;
 
+	int reverseUntilPoint_ = -1;
+	int reverseFromPoint_ = -1;
+
 	ACar();
 
 	virtual void Move(const float& deltaTime);
@@ -211,12 +212,24 @@ protected:
 	virtual void Destroyed() override;
 
 	UFUNCTION(BlueprintNativeEvent)
-	void Far();
-	void Far_Implementation() { };
+	void BpOnFar();
+	void BpOnFar_Implementation() {}
 
 	UFUNCTION(BlueprintNativeEvent)
-	void Near();
-	void Near_Implementation() { };
+	void BpOnNear();
+	void BpOnNear_Implementation() {}
+
+	UFUNCTION(BlueprintNativeEvent)
+	int BpGetVariantId() const;
+	int BpGetVariantId_Implementation() { return 0; }
+
+	UFUNCTION(BlueprintNativeEvent)
+	void BpSetVariantId(int variantId);
+	void BpSetVariantId_Implementation(int variantId) {}
+
+	UFUNCTION(BlueprintNativeEvent)
+	int BpNumVariants() const;
+	int BpNumVariants_Implementation() { return 0; }
 
 	// Check if can overtake & do it
 	bool Overtake();
