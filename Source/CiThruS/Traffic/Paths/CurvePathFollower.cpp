@@ -38,25 +38,48 @@ void CurvePathFollower::Advance(const float& step)
 	AdvancePointAndProgress(currentPoint_, progressToNextPoint_, currentCurve_, step);
 	GetTurnAmount(progressToNextPoint_);
 
-	if (currentPoint_ >= PointCount() - 1)
+	if (currentPoint_ >= PointCount() - 1 && !newPathQueued_)
 	{
+		newPathQueued_ = true;
+
+		bool wasParking = false;
+
 		// End car parking sequence, if entity is car & is currently in park sequence
-		if (ACar* car = Cast<ACar>(trafficEntity_))
+		ACar* car = Cast<ACar>(trafficEntity_);
+
+		if (car != nullptr)
 		{
 			// Null if the parking space was destroyed while the car was driving towards it
 			if (AParkingSpace* spaceBeingParkedTo = car->spaceBeingParkedTo_.Get())
 			{
 				spaceBeingParkedTo->FinishParking();
+				wasParking = true;
 			}
 
 			car->spaceBeingParkedTo_ = nullptr;
-			car->reverseUntilPoint = -1;
-			car->reverseFromPoint = -1;
 		}
 
-		// Start a new path from the current keypoint if there are outbound keypoints, otherwise
-		// teleport to a new spawnpoint (teleport to a spawnpoint or get deleted & spawn new car from a parking space)
-		NewPath(path_.graph->GetOutBoundKeypoints(path_.keypoints.Last()).size() != 0);	
+		if (wasParking)
+		{
+			// Parked cars actually only spawn 2 ticks later, so also wait 2 ticks before moving this car to a new path
+			trafficEntity_->GetWorld()->GetTimerManager().SetTimerForNextTick([this, car]()
+				{
+					trafficEntity_->GetWorld()->GetTimerManager().SetTimerForNextTick([this, car]()
+						{
+							car->ClearParkingStatus();
+
+							NewPath(path_.graph->GetOutBoundKeypoints(path_.keypoints.Last()).size() != 0);
+							newPathQueued_ = false;
+						});
+				});
+		}
+		else
+		{
+			// Start a new path from the current keypoint if there are outbound keypoints, otherwise
+			// teleport to a new spawnpoint (teleport to a spawnpoint or get deleted & spawn new car from a parking space)
+			NewPath(path_.graph->GetOutBoundKeypoints(path_.keypoints.Last()).size() != 0);
+			newPathQueued_ = false;
+		}
 	}
 }
 

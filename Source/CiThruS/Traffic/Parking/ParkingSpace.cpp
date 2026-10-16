@@ -60,7 +60,14 @@ bool AParkingSpace::DepartCar()
 
 	ACar* car = parkingController_->GetTrafficController()->SpawnCar(parkedTransform.GetLocation(), FRotator(parkedTransform.GetRotation()), true, carClass_, carVariant_);
 
-	parkingController_->DestroyParkedInstance(visualInstanceId_);
+	// The car actually only spawns 2 ticks later, so also wait 2 ticks before deleting the parked car
+	GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
+		{
+			GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
+				{
+					parkingController_->DestroyParkedInstance(visualInstanceId_);
+				});
+		});
 
 	occupied_ = false;
 	visualInstanceId_ = -1;

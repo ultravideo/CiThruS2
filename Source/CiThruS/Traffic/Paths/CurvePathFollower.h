@@ -59,6 +59,7 @@ protected:
 	float progressToNextPoint_ = 0.0f;
 
 	bool makeSCurve_ = true;
+	bool newPathQueued_ = false;
 
 	void AdvancePointAndProgress(int& startPoint, float& startProgress, std::shared_ptr<ICurve>& curve, float distance) const;
 

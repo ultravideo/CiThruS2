@@ -294,7 +294,14 @@ bool AParkingLotParkingSpace::DepartCar()
 
 	ACar* car = parkingController_->GetTrafficController()->SpawnCar(customPoints[0], FRotator(vehiclePoint.GetRotation()), true, carClass_, carVariant_);
 
-	parkingController_->DestroyParkedInstance(visualInstanceId_);
+	// The car actually only spawns 2 ticks later, so also wait 2 ticks before deleting the parked car
+	GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
+		{
+			GetWorld()->GetTimerManager().SetTimerForNextTick([this]()
+				{
+					parkingController_->DestroyParkedInstance(visualInstanceId_);
+				});
+		});
 
 	// Create a custom path from parking space to closest keypoint, create a random path starting from that keypoint
 	KeypointGraph graph = parkingController_->GetTrafficController()->GetRoadGraph();
