@@ -1,0 +1,17 @@
+// The sensor_msgs/msg/MagneticField message type included by default with ROS 2
+
+#include "Vector3.idl"
+#include "Header.idl"
+
+module sensor_msgs
+{
+	module msg
+	{
+		struct MagneticField
+		{
+			std_msgs::msg::Header header;
+			geometry_msgs::msg::Vector3 magnetic_field;
+			double magnetic_field_covariance[9];
+		};
+	};
+};

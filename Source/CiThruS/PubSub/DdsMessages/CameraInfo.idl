@@ -1,0 +1,25 @@
+// The sensor_msgs/msg/CameraInfo message type included by default with ROS 2
+
+#include "RegionOfInterest.idl"
+#include "Header.idl"
+ 
+module sensor_msgs
+{
+	module msg
+	{
+		struct CameraInfo
+		{
+			std_msgs::msg::Header header;
+			uint32 height;
+			uint32 width;
+			string distortion_model;
+			sequence<double> d;
+			double k[9];
+			double r[9];
+			double p[12];
+			uint32 binning_x;
+			uint32 binning_y;
+			sensor_msgs::msg::RegionOfInterest roi;
+		};
+	};
+};

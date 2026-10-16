@@ -1,0 +1,16 @@
+// The geometry_msgs/msg/AccelStamped message type included by default with ROS 2
+
+#include "Accel.idl"
+#include "Header.idl"
+
+module geometry_msgs
+{
+	module msg
+	{
+		struct AccelStamped
+		{
+			std_msgs::msg::Header header;
+			geometry_msgs::msg::Accel accel;
+		};
+	};
+};

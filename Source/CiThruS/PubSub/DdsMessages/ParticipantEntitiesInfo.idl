@@ -1,0 +1,39 @@
+module rmw_dds_common
+{
+  module msg
+  {
+    @extensibility(FINAL)
+	struct Gid
+	{
+	  uint8 data[16];
+	};
+  };
+};
+
+module rmw_dds_common
+{
+  module msg
+  {
+    @extensibility(FINAL)
+	struct NodeEntitiesInfo
+	{
+	  string<256> node_namespace;
+	  string<256> node_name;
+	  sequence<rmw_dds_common::msg::Gid> reader_gid_seq;
+	  sequence<rmw_dds_common::msg::Gid> writer_gid_seq;
+	};
+  };
+};
+
+module rmw_dds_common
+{
+  module msg
+  {
+    @extensibility(FINAL)
+	struct ParticipantEntitiesInfo
+	{
+	  rmw_dds_common::msg::Gid gid;
+	  sequence<rmw_dds_common::msg::NodeEntitiesInfo> node_entities_info_seq;
+	};
+  };
+};

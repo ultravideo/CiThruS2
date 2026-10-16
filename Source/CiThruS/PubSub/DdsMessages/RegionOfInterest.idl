@@ -1,0 +1,16 @@
+// The sensor_msgs/msg/RegionOfInterest message type included by default with ROS 2
+
+module sensor_msgs
+{
+	module msg
+	{
+		struct RegionOfInterest
+		{
+			uint32 x_offset;
+			uint32 y_offset;
+			uint32 height;
+			uint32 width;
+			boolean do_rectify;
+		};
+	};
+};

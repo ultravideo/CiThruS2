@@ -1,0 +1,14 @@
+// The geometry_msgs/msg/Vector3 message type included by default with ROS 2
+
+module geometry_msgs
+{
+	module msg
+	{
+		struct Vector3
+		{
+			double x;
+			double y;
+			double z;
+		};
+	};
+};

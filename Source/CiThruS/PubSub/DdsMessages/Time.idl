@@ -1,0 +1,13 @@
+// The builtin_interfaces/msg/Time message type included by default with ROS 2
+
+module builtin_interfaces
+{
+	module msg
+	{
+		struct Time
+		{
+			int32 sec;
+			uint32 nanosec;
+		};
+	};
+};
