@@ -69,6 +69,12 @@ public:
 	bool saveToFile_ = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General Stream Settings")
+	bool streamWithDds_ = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General Stream Settings")
+	FString ddsTopic_ = "CiThruS2/camera";
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General Stream Settings")
 	bool enableSegmentation_ = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General Stream Settings")
@@ -94,6 +100,18 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "360 Stream Settings")
 	bool bilinearFiltering_ = true;
+
+	UFUNCTION(BlueprintCallable)
+	bool NvencAvailable();
+
+	UFUNCTION(BlueprintCallable)
+	bool StreamingAvailable();
+
+	UFUNCTION(BlueprintCallable)
+	bool DdsAvailable();
+
+	UFUNCTION(BlueprintCallable)
+	bool SavingAvailable();
 
 private:
 	TArray<USceneCaptureComponent2D*> cubemapCameras_;

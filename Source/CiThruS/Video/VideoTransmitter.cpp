@@ -1,6 +1,8 @@
 #include "VideoTransmitter.h"
 
 #include "Pipeline/Pipeline.h"
+#include "Pipeline/AsyncPipelineRunner.h"
+
 #include "Pipeline/Components/HevcEncoder.h"
 #include "Pipeline/Components/NvencHevcEncoder.h"
 #include "Pipeline/Components/RtpTransmitter.h"
@@ -14,14 +16,17 @@
 #include "Pipeline/Components/FileSink.h"
 #include "Pipeline/Components/SegmentationAnalyzer.h"
 #include "Pipeline/Components/JsonLogger.h"
+#include "Pipeline/Components/DdsSink.h"
+
 #include "Pipeline/Scaffolding/SequentialFilter.h"
 #include "Pipeline/Scaffolding/SequentialSink.h"
 #include "Pipeline/Scaffolding/ParallelSink.h"
 #include "Pipeline/Scaffolding/ParallelFilter.h"
 #include "Pipeline/Scaffolding/PassthroughFilter.h"
-#include "Pipeline/AsyncPipelineRunner.h"
-#include "ViewSynthesis/PubSubCommunicator.h"
+
+#include "PubSub/PubSubCommunicator.h"
 #include "SegmentationController.h"
+#include "Optional/FastDds.h"
 
 #include "Misc/Debug.h"
 #include "HAL/IConsoleManager.h"
@@ -57,6 +62,26 @@ AVideoTransmitter::AVideoTransmitter()
 	normalCamera_->SetupAttachment(RootComponent);
 
 	PrimaryActorTick.bCanEverTick = true;
+}
+
+bool AVideoTransmitter::NvencAvailable()
+{
+	return Optional::NvencAvailable();
+}
+
+bool AVideoTransmitter::StreamingAvailable()
+{
+	return (Optional::NvencAvailable() || Optional::KvazaarAvailable()) && Optional::UvgRtpAvailable();
+}
+
+bool AVideoTransmitter::DdsAvailable()
+{
+	return Optional::FastDdsAvailable();
+}
+
+bool AVideoTransmitter::SavingAvailable()
+{
+	return Optional::FpngAvailable();
 }
 
 void AVideoTransmitter::PostRegisterAllComponents()
@@ -233,19 +258,31 @@ bool AVideoTransmitter::StartStreams()
 						new BgraToRgbaConverter(),
 						new PngRecorder(TCHAR_TO_UTF8(*saveDirectory_), frameWidth_, frameHeight_)));
 			}
+			else if (streamWithDds_)
+			{
+				runner_ = new AsyncPipelineRunner(
+					new Pipeline(
+						reader_,
+						new Equirectangular360Converter(widthAndHeightPerCaptureSide_, widthAndHeightPerCaptureSide_,
+							frameWidth_, frameHeight_, bilinearFiltering_),
+						new DdsSink(TCHAR_TO_UTF8(*ddsTopic_), frameWidth_, frameHeight_, fov_)));
+			}
 			else
 			{
 				PipelineFilter<1, 1>* encoder = nullptr;
 
 				if (useNvenc_)
 				{
-#ifdef CITHRUS_NVENC_AVAILABLE
-					encoder = new NvencHevcEncoder(frameWidth_, frameHeight_,
-						static_cast<uint8_t>(quantizationParameter_),
-						HevcPresetMinimumLatency, streamFrameRate_);
-#else
-					Debug::Log("NVENC requested but not available. Falling back to software encoder");
-#endif
+					if (NvencAvailable())
+					{
+						encoder = new NvencHevcEncoder(frameWidth_, frameHeight_,
+							static_cast<uint8_t>(quantizationParameter_),
+							HevcPresetMinimumLatency, streamFrameRate_);
+					}
+					else
+					{
+						Debug::Log("NVENC requested but not available. Falling back to software encoder");
+					}
 				}
 
 				if (encoder == nullptr)
@@ -313,6 +350,15 @@ bool AVideoTransmitter::StartStreams()
 							new BgraToRgbaConverter(),
 							new PngRecorder(TCHAR_TO_UTF8(*saveDirectory_), frameWidth_, frameHeight_)));
 				}
+			}
+			else if (streamWithDds_)
+			{
+				reader_ = new RenderTargetReader(renderTargets);
+
+				runner_ = new AsyncPipelineRunner(
+					new Pipeline(
+						reader_,
+						new DdsSink(TCHAR_TO_UTF8(*ddsTopic_), frameWidth_, frameHeight_, fov_)));
 			}
 			else
 			{
