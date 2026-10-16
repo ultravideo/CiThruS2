@@ -10,6 +10,9 @@ OPENHEVC_VER="ffmpeg_update"
 FPNG_VER="1.0.6"
 PAHO_C_VER="1.3.15"
 PAHO_CPP_VER="1.5.3"
+FOONATHAN_MEMORY_VER="0.7-4"
+FASTDDS_VER="3.6.2"
+FASTDDSGEN_VER="4.3.0.0"
 CITHRUS_CONTENT_VER="24_11_2025"
 
 COLOR_FAILURE="\033[1;31m"
@@ -605,6 +608,107 @@ setup_pahocpp()
     echo -e "${COLOR_SUCCESS}Eclipse Paho successfully set up.${COLOR_RESET}"
 }
 
+setup_fastdds()
+{
+    if ! dependency_missing ThirdParty/FastDDS "eProsima Fast DDS"
+    then
+        return 0
+    fi
+
+    echo "Setting up eProsima Fast DDS..."
+
+    # Set up dependencies
+    echo "Setting up dependencies for eProsima Fast DDS..."
+
+    find_clang || return 1
+    find_openssl || return 1
+
+    echo "Downloading Foonathan Memory..."
+    wget -O temp/foonathan_memory.tar.gz https://github.com/foonathan/memory/archive/refs/tags/v${FOONATHAN_MEMORY_VER}.tar.gz || { download_failed "Foonathan Memory" && return 1; }
+    echo "Extracting Foonathan Memory..."
+    tar -xzvf temp/foonathan_memory.tar.gz -C temp
+    rm temp/foonathan_memory.tar.gz
+
+    echo "Building Foonathan Memory..."
+    mkdir temp/memory-${FOONATHAN_MEMORY_VER}/build
+    cmake temp/memory-${FOONATHAN_MEMORY_VER} -Btemp/memory-${FOONATHAN_MEMORY_VER}/build -DCMAKE_INSTALL_PREFIX="${ROOT_DIR}/temp/foonathan_memory" -DFOONATHAN_MEMORY_BUILD_EXAMPLES=OFF -DFOONATHAN_MEMORY_BUILD_TESTS=OFF "${CMAKE_UE_BUILD_ENV_ARGS[@]}" || { build_failed "Foonathan Memory" && return 1; }
+    cmake --build temp/memory-${FOONATHAN_MEMORY_VER}/build --target install --config Release || { build_failed "Foonathan Memory" && return 1; }
+
+    # Fast DDS finds Foonathan Memory through this environment variable
+    export foonathan_memory_DIR="${ROOT_DIR}/temp/foonathan_memory"
+
+    echo "Dependencies for eProsima Fast DDS successfully set up."
+
+    # Download
+    echo "Downloading eProsima Fast DDS main repository..."
+    git clone https://github.com/eProsima/Fast-DDS.git temp/Fast-DDS || { download_failed "Fast DDS" && return 1; }
+    cd temp/Fast-DDS
+    git checkout tags/v${FASTDDS_VER}
+
+    echo "Downloading eProsima Fast DDS submodules..."
+    git submodule init || { download_failed "FastDDS submodules" && return 1; }
+    git submodule update || { download_failed "FastDDS submodules" && return 1; }
+    cd ../..
+
+    # Build
+    echo "Building eProsima Fast DDS..."
+    mkdir temp/Fast-DDS/build
+    cmake temp/Fast-DDS -Btemp/Fast-DDS/build -DCMAKE_INSTALL_PREFIX="${ROOT_DIR}/temp/fastdds" -DTHIRDPARTY_fastcdr=FORCE -DTHIRDPARTY_Asio=FORCE -DTHIRDPARTY_TinyXML2=FORCE -DSQLITE3_SUPPORT=OFF -DBUILD_SHARED_LIBS=OFF "${CMAKE_UE_BUILD_ENV_ARGS[@]}" || { build_failed "Fast DDS" && return 1; }
+    cmake --build temp/Fast-DDS/build --target install --config Release || { build_failed "Fast DDS" && return 1; }
+    
+    # Fast DDS-Gen doesn't work with newer JDK versions
+    echo "Downloading OpenJDK 19..."
+    wget -O temp/openjdk.tar.gz https://download.java.net/java/GA/jdk19/877d6127e982470ba2a7faa31cc93d04/36/GPL/openjdk-19_linux-x64_bin.tar.gz || { download_failed "OpenJDK 19" && return 1; }
+    echo "Extracting OpenJDK 19..."
+    tar -xzvf temp/openjdk.tar.gz -C temp
+    rm temp/openjdk.tar.gz
+
+    # gradlew finds Java through this environment variable
+    export JAVA_HOME="${ROOT_DIR}/temp/jdk-19"
+
+    echo "Downloading eProsima Fast DDS-Gen..."
+    git clone --recursive https://github.com/eProsima/Fast-DDS-Gen.git temp/fastddsgen || { download_failed "Fast DDS-Gen" && return 1; }
+    cd temp/fastddsgen
+    git checkout tags/v${FASTDDSGEN_VER}
+
+    echo "Building eProsima Fast DDS-Gen..."
+    ./gradlew assemble
+    # Gradle keeps running in the background, so stop it
+    ./gradlew --stop
+    cd ../..
+
+    # Only check this after the Gradle commands to ensure we don't jump out of this function before the Gradle daemon is stopped and the working directory is back to normal
+    if [[ ! -f temp/fastddsgen/share/fastddsgen/java/fastddsgen.jar ]]
+    then
+        build_failed "Fast DDS-Gen" && return 1
+    fi
+
+    # Copy results
+    mkdir -p ThirdParty/FastDDS/Bin
+    mkdir -p ThirdParty/FastDDS/Lib
+    mkdir -p ThirdParty/FastDDS/Include
+    mkdir -p ThirdParty/FastDDS/Java
+
+    cp temp/Fast-DDS/LICENSE ThirdParty/FastDDS
+    cp temp/fastdds/lib/*.a ThirdParty/FastDDS/Lib
+    cp temp/foonathan_memory/lib/*.a ThirdParty/FastDDS/Lib
+    cp -r temp/fastdds/include/* ThirdParty/FastDDS/Include
+
+    cp temp/fastddsgen/share/fastddsgen/java/fastddsgen.jar ThirdParty/FastDDS/Bin 
+    cp -r temp/jdk-19/* ThirdParty/FastDDS/Java
+
+    # Finish
+    echo "Cleaning up eProsima Fast DDS files..."
+    rm -rf temp/Fast-DDS
+    rm -rf temp/memory-${FOONATHAN_MEMORY_VER}
+    rm -rf temp/foonathan_memory
+    rm -rf temp/fastdds
+    rm -rf temp/fastddsgen
+    rm -rf temp/jdk-19
+
+    echo -e "${COLOR_SUCCESS}eProsima Fast DDS successfully set up.${COLOR_RESET}"
+}
+
 ROOT_DIR=$(pwd)
 ANY_FAILED=0
 
@@ -624,6 +728,7 @@ setup_openhevc
 setup_uvgrtp
 setup_fpng
 setup_pahocpp
+setup_fastdds
 
 if [[ ! -d "Content" ]]
 then

@@ -30,6 +30,7 @@ public class CiThruS : ModuleRules
 		var openssl_base_path = Path.Combine(thirdparty_directory, "OpenSSL/");
 		var pahocpp_base_path = Path.Combine(thirdparty_directory, "PahoCpp/");
 		var nvenc_base_path = Path.Combine(thirdparty_directory, "NVENC/");
+		var fastdds_base_path = Path.Combine(thirdparty_directory, "FastDDS/");
 		
         if (Target.Platform == UnrealTargetPlatform.Win64)
         {
@@ -39,6 +40,9 @@ public class CiThruS : ModuleRules
 			AddStaticLibraryIfExists(Path.Combine(fpng_base_path, "Lib/fpng.lib"));
 			AddStaticLibraryIfExists(Path.Combine(pahocpp_base_path, "Lib/paho-mqttpp3-static.lib"));
 			AddStaticLibraryIfExists(Path.Combine(pahocpp_base_path, "Lib/paho-mqtt3as-static.lib"));
+            AddStaticLibraryIfExists(Path.Combine(fastdds_base_path, "Lib/libfastcdr-2.3.lib"));
+            AddStaticLibraryIfExists(Path.Combine(fastdds_base_path, "Lib/libfastdds-3.6.lib"));
+            AddStaticLibraryIfExists(Path.Combine(fastdds_base_path, "Lib/foonathan_memory-0.7.4.lib"));
             AddStaticLibraryIfExists(Path.Combine(nvenc_base_path, "Lib/nvencodeapi.lib"));
             // This should be delay loaded in case it doesn't exist (i.e. when Nvidia drivers aren't installed)
             // Otherwise CiThruS fails to start entirely without it
@@ -56,16 +60,24 @@ public class CiThruS : ModuleRules
 			AddStaticLibraryIfExists(Path.Combine(fpng_base_path, "Lib/fpng.a"));
 			AddStaticLibraryIfExists(Path.Combine(pahocpp_base_path, "Lib/libpaho-mqttpp3.a"));
 			AddStaticLibraryIfExists(Path.Combine(pahocpp_base_path, "Lib/libpaho-mqtt3as.a"));
+			AddStaticLibraryIfExists(Path.Combine(fastdds_base_path, "Lib/libfastcdr.a"));
+			AddStaticLibraryIfExists(Path.Combine(fastdds_base_path, "Lib/libfastdds.a"));
+			AddStaticLibraryIfExists(Path.Combine(fastdds_base_path, "Lib/libfoonathan_memory-0.7.4.a"));
         }
 		
 		// These are needed to use static libraries
 		PublicDefinitions.Add("KVZ_STATIC_LIB=1");
+
+        // These are needed to use dynamic libraries
+        /*PublicDefinitions.Add("FASTCDR_DYN_LINK=1");
+        PublicDefinitions.Add("FASTDDS_DYN_LINK=1");*/
 
         // This lets us #include files with their path from the root folder which makes includes more convenient and consistent between files
         PublicIncludePaths.Add(ModuleDirectory);
 		PublicIncludePaths.Add(thirdparty_directory);
 		
 		PublicIncludePaths.Add(Path.Combine(pahocpp_base_path, "Include/"));
+		PublicIncludePaths.Add(Path.Combine(fastdds_base_path, "Include/"));
         PublicIncludePaths.Add(Path.Combine(uvgrtp_base_path, "Include/"));
 
         PublicDependencyModuleNames.AddRange(
