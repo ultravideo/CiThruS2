@@ -5,3 +5,15 @@
 #else
 #pragma message (__FILE__ ": warning: SSE4.1 instructions not available. Relevant optimizations are disabled")
 #endif // defined(...)
+
+namespace Optional
+{
+	inline bool Sse41Available()
+	{
+#ifdef CITHRUS_SSE41_AVAILABLE
+		return true;
+#else
+		return false;
+#endif // CITHRUS_SSE41_AVAILABLE
+	}
+}

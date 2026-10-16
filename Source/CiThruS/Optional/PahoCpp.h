@@ -22,3 +22,15 @@
 #else
 #pragma message (__FILE__ ": warning: Eclipse Paho MQTT C++ client library not found, MQTT is unavailable")
 #endif // __has_include(...)
+
+namespace Optional
+{
+	inline bool PahoCppAvailable()
+	{
+#ifdef CITHRUS_PAHOCPP_AVAILABLE
+		return true;
+#else
+		return false;
+#endif // CITHRUS_PAHOCPP_AVAILABLE
+	}
+}

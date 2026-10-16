@@ -27,6 +27,20 @@
 #pragma message (__FILE__ ": warning: NVIDIA Video Codec SDK not found, NVENC HEVC encoding is unavailable")
 #endif // __has_include(...)
 
+namespace Optional
+{
+	inline bool NvencAvailable()
+	{
+#if defined(_WIN32) && defined(CITHRUS_NVENC_AVAILABLE)
+		// This DLL is included with NVIDIA drivers, so if it doesn't load, it probably means NVIDIA drivers aren't
+		// installed. Which in turn probably means the GPU isn't from NVIDIA and NVENC can't be used on this computer
+		return LoadLibraryEx(L"nvEncodeAPI64.dll", nullptr, 0) != nullptr;
+#else
+		return false;
+#endif // defined(_WIN32) && defined(CITHRUS_NVENC_AVAILABLE)
+	}
+}
+
 // NVENC includes windows.h which defines a macro called UpdateResource which
 // breaks Unreal Engine's texture classes as they also contain a function
 // called UpdateResource. The macro must be undefined for CiThruS to compile

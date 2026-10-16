@@ -15,8 +15,13 @@
 #endif // _WIN32
 
 #if __has_include("uvgRTP/Include/lib.hh")
+// Pre-4.0.0 uvgRTP 
 #define CITHRUS_UVGRTP_AVAILABLE
 #include "uvgRTP/Include/lib.hh"
+#elif __has_include("uvgrtp/lib.hh")
+// uvgRTP 4.0.0 and onward
+#define CITHRUS_UVGRTP_AVAILABLE
+#include "uvgrtp/lib.hh"
 #else
 #pragma message (__FILE__ ": warning: uvgRTP not found, RTP streaming is unavailable")
 #endif // __has_include(...)
@@ -27,3 +32,15 @@
 #if defined(_WIN32) && defined(CITHRUS_UVGRTP_AVAILABLE)
 #undef UpdateResource
 #endif
+
+namespace Optional
+{
+	inline bool UvgRtpAvailable()
+	{
+#ifdef CITHRUS_UVGRTP_AVAILABLE
+		return true;
+#else
+		return false;
+#endif // CITHRUS_UVGRTP_AVAILABLE
+	}
+}
