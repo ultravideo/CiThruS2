@@ -1,11 +1,13 @@
-#include "BlinkerSource.h"
+#include "StopwatchBlinker.h"
+#include "Misc/LoggingStopwatch.h"
 
 #include <algorithm>
 #include <array>
 #include <chrono>
 #include <fstream>
 
-BlinkerSource::BlinkerSource(const uint16_t& width, const uint16_t& height, const double& frequency, const std::string& logPath, const std::string& format) : bufferIndex_(1), nsBetweenSwaps_(500000000.0 / frequency)
+StopwatchBlinker::StopwatchBlinker(LoggingStopwatch* stopwatch, const uint16_t& width, const uint16_t& height, const std::string& format)
+	: bufferIndex_(0), stopwatch_(stopwatch)
 {
 	if (format == "bgra" || format == "rgba")
 	{
@@ -29,39 +31,27 @@ BlinkerSource::BlinkerSource(const uint16_t& width, const uint16_t& height, cons
 	}
 
 	GetOutputPin<0>().SetData(frameBuffers_[0]);
-
-	if (logPath != "")
-	{
-		logStream_ = std::ofstream(logPath, std::ios_base::out);
-	}
 }
 
-BlinkerSource::~BlinkerSource()
+StopwatchBlinker::~StopwatchBlinker()
 {
 	delete[] frameBuffers_[0];
 	delete[] frameBuffers_[1];
 
 	frameBuffers_[0] = nullptr;
 	frameBuffers_[1] = nullptr;
-
-	if (logStream_.is_open())
-	{
-		logStream_.close();
-	}
 }
 
-void BlinkerSource::Process()
+void StopwatchBlinker::Process()
 {
-	uint64_t now = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::high_resolution_clock::now().time_since_epoch()).count();
-
-	if ((now / nsBetweenSwaps_) % 2 == bufferIndex_)
+	if (stopwatch_->IsLapActive())
 	{
 		return;
 	}
 
-	logStream_ << now << " " << (bufferIndex_ == 1 ? "white" : "black") << std::endl;
-
 	// Alternate between black and white
-	GetOutputPin<0>().SetData(frameBuffers_[bufferIndex_]);
 	bufferIndex_ = (bufferIndex_ + 1) % 2;
+	GetOutputPin<0>().SetData(frameBuffers_[bufferIndex_]);
+
+	stopwatch_->StartLap();
 }
