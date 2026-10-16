@@ -2,7 +2,7 @@
 
 #include <filesystem>
 
-FileSink::FileSink(const std::string& filePath) : fileHandle_(nullptr)
+FileSink::FileSink(const std::string& filePath)
 {
 	GetInputPin<0>().Initialize(this);
 
@@ -32,9 +32,9 @@ FileSink::FileSink(const std::string& filePath) : fileHandle_(nullptr)
 		}
 	}
 
-	fileHandle_ = fopen(filePath.data(), "ab");
+	fileStream_ = std::ofstream(filePath, std::ios_base::binary | std::ios_base::app | std::ios_base::out);
 
-	if (fileHandle_ == nullptr)
+	if (!fileStream_.is_open())
 	{
 		throw std::logic_error("Failed to open file");
 
@@ -44,9 +44,7 @@ FileSink::FileSink(const std::string& filePath) : fileHandle_(nullptr)
 
 FileSink::~FileSink()
 {
-	fclose(fileHandle_);
-
-	fileHandle_ = nullptr;
+	fileStream_.close();
 }
 
 void FileSink::Process()
@@ -59,5 +57,5 @@ void FileSink::Process()
 		return;
 	}
 
-	fwrite(inputData, 1, inputSize, fileHandle_);
+	fileStream_.write(reinterpret_cast<const char*>(inputData), inputSize);
 }

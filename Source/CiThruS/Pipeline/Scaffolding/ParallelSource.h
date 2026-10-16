@@ -32,11 +32,6 @@ public:
 
 		ProxyBase::components_ = { sources... };
 
-		TemplateUtility::For<NOutputs>([&, this]<uint8_t i>()
-		{
-			this->template GetInputPin<i>().AcceptAnyFormat();
-		});
-
 		ProxySourceBase<NOutputs>::pushOutputData_ = [this, sources...]()
 			{
 				PushOutputs<0>(sources...);
@@ -54,7 +49,7 @@ protected:
 		// Set pin formats for currentSource
 		TemplateUtility::For<NCurrentOutputs>([&]<uint8_t i>()
 		{
-			this->template GetOutputPin<NProcessedOutputs + i>().SetFormat(currentSource->template GetOutputPin<i>().GetFormat());
+			this->template GetOutputPin<NProcessedOutputs + i>().Initialize(this, currentSource->template GetOutputPin<i>().GetFormat());
 		});
 
 		// Recursively process the next source

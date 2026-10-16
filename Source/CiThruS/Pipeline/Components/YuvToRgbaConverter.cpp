@@ -190,10 +190,10 @@ void YuvToRgbaConverter::YuvToRgbaSse41(const uint8_t* input, uint8_t** output, 
 
         __m128i aLuma = _mm_shuffle_epi8(yA, lumaShuffleMask_);
 
-        __m128i uA;
-        __m128i vA;
-        __m128i uChroma;
-        __m128i vChroma;
+        __m128i uA{};
+        __m128i vA{};
+        __m128i uChroma{};
+        __m128i vChroma{};
 
         // For every second row
         if (!row)

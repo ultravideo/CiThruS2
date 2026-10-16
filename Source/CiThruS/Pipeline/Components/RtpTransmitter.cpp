@@ -5,7 +5,7 @@ RtpTransmitter::RtpTransmitter(const std::string& ip, const int& dstPort, const 
 {
 #ifdef CITHRUS_UVGRTP_AVAILABLE
 	streamSession_ = streamContext_.create_session(ip);
-	stream_ = streamSession_->create_stream(0, dstPort, RTP_FORMAT_H265, RCE_PACE_FRAGMENT_SENDING);
+	stream_ = streamSession_->create_stream(0, dstPort, RTP_FORMAT_H265, RCE_SEND_ONLY | RCE_PACE_FRAGMENT_SENDING);
 
 	if (!stream_)
 	{

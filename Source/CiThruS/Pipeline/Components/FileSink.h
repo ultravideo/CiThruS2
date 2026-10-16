@@ -6,7 +6,7 @@
 #include <string>
 #include <thread>
 #include <mutex>
-#include <stdio.h>
+#include <fstream>
 
 // Records generic data into files
 class CITHRUS_API FileSink : public PipelineSink<1>
@@ -18,5 +18,5 @@ public:
 	virtual void Process() override;
 
 protected:
-	FILE* fileHandle_;
+	std::ofstream fileStream_;
 };

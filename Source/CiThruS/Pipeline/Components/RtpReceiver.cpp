@@ -7,7 +7,7 @@ RtpReceiver::RtpReceiver(const std::string& ip, const int& srcPort) : destroyed_
 	currentFrame_ = nullptr;
 
 	streamSession_ = streamContext_.create_session({ "0.0.0.0", ip });
-	stream_ = streamSession_->create_stream(srcPort, 0, RTP_FORMAT_H265, RCE_NO_FLAGS);
+	stream_ = streamSession_->create_stream(srcPort, 0, RTP_FORMAT_H265, RCE_RECEIVE_ONLY);
 
 	if (!stream_)
 	{
