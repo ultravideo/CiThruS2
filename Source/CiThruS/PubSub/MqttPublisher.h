@@ -20,7 +20,7 @@ public:
 
 	virtual void Publish(
 		const std::string& topic,
-		uint8_t* data, const size_t& size) override;
+		UStruct* structType, void* structData) override;
 
 protected:
 	const static uint32_t CONNECTION_RETRY_DELAY_MS = 5000;

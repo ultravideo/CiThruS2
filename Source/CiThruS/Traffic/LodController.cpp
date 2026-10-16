@@ -1,7 +1,7 @@
 #include "LodController.h"
 #include "Traffic/Entities/ITrafficEntity.h"
 #include "TrafficController.h"
-#include "ViewSynthesis/PubSubCommunicator.h"
+#include "PubSub/PubSubCommunicator.h"
 #include "Parking/ParkingController.h"
 #include "Parking/ParkingSpace.h"
 #include "Misc/CameraUtility.h"

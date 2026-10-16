@@ -2,7 +2,7 @@
 //#include "ChaosVehicleWheel.h"
 //#include "ChaosWheeledVehicleMovementComponent.h"
 #include "GameFramework/MovementComponent.h"
-#include "ViewSynthesis/PubSubCommunicator.h"
+#include "PubSub/PubSubCommunicator.h"
 #include "Misc/Debug.h"
 
 void APlayerVehicleController::OnPossess(APawn* InPawn)

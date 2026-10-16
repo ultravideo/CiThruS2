@@ -18,10 +18,11 @@
 #include "Pipeline/Components/SolidColorImageGenerator.h"
 #include "Pipeline/Components/RtpTransmitter.h"
 #include "Pipeline/Components/RtpReceiver.h"
-#include "Pipeline/Components/BlinkerSource.h"
-#include "Pipeline/Components/BlinkDetector.h"
+#include "Pipeline/Components/StopwatchBlinker.h"
+#include "Pipeline/Components/StopwatchBlinkGoal.h"
 #include "Pipeline/Components/PngRecorder.h"
 #include "Pipeline/Components/FileSink.h"
+#include "Pipeline/Components/NullSink.h"
 
 #include "Pipeline/Scaffolding/PassthroughFilter.h"
 #include "Pipeline/Scaffolding/DuplicatorFilter.h"
@@ -31,7 +32,9 @@
 #include "Pipeline/Scaffolding/ParallelFilter.h"
 #include "Pipeline/Scaffolding/ParallelSource.h"
 #include "Pipeline/Scaffolding/ParallelSink.h"
+#include "Pipeline/Scaffolding/SpliceFilter.h"
 
+#include "Misc/LoggingStopwatch.h"
 #include "Misc/Debug.h"
 
 #include "RHI.h"
@@ -61,6 +64,16 @@ AViewSynthesizer::AViewSynthesizer()
     //PrimaryActorTick.TickGroup = TG_PostUpdateWork;
 }
 
+bool AViewSynthesizer::StreamingAvailable()
+{
+    return Optional::KvazaarAvailable() && Optional::UvgRtpAvailable();
+}
+
+bool AViewSynthesizer::SavingAvailable()
+{
+    return Optional::FpngAvailable();
+}
+
 void AViewSynthesizer::PostRegisterAllComponents()
 {
     Super::PostRegisterAllComponents();
@@ -84,6 +97,8 @@ void AViewSynthesizer::PostRegisterAllComponents()
     rearCamera_->bCaptureEveryFrame = false;
     rearCamera_->bCaptureOnMovement = false;
     //rearCamera_->ShowFlags.DynamicShadows = false;
+
+    latencyStopwatch_ = nullptr;
 }
 
 void AViewSynthesizer::EndPlay(const EEndPlayReason::Type endPlayReason)
@@ -132,9 +147,23 @@ void AViewSynthesizer::StopTransmit()
 bool AViewSynthesizer::StartStreams()
 {
     // TODO: More sanity checks should be added here
-    if (saveDirectory_.IsEmpty() || saveDirectory_.Contains("\\") || saveDirectory_[saveDirectory_.Len() - 1] != '/')
+    if (saveDirectory_.IsEmpty())
     {
-        Debug::Log("Invalid directory");
+        Debug::Log("Invalid directory: Can't be empty");
+
+        return false;
+    }
+
+    if (saveDirectory_.Contains("\\"))
+    {
+        Debug::Log("Invalid directory: Use forward slashes instead of backslashes");
+
+        return false;
+    }
+
+    if (saveDirectory_[saveDirectory_.Len() - 1] != '/')
+    {
+        Debug::Log("Invalid directory: Forward slash expected as last character");
 
         return false;
     }
@@ -203,11 +232,21 @@ bool AViewSynthesizer::StartStreams()
                                     new RgbaToYuvConverter(frameWidth, frameHeight),
                                     new DepthToYuvConverter()),
                                 new ImageConcatenator<2>(frameWidth, frameHeight),
-                                new HevcEncoder(frameWidth, frameHeight * 2, 28,
+                                new HevcEncoder(frameWidth, frameHeight * 2, 16,
                                     quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_, HevcPresetMinimumLatency)),
                             new PassthroughFilter<1>()),
                         new SeiEmbedder("CiThruSViewSynth"),
                         new RtpTransmitter(TCHAR_TO_UTF8(*remoteStreamIp_), remoteStreamPort_ + 1))));
+
+            if (latencyTest_)
+            {
+                if (latencyStopwatch_ != nullptr)
+                {
+                    throw std::runtime_error("Latency test stopwatch pointer is uninitialized or hasn't been deleted correctly");
+                }
+
+                latencyStopwatch_ = new LoggingStopwatch(std::string(TCHAR_TO_UTF8(FPlatformProcess::UserDir())) + "CiThruS2/viewSynthLatency.txt");
+            }
 
             runners_.push_back(
                 new AsyncPipelineRunner(
@@ -215,11 +254,17 @@ bool AViewSynthesizer::StartStreams()
                         rearReader_,
                         new ParallelFilter(
                             new SequentialFilter(
+                                latencyStopwatch_ != nullptr
+                                    ? static_cast<PipelineFilter<1, 1>*>(
+                                        new SpliceFilter<1, 1>(
+                                            new NullSink(),
+                                            new StopwatchBlinker(latencyStopwatch_, frameWidth, frameHeight, "rgba")))
+                                    : static_cast<PipelineFilter<1, 1>*>(new PassthroughFilter<1>()),
                                 new RgbaToYuvConverter(frameWidth, frameHeight),
                                 new SidechainSource(
                                     new SolidColorImageGenerator(frameWidth, frameHeight, 0, 128, 128),
                                     new ImageConcatenator<2>(frameWidth, frameHeight)),
-                                new HevcEncoder(frameWidth, frameHeight * 2, 28,
+                                new HevcEncoder(frameWidth, frameHeight * 2, 16,
                                     quantizationParameter_, wavefrontParallelProcessing_, overlappedWavefront_, HevcPresetMinimumLatency)),
                             new PassthroughFilter<1>()),
                         new SeiEmbedder("CiThruSViewSynth"),
@@ -229,8 +274,11 @@ bool AViewSynthesizer::StartStreams()
                 new AsyncPipelineRunner(
                     new Pipeline(
                         new RtpReceiver(TCHAR_TO_UTF8(*remoteStreamIp_), remoteStreamPort_ - 1),
-                        new HevcDecoder(28),
+                        new HevcDecoder(16),
                         new YuvToRgbaConverter(frameWidth, frameHeight, "bgra"),
+                        latencyStopwatch_ != nullptr
+                            ? static_cast<PipelineFilter<1, 1>*>(new StopwatchBlinkGoal(latencyStopwatch_))
+                            : static_cast<PipelineFilter<1, 1>*>(new PassthroughFilter<1>()),
                         new RenderTargetWriter(resultRenderTarget_))));
         }
     }
@@ -254,6 +302,9 @@ void AViewSynthesizer::DeleteStreams()
     }
 
     runners_.clear();
+
+    delete latencyStopwatch_;
+    latencyStopwatch_ = nullptr;
 
     // These are already deleted by the pipeline so don't delete them twice
     frontReader_ = nullptr;

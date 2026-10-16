@@ -1,5 +1,6 @@
 #include "PubSubCommunicator.h"
 #include "MqttPublisher.h"
+#include "DdsPublisher.h"
 #include "FilePublisher.h"
 #include "Traffic/Entities/Car.h"
 #include "Traffic/Entities/Pedestrian.h"
@@ -15,9 +16,9 @@
 #include "Misc/Debug.h"
 #include "JsonObjectConverter.h"
 #include <format>
+#include <cmath>
 
-
-void UPubSubCommunicator::PublishBool(FString topic, bool value)
+/*void UPubSubCommunicator::PublishBool(FString topic, bool value)
 {
 	std::string valueAsString = value ? "true" : "false";
 
@@ -64,7 +65,7 @@ void UPubSubCommunicator::Publish4DVector(FString topic, FVector4 value)
 	std::string valueAsString = "[" + std::to_string(value.X) + ", " + std::to_string(value.Y) + ", " + std::to_string(value.Z) + ", " + std::to_string(value.W) + "]";
 
 	PublishInternal(topic, reinterpret_cast<uint8_t*>(valueAsString.data()), valueAsString.size());
-}
+}*/
 
 void UPubSubCommunicator::PublishTrafficEntity(FString topic, AActor* actor)
 {
@@ -111,9 +112,9 @@ void UPubSubCommunicator::PublishTrafficEntity(FString topic, AActor* actor)
 	};
 
 	Message.Vehicle.CurrentRotation = {
-		geoData.tangentRotation.Roll,
-		geoData.tangentRotation.Pitch,
-		geoData.tangentRotation.Yaw
+		geoData.tangentRotationDeg.Roll,
+		geoData.tangentRotationDeg.Pitch,
+		geoData.tangentRotationDeg.Yaw
 	};
 
 	Message.Vehicle.LinearVelocity = {
@@ -122,19 +123,27 @@ void UPubSubCommunicator::PublishTrafficEntity(FString topic, AActor* actor)
 		geoData.linearVelocityEnuMps.Z
 	};
 
+	Message.Vehicle.LinearAcceleration = {
+		geoData.linearAccelerationEnuMps2.X,
+		geoData.linearAccelerationEnuMps2.Y,
+		geoData.linearAccelerationEnuMps2.Z
+	};
+
 	Message.Vehicle.AngularVelocity = {
-		geoData.tangentAngularVelocity.Roll,
-		geoData.tangentAngularVelocity.Pitch,
-		geoData.tangentAngularVelocity.Yaw
+		geoData.tangentAngularVelocityDegs.Roll,
+		geoData.tangentAngularVelocityDegs.Pitch,
+		geoData.tangentAngularVelocityDegs.Yaw
+	};
+
+	Message.Vehicle.AngularAcceleration = {
+		geoData.tangentAngularAccelerationDegs2.Roll,
+		geoData.tangentAngularAccelerationDegs2.Pitch,
+		geoData.tangentAngularAccelerationDegs2.Yaw
 	};
 
 	lastPublishedEgoActor_ = actor;
 
-	FString JsonString;
-	FJsonObjectConverter::UStructToJsonObjectString(Message, JsonString);
-
-	std::string utf8 = TCHAR_TO_UTF8(*JsonString);
-	PublishInternal(topic, reinterpret_cast<uint8_t*>(utf8.data()), utf8.size());
+	PublishInternal(topic, Message.StaticStruct(), &Message);
 }
 
 void UPubSubCommunicator::PublishTrafficArray(FString topic, const TArray<AActor*>& trafficEntities)
@@ -162,6 +171,71 @@ void UPubSubCommunicator::PublishTrafficArray(FString topic, const TArray<AActor
 		EgoPos = lastPublishedEgoActor_->GetActorLocation();
 		EgoVel = lastPublishedEgoActor_->GetVelocity();
 	}
+
+	// Get a fake RSU position by rounding the ego vehicle's coordinates.
+	// This way, the data behaves as if there is a grid of evenly placed
+	// RSUs 100 meters from each other and all at an altitude of 150 m.
+	// The point of this is to simulate that the data is coming from RSUs
+	const double rsuDistanceMeters = 100.0;
+	const double rsuDistanceCentimeters = rsuDistanceMeters * 100.0;
+
+	FVector nearestRsuLocation = FVector(
+		std::round(EgoPos.X / rsuDistanceCentimeters) * rsuDistanceCentimeters,
+		std::round(EgoPos.Y / rsuDistanceCentimeters) * rsuDistanceCentimeters,
+		2200.0f);
+	FGeographicCoordinates nearestRsuCoordinates{};
+
+	if (geoRef_ == nullptr && (trafficEntities.Num() == 0 || !GeoUtility::TryGetGeoReferencingSystem(trafficEntities[0], geoRef_)))
+	{
+		return;
+	}
+
+	if (!GeoUtility::TryWorldToGeographic(geoRef_, nearestRsuLocation, nearestRsuCoordinates))
+	{
+		return;
+	}
+
+	FVector east = FVector::ZeroVector;
+	FVector north = FVector::ZeroVector;
+	FVector up = FVector::ZeroVector;
+
+	if (!GeoUtility::TryGetEnuBasisAtWorldLocation(geoRef_, nearestRsuLocation, east, north, up))
+	{
+		return;
+	}
+
+	FRotator rsuRotation = FRotator::ZeroRotator;
+
+	// Derive a unique ID for the RSU from its position. The +200000 is to ensure the numbers are not negative
+	std::string rsuIdFirstHalf = std::to_string(static_cast<int>(std::round((EgoPos.X + 200000) / rsuDistanceCentimeters)));
+
+	// Leading zeros
+	while (rsuIdFirstHalf.size() < 2)
+	{
+		rsuIdFirstHalf = "0" + rsuIdFirstHalf;
+	}
+
+	std::string rsuIdSecondHalf = std::to_string(static_cast<int>(std::round((EgoPos.Y + 200000) / rsuDistanceCentimeters)));
+
+	// Leading zeros
+	while (rsuIdSecondHalf.size() < 2)
+	{
+		rsuIdSecondHalf = "0" + rsuIdSecondHalf;
+	}
+
+	const std::string rsuId = rsuIdFirstHalf + rsuIdSecondHalf;
+
+	Message.RsuId = FString(rsuId.c_str());
+	Message.RsuLocation = {
+		nearestRsuCoordinates.Latitude,
+		nearestRsuCoordinates.Longitude,
+		nearestRsuCoordinates.Altitude
+	};
+	Message.RsuRotation = {
+		rsuRotation.Roll,
+		rsuRotation.Pitch,
+		rsuRotation.Yaw
+	};
 
 	for (AActor* actor : trafficEntities)
 	{
@@ -281,6 +355,23 @@ void UPubSubCommunicator::PublishTrafficArray(FString topic, const TArray<AActor
 			}
 		}
 
+		// Make sure the actor is within the RSU's radius
+		const double rsuDetectionRadiusMeters = rsuDistanceMeters * 1.5;
+		const double rsuDetectionRadiusCentimeters = rsuDetectionRadiusMeters * 100.0;
+		if ((FVector2D(worldLocation.X, worldLocation.Y) - FVector2D(nearestRsuLocation.X, nearestRsuLocation.Y)).SizeSquared()
+			> rsuDetectionRadiusCentimeters * rsuDetectionRadiusCentimeters)
+		{
+			continue;
+		}
+		
+		// UE coordinate space
+		FVector actorPosFromRsu = worldLocation - nearestRsuLocation;
+		// Real life coordinate space
+		actorPosFromRsu = FVector(
+			FVector::DotProduct(actorPosFromRsu, rsuRotation.UnrotateVector(east)),
+			FVector::DotProduct(actorPosFromRsu, rsuRotation.UnrotateVector(north)),
+			FVector::DotProduct(actorPosFromRsu, rsuRotation.UnrotateVector(up))) / 100.0;
+
 		GeoData geoData;
 
 		if (!GetGeoData(actor, worldLocation, unrealLinearVelocity, worldQuat, now, geoData))
@@ -326,10 +417,16 @@ void UPubSubCommunicator::PublishTrafficArray(FString topic, const TArray<AActor
 			geoData.geographicCoordinates.Altitude
 		};
 
+		Item.CurrentLocationFromRsu = {
+			actorPosFromRsu.X,
+			actorPosFromRsu.Y,
+			actorPosFromRsu.Z
+		};
+
 		Item.CurrentRotation = {
-			geoData.tangentRotation.Roll,
-			geoData.tangentRotation.Pitch,
-			geoData.tangentRotation.Yaw
+			geoData.tangentRotationDeg.Roll,
+			geoData.tangentRotationDeg.Pitch,
+			geoData.tangentRotationDeg.Yaw
 		};
 
 		Item.LinearVelocity = {
@@ -339,9 +436,9 @@ void UPubSubCommunicator::PublishTrafficArray(FString topic, const TArray<AActor
 		};
 
 		Item.AngularVelocity = {
-			geoData.tangentAngularVelocity.Roll,
-			geoData.tangentAngularVelocity.Pitch,
-			geoData.tangentAngularVelocity.Yaw
+			geoData.tangentAngularVelocityDegs.Roll,
+			geoData.tangentAngularVelocityDegs.Pitch,
+			geoData.tangentAngularVelocityDegs.Yaw
 		};
 
 		Message.Traffic.Add(Item);
@@ -365,13 +462,7 @@ void UPubSubCommunicator::PublishTrafficArray(FString topic, const TArray<AActor
 		++it;
 	}
 
-	FString JsonString;
-	FJsonObjectConverter::UStructToJsonObjectString(Message, JsonString);
-
-	std::string utf8 = TCHAR_TO_UTF8(*JsonString);
-	PublishInternal(topic,
-		reinterpret_cast<uint8_t*>(utf8.data()),
-		utf8.size());
+	PublishInternal(topic, Message.StaticStruct(), &Message);
 }
 
 void UPubSubCommunicator::StartMqttClient(FString serverUri, FString username, FString password, int maxMsgsPerSecond)
@@ -383,6 +474,16 @@ void UPubSubCommunicator::StartMqttClient(FString serverUri, FString username, F
 			TCHAR_TO_UTF8(*serverUri),
 			TCHAR_TO_UTF8(*username),
 			TCHAR_TO_UTF8(*password),
+			maxMsgsPerSecond));
+}
+
+void UPubSubCommunicator::StartDdsClient(int maxMsgsPerSecond)
+{
+	ApplyCommandLineParameters();
+
+	publisher_ = TSharedPtr<IPublisher>(
+		new DdsPublisher(
+			topicPrefix_,
 			maxMsgsPerSecond));
 }
 
@@ -404,6 +505,11 @@ void UPubSubCommunicator::StopAllClients()
 void UPubSubCommunicator::SetTopicPrefix(FString prefix)
 {
 	topicPrefix_ = std::string(TCHAR_TO_UTF8(*prefix));
+}
+
+FString UPubSubCommunicator::GetTopicPrefix()
+{
+	return FString(topicPrefix_.c_str());
 }
 
 void UPubSubCommunicator::SetPublishEgoVehicleData(bool value)
@@ -437,6 +543,16 @@ void UPubSubCommunicator::SetTrackedCameraForLineOfSightChecks(USceneCaptureComp
 	losTrackedCameraAspectRatio_ = aspectRatio;
 }
 
+bool UPubSubCommunicator::MqttAvailable()
+{
+	return Optional::PahoCppAvailable();
+}
+
+bool UPubSubCommunicator::DdsAvailable()
+{
+	return Optional::FastDdsAvailable();
+}
+
 bool UPubSubCommunicator::GetGeoData(
 	AActor* actor,
 	const FVector& ueLocation,
@@ -445,14 +561,12 @@ bool UPubSubCommunicator::GetGeoData(
 	const std::chrono::system_clock::time_point& now,
 	GeoData& geoData)
 {
-	AGeoReferencingSystem* geoRef = nullptr;
-
-	if (!GeoUtility::TryGetGeoReferencingSystem(actor, geoRef))
+	if (geoRef_ == nullptr && !GeoUtility::TryGetGeoReferencingSystem(actor, geoRef_))
 	{
 		return false;
 	}
 
-	if (!GeoUtility::TryWorldToGeographic(geoRef, ueLocation, geoData.geographicCoordinates))
+	if (!GeoUtility::TryWorldToGeographic(geoRef_, ueLocation, geoData.geographicCoordinates))
 	{
 		return false;
 	}
@@ -461,20 +575,25 @@ bool UPubSubCommunicator::GetGeoData(
 	FVector north = FVector::ZeroVector;
 	FVector up = FVector::ZeroVector;
 
-	if (!GeoUtility::TryGetEnuBasisAtWorldLocation(geoRef, ueLocation, east, north, up))
+	if (!GeoUtility::TryGetEnuBasisAtWorldLocation(geoRef_, ueLocation, east, north, up))
 	{
 		return false;
 	}
 
 	geoData.linearVelocityEnuMps = GeoUtility::WorldVelocityCmpsToEnuMps(ueVelocity, east, north, up);
-	geoData.tangentRotation = GeoUtility::WorldQuatToTangentRotatorYawNorth(ueRotation, east, north, up);
+	geoData.linearAccelerationEnuMps2 = FVector3d::ZeroVector;
+	geoData.tangentRotationDeg = GeoUtility::WorldQuatToTangentRotator(ueRotation, east, north, up);
+	geoData.tangentAngularVelocityDegs = FRotator::ZeroRotator;
+	geoData.tangentAngularAccelerationDegs2 = FRotator::ZeroRotator;
 
-	geoData.tangentAngularVelocity = FRotator::ZeroRotator;
 	auto lastPublishedData = lastPublishedTrafficEntityData_.find(actor);
 	if (lastPublishedData != lastPublishedTrafficEntityData_.end())
 	{
 		const double deltaSeconds = std::chrono::duration<double, std::ratio<1, 1>>(now - lastPublishedData->second.timestamp).count();
-		geoData.tangentAngularVelocity = GeoUtility::ComputeAngularVelocityDegPerSec(lastPublishedData->second.geoData.tangentRotation, geoData.tangentRotation, deltaSeconds);
+
+		geoData.linearAccelerationEnuMps2 = (geoData.linearVelocityEnuMps - lastPublishedData->second.geoData.linearVelocityEnuMps) / deltaSeconds;
+		geoData.tangentAngularVelocityDegs = GeoUtility::ComputeAngularVelocityDegPerSec(lastPublishedData->second.geoData.tangentRotationDeg, geoData.tangentRotationDeg, deltaSeconds);
+		geoData.tangentAngularAccelerationDegs2 = GeoUtility::ComputeAngularVelocityDegPerSec(lastPublishedData->second.geoData.tangentAngularVelocityDegs, geoData.tangentAngularVelocityDegs, deltaSeconds);
 	}
 
 	lastPublishedTrafficEntityData_[actor] = { now, geoData };
@@ -619,14 +738,14 @@ bool UPubSubCommunicator::CheckCollisionRisk(const FVector& EgoPos, const FVecto
 	return false;
 }
 
-void UPubSubCommunicator::PublishInternal(FString topic, uint8_t* data, const size_t& size)
+void UPubSubCommunicator::PublishInternal(FString topic, UStruct* structType, void* structData)
 {
 	if (publisher_ == nullptr)
 	{
 		return;
 	}
 
-	publisher_->Publish(topicPrefix_ + std::string(TCHAR_TO_UTF8(*topic)), data, size);
+	publisher_->Publish(topicPrefix_ + std::string(TCHAR_TO_UTF8(*topic)), structType, structData);
 }
 
 void UPubSubCommunicator::ApplyCommandLineParameters()

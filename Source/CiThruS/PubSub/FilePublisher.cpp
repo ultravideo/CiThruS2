@@ -1,4 +1,5 @@
 #include "FilePublisher.h"
+#include "JsonObjectConverter.h"
 
 #include <filesystem>
 #include <fstream>
@@ -29,12 +30,17 @@ FilePublisher::~FilePublisher()
 
 }
 
-void FilePublisher::Publish(const std::string& topic, uint8_t* data, const size_t& size)
+void FilePublisher::Publish(const std::string& topic, UStruct* structType, void* structData)
 {
-	if (topic.size() == 0 || !data || size == 0)
+	if (topic.size() == 0 || !structData)
 	{
 		return;
 	}
+
+	FString jsonString;
+	FJsonObjectConverter::UStructToJsonObjectString(structType, structData, jsonString);
+
+	std::string utf8 = TCHAR_TO_UTF8(*jsonString);
 
 	std::unique_lock<std::mutex> lock(clientMutex_);
 
@@ -66,7 +72,7 @@ void FilePublisher::Publish(const std::string& topic, uint8_t* data, const size_
 
 	std::ofstream stream(fullPath);
 
-	stream.write(reinterpret_cast<char*>(data), size);
+	stream.write(utf8.data(), utf8.size());
 
 	stream.close();
 

@@ -18,7 +18,7 @@ public:
 
 	virtual void Publish(
 		const std::string& topic,
-		uint8_t* data, const size_t& size) override;
+		UStruct* structType, void* structData) override;
 
 protected:
 	std::string directoryPath_;

@@ -17,6 +17,7 @@ class UTextureRenderTarget2D;
 class RenderTargetReaderWithUserData;
 class RenderTargetWriter;
 class AsyncPipelineRunner;
+class LoggingStopwatch;
 
 // Performs view synthesis
 UCLASS()
@@ -59,6 +60,9 @@ public:
 	bool saveToFile_ = false;
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General Stream Settings")
+	bool latencyTest_ = false;
+
+	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "General Stream Settings")
 	FString saveDirectory_ = FString(FPlatformProcess::UserDir()) + "CiThruS2/Recorded/";
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Kvazaar Settings")
@@ -75,6 +79,12 @@ public:
 
 	UPROPERTY(BlueprintReadWrite, EditAnywhere, Category = "Depth Settings")
 	TObjectPtr<UTextureRenderTarget2D> resultRenderTarget_ = nullptr;
+
+	UFUNCTION(BlueprintCallable)
+	bool StreamingAvailable();
+
+	UFUNCTION(BlueprintCallable)
+	bool SavingAvailable();
 
 protected:
 	struct ViewSynthCameraParams
@@ -106,6 +116,8 @@ protected:
 	RenderTargetWriter* resultWriter_;
 
 	std::vector<AsyncPipelineRunner*> runners_;
+
+	LoggingStopwatch* latencyStopwatch_;
 
 	uint32_t frameNumber_;
 	uint64_t startTimestampMs_;

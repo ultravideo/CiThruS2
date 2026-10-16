@@ -1,5 +1,6 @@
 #include "MqttPublisher.h"
 #include "Misc/Debug.h"
+#include "JsonObjectConverter.h"
 
 MqttPublisher::MqttPublisher(
 	const std::string& serverUri,
@@ -118,12 +119,12 @@ MqttPublisher::~MqttPublisher()
 #endif // CITHRUS_PAHOCPP_AVAILABLE
 }
 
-void MqttPublisher::Publish(const std::string& topic, uint8_t* data, const size_t& size)
+void MqttPublisher::Publish(const std::string& topic, UStruct* structType, void* structData)
 {
-	if (topic.size() == 0 || !data || size == 0)
-	{
-		return;
-	}
+	FString jsonString;
+	FJsonObjectConverter::UStructToJsonObjectString(structType, structData, jsonString);
+
+	std::string utf8 = TCHAR_TO_UTF8(*jsonString);
 
 #ifdef CITHRUS_PAHOCPP_AVAILABLE
 	std::unique_lock<std::mutex> lock(clientMutex_);
@@ -150,7 +151,7 @@ void MqttPublisher::Publish(const std::string& topic, uint8_t* data, const size_
 
 	try
 	{
-		topicWrapper.topic->publish(data, size);
+		topicWrapper.topic->publish(utf8.data(), utf8.size());
 	}
 	catch (mqtt::exception exception)
 	{

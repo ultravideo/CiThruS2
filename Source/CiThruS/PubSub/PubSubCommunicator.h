@@ -13,6 +13,7 @@
 class IPublisher;
 class USceneCaptureComponent2D;
 class UCameraComponent;
+class AGeoReferencingSystem;
 
 UCLASS()
 class CITHRUS_API UPubSubCommunicator : public UObject
@@ -20,7 +21,7 @@ class CITHRUS_API UPubSubCommunicator : public UObject
 	GENERATED_BODY()
 
 public:
-	UFUNCTION(BlueprintCallable)
+	/*UFUNCTION(BlueprintCallable)
 	static void PublishBool(FString topic, bool value);
 
 	UFUNCTION(BlueprintCallable)
@@ -39,7 +40,7 @@ public:
 	static void Publish3DVector(FString topic, FVector value);
 
 	UFUNCTION(BlueprintCallable)
-	static void Publish4DVector(FString topic, FVector4 value);
+	static void Publish4DVector(FString topic, FVector4 value);*/
 
 	UFUNCTION(BlueprintCallable)
 	static void PublishTrafficEntity(FString topic, AActor* trafficEntity);
@@ -51,6 +52,9 @@ public:
 	static void StartMqttClient(FString serverUri, FString username, FString password, int maxMsgsPerSecond);
 
 	UFUNCTION(BlueprintCallable)
+	static void StartDdsClient(int maxMsgsPerSecond);
+
+	UFUNCTION(BlueprintCallable)
 	static void StartFileSaveClient(FString directoryPath, int maxMsgsPerSecond);
 
 	UFUNCTION(BlueprintCallable)
@@ -58,6 +62,9 @@ public:
 
 	UFUNCTION(BlueprintCallable)
 	static void SetTopicPrefix(FString prefix);
+
+	UFUNCTION(BlueprintCallable)
+	static FString GetTopicPrefix();
 
 	UFUNCTION(BlueprintCallable)
 	static void SetPublishEgoVehicleData(bool value);
@@ -80,13 +87,21 @@ public:
 	UFUNCTION(BlueprintCallable)
 	static FString GetDefaultSaveDirectory() { return FString(FPlatformProcess::UserDir()) + "CiThruS2/Published/"; }
 
+	UFUNCTION(BlueprintCallable)
+	static bool MqttAvailable();
+
+	UFUNCTION(BlueprintCallable)
+	static bool DdsAvailable();
+
 private:
 	struct GeoData
 	{
 		FGeographicCoordinates geographicCoordinates;
 		FVector3d linearVelocityEnuMps;
-		FRotator tangentRotation;
-		FRotator tangentAngularVelocity;
+		FVector3d linearAccelerationEnuMps2;
+		FRotator tangentRotationDeg;
+		FRotator tangentAngularVelocityDegs;
+		FRotator tangentAngularAccelerationDegs2;
 	};
 
 	struct TrafficEntityData
@@ -121,6 +136,7 @@ private:
 	inline static uint64_t lastUsedTrafficEntityId_ = 0;
 	inline static std::unordered_map<AActor*, TrafficEntityData> lastPublishedTrafficEntityData_;
 	inline static AActor* lastPublishedEgoActor_ = nullptr;
+	inline static AGeoReferencingSystem* geoRef_ = nullptr;
 
 	static bool GetGeoData(
 		AActor* actor,
@@ -142,7 +158,7 @@ private:
 		float MaxPredictionTime,
 		FTrafficCollisionResult& OutResult);
 
-	static void PublishInternal(FString topic, uint8_t* data, const size_t& size);
+	static void PublishInternal(FString topic, UStruct* structType, void* structData);
 
 	static void ApplyCommandLineParameters();
 };
@@ -222,7 +238,13 @@ struct FEgoVehicle
 	FTrafficVelocity LinearVelocity;
 
 	UPROPERTY()
+	FTrafficVelocity LinearAcceleration;
+
+	UPROPERTY()
 	FTrafficRotation AngularVelocity;
+
+	UPROPERTY()
+	FTrafficRotation AngularAcceleration;
 };
 
 USTRUCT()
@@ -258,6 +280,9 @@ struct FTrafficItemMessage
 	FTrafficLocation CurrentLocation;
 
 	UPROPERTY()
+	FVector CurrentLocationFromRsu;
+
+	UPROPERTY()
 	FTrafficRotation CurrentRotation;
 
 	UPROPERTY()
@@ -274,6 +299,13 @@ USTRUCT()
 struct FTrafficArrayMessage
 {
 	GENERATED_BODY()
+
+	UPROPERTY()
+	FString RsuId;
+	UPROPERTY()
+	FTrafficLocation RsuLocation;
+	UPROPERTY()
+	FTrafficRotation RsuRotation;
 
 	UPROPERTY()
 	FString Timestamp;
