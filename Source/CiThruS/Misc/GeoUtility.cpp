@@ -80,7 +80,7 @@ FVector3d GeoUtility::WorldVelocityCmpsToEnuMps(
 		WorldVelocityMps | UpNorm);
 }
 
-FRotator GeoUtility::WorldQuatToTangentRotatorYawNorth(
+FRotator GeoUtility::WorldQuatToTangentRotator(
 	const FQuat& WorldQuat,
 	const FVector& East,
 	const FVector& North,
@@ -99,15 +99,14 @@ FRotator GeoUtility::WorldQuatToTangentRotatorYawNorth(
 	const FVector ForwardWorld = NormalizedWorldQuat.RotateVector(FVector::ForwardVector);
 	const FVector UpWorld = NormalizedWorldQuat.RotateVector(FVector::UpVector);
 
-	// Tangent frame is defined as X=North, Y=East, Z=Up to enforce yaw zero at North.
 	FVector ForwardTangent(
-		FVector::DotProduct(ForwardWorld, NorthNorm),
 		FVector::DotProduct(ForwardWorld, EastNorm),
+		FVector::DotProduct(ForwardWorld, NorthNorm),
 		FVector::DotProduct(ForwardWorld, UpNorm));
 
 	FVector UpTangent(
-		FVector::DotProduct(UpWorld, NorthNorm),
 		FVector::DotProduct(UpWorld, EastNorm),
+		FVector::DotProduct(UpWorld, NorthNorm),
 		FVector::DotProduct(UpWorld, UpNorm));
 
 	ForwardTangent = ForwardTangent.GetSafeNormal();
@@ -118,7 +117,7 @@ FRotator GeoUtility::WorldQuatToTangentRotatorYawNorth(
 		return FRotator::ZeroRotator;
 	}
 
-	FRotator Result = FRotationMatrix::MakeFromXZ(ForwardTangent, UpTangent).Rotator();
+	FRotator Result = FRotationMatrix::MakeFromYZ(ForwardTangent, UpTangent).Rotator();
 	Result.Normalize();
 	return Result;
 }

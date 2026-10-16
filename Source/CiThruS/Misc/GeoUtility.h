@@ -22,7 +22,7 @@ namespace GeoUtility
 		const FVector& North,
 		const FVector& Up);
 
-	FRotator WorldQuatToTangentRotatorYawNorth(
+	FRotator WorldQuatToTangentRotator(
 		const FQuat& WorldQuat,
 		const FVector& East,
 		const FVector& North,
